@@ -16,9 +16,6 @@ package main
 //    The encoding is simply 16 bits: top bit represents sign (0 positive, 1 negative),
 //    and the remaining 15 bits represent the magnitude. See jfaDecodeAxisOffsetToSeed
 //    and jfaEncodeAxisOffsetToSeed for the actual code.
-// Due to this encoding, the algorithm supports a max distinguishable seed offset of +/-32511.
-// This also means the largest jump worth starting at is 16384 (meaning 1 + log2(16384) = 15
-// passes) (successive passes can find offsets > 16384, up to the next pow2 - 1)
 
 func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	pix := imageSrc0At(sourceCoords)

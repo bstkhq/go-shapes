@@ -1,11 +1,16 @@
 package shapes
 
 import (
+	"image"
 	"image/color"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
+
+// AAMargin is the standard antialias margin or soft edge value
+// recommended for operations that accept it explicitly.
+const AAMargin = 1.333
 
 // Renderer is a helper type for basic shape rendering which
 // reuses vertices and options for slightly reduced memory usage.
@@ -143,15 +148,9 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, sc
 // The offscreens returned by this function should only be used for local operations, and
 // the offscreen must not be stored. Any renderer function documented to use an internal
 // offscreen can panic or fail in any other way if an offscreen returned by this function
-// if passed as an input parameter.
-func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int) *ebiten.Image {
-	return r.getTemp(offscreenIndex, w, h, false)
-}
-
-// UnsafeTempClear behaves like UnsafeTemp but returns a cleared image, including 1
-// extra pixel of clear padding to prevent problems with bleeding edges.
-func (r *Renderer) UnsafeTempClear(offscreenIndex int, w, h int) *ebiten.Image {
-	return r.getTemp(offscreenIndex, w, h, true)
+// is passed as an input parameter.
+func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.Image {
+	return r.getTemp(offscreenIndex, w, h, clear)
 }
 
 // UnsafeTempCopy calls [Renderer.UnsafeTemp]() and copies the contents of source into
@@ -164,6 +163,30 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clea
 	opts.Blend = ebiten.BlendCopy
 	temp.DrawImage(source, &opts)
 	return temp
+}
+
+// UnsafeTempDual calls [Renderer.UnsafeTemp](), copies the contents of source into the
+// specified offscreen, and returns both this copy and an extra image of the same size
+// on the same offscreen. This function is highly specific and meant to prepare images
+// for shaders that use two source images: an original source and variant or mask for it.
+//
+// See safety warnings and docs for UnsafeTemp.
+func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
+	_, _, w, h := rectOriginSize(source.Bounds())
+	ox, oy := 0, 0
+	if h <= w {
+		oy = h
+	} else {
+		ox = w
+	}
+	temp := r.getTemp(offscreenIndex, ox+w, oy+h, clear)
+	var opts ebiten.DrawImageOptions
+	opts.Blend = ebiten.BlendCopy
+	temp.DrawImage(source, &opts)
+
+	sourceTemp = temp.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
+	variantTemp = temp.SubImage(image.Rect(ox, oy, ox+w, oy+h)).(*ebiten.Image)
+	return sourceTemp, variantTemp
 }
 
 func (r *Renderer) setDstRectCoords(minX, minY, maxX, maxY float32) {

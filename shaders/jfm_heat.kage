@@ -9,7 +9,7 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	seedDist := length(vec2(seedOffset))
 	maxDist := customVAs[0]
 	r := max(maxDist-seedDist, 0) / maxDist
-	return heatmap(1.0 - r)
+	return heatmap(r)
 }
 
 func heatmap(t float) vec4 {

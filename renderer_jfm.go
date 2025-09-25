@@ -2,111 +2,75 @@ package shapes
 
 import (
 	"fmt"
-	"image"
 	"math"
 	"math/bits"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-type JFMInitMode uint8
-
-const (
-	// JFMBoundary initialization mode places the seeds on the
-	// boundary pixels of the image.
-	JFMBoundary JFMInitMode = iota
-
-	// JFMPixel initialization mode places the seeds on any pixel
-	// within the specified alpha range.
-	JFMPixel
-)
-
-// AAMargin is the standard antialias margin or soft edge value
-// recommended for operations that accept it explicitly.
-const AAMargin = 1.333
-
-// JFMCompute computes a jumping flood map of the given source and stores it
-// into jfmap. source and jfmap must have the same dimensions. jfmap doesn't
-// need to be cleared before computation.
+// JFMapCompute computes a jumping flood map from the given seeds and
+// stores it in jfmap.
 //
-// A jumping flood map encodes offsets to nearest seeds, which are determined
-// by the given [JFMInitMode], selected within the given [minAlpha, maxAlpha]
-// range (inclusive). Jumping flood maps can be used to speed up morphological
-// operations on solid shapes like outlining, expansion and erosion. Internal
-// encoding details are documented in jfm_pass.kage.
+// A jumping flood map encodes offsets to nearest seeds, which allows
+// computing precise distances and can make large radius morphological
+// operations like outlining, expansion and erosion viable.
 //
-// The function panics if maxDistance <= 0, maxDistance > 32k, source size != jfmap
-// size, minAlpha > maxAlpha, minAlpha < 0, maxAlpha > 1 or an invalid initMode is
-// given.
+// Jumping flood map internal encoding details are documented in shaders/jfm_pass.kage.
 //
-// For minAlpha, if you want to make the value exclusive, a typically safe epsilon
-// is 0.001. E.g., to select (0.5, 1.0], use minAlpha = 0.5 + 0.001, maxAlpha = 1.0.
+// Seed pixels in 'seeds' must be marked as trasparent vec4(0); all other
+// pixels must be pure white. maxDistance acts as the cutoff distance for the
+// algorithm, leaving pixels beyond it as pure white. maxDistance must be in
+// [0, 32000] (inclusive). Higher maxDistance values require more iterations
+// of the algorithm, up to a maximum of 16.
 //
-// This function uses one internal offscreen (#0), and jfmap and source can be on
-// the same internal atlas.
-func (r *Renderer) JFMCompute(jfmap, source *ebiten.Image, initMode JFMInitMode, maxDistance int, minAlpha, maxAlpha float32) {
+// This function uses one internal offscreen (#0). seeds can be on #0 if
+// the image being overwritten is not a concern. jfmap is always overwritten
+// and doesn't need to be cleared before operation.
+//
+// This is a low-level operation; most users should use [Renderer.JFMapFill]()
+// or [Renderer.JFMapBoundary]() instead.
+func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	// safety assertions
-	if maxDistance <= 0 {
-		panic("maxDistance <= 0")
+	if maxDistance < 0 {
+		panic("maxDistance < 0")
 	}
 	if maxDistance > 32000 { // up to 32766 should be technically distinguishable
 		panic("maxDistance > 32000")
 	}
-	if minAlpha < 0 {
-		panic("minAlpha < 0")
-	}
-	if maxAlpha > 1 {
-		panic("maxAlpha > 1")
-	}
-	if minAlpha > maxAlpha {
-		panic("minAlpha > maxAlpha")
-	}
 
-	sbounds := source.Bounds()
+	sbounds := seeds.Bounds()
 	tbounds := jfmap.Bounds()
 	sw, sh := sbounds.Dx(), sbounds.Dy()
 	tw, th := tbounds.Dx(), tbounds.Dy()
 	if sw != tw || sh != th {
-		panic(fmt.Sprintf("source size != jfmap size (%dx%d != %dx%d)", sw, sh, tw, th))
+		panic(fmt.Sprintf("seeds size != jfmap size (%dx%d != %dx%d)", sw, sh, tw, th))
 	}
 
+	// base case
+	if maxDistance == 0 {
+		var opts ebiten.DrawImageOptions
+		opts.Blend = ebiten.BlendCopy
+		jfmap.DrawImage(seeds, &opts)
+		return
+	}
+
+	// we use 1+JFA, so the first pass uses jump size = 1
 	ensureShaderJFMPassLoaded()
-	var initShader *ebiten.Shader
-	switch initMode {
-	case JFMBoundary:
-		ensureShaderJFMInitBoundaryLoaded()
-		initShader = shaderJFMInitBoundary
-	case JFMPixel:
-		ensureShaderJFMInitFillLoaded()
-		initShader = shaderJFMInitFill
-	default:
-		panic(initMode) // invalid JFMInitMode
-	}
-	r.setFlatCustomVAs01(minAlpha, maxAlpha)
-
-	// init
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	temp := r.getTemp(0, sw, sh, false)
 
 	dstOX, dstOY := float32(tbounds.Min.X), float32(tbounds.Min.Y)
 	w, h := float32(sw), float32(sh)
 	mapCoords := [2][4]float32{{dstOX, dstOY, dstOX + w, dstOY + h}, {0, 0, w, h}}
-	r.setDstRectCoords(0, 0, w, h) // dst is 'temp' for the initialization
-	srcOX, srcOY := float32(sbounds.Min.X), float32(sbounds.Min.Y)
-	r.setSrcRectCoords(srcOX, srcOY, srcOX+w, srcOY+h)
-	r.opts.Images[0] = source
-	temp.DrawTrianglesShader(r.vertices[:], r.indices[:], initShader, &r.opts)
-
-	// we use 1+JFA, so the first pass uses jump size = 1
 	r.setFlatCustomVAs01(1.0, float32(maxDistance))
-	r.opts.Images[0] = temp
+	r.opts.Images[0] = seeds
 	r.setDstRectCoords(mapCoords[0][0], mapCoords[0][1], mapCoords[0][2], mapCoords[0][3])
 	r.setSrcRectCoords(mapCoords[1][0], mapCoords[1][1], mapCoords[1][2], mapCoords[1][3])
 	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass, &r.opts)
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
+	temp := r.getTemp(0, sw, sh, false)
 	jumpSize := 1 << (15 - bits.LeadingZeros16(uint16(maxDistance)))
 	maps := [2]*ebiten.Image{jfmap, temp}
 	mapIndex := 1
@@ -133,39 +97,106 @@ func (r *Renderer) JFMCompute(jfmap, source *ebiten.Image, initMode JFMInitMode,
 	r.opts.Images[0] = nil
 }
 
-// JFMHeat is a debug and utility method to draw a heatmap for jfmap into the given target,
-// using 0 and maxDistance as reference distances for "hot" and "cold".
-func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance int) {
-	ensureShaderJFMHeatLoaded()
-	r.setFlatCustomVA0(float32(maxDistance))
-	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat)
+// JFMapFill computes a jumping flood map of the given source image
+// and stores it in jfmap.
+//
+// Preconditions (panics if violated):
+//   - source and jfmap must have the same size
+//   - 0 <= maxDistance <= 32k
+//   - 0.0 <= minAlpha <= maxAlpha <= 1.0
+//
+// Parameters:
+//   - minAlpha, maxAlpha: inclusive range defining the area inside the boundary.
+//     For exclusive bounds, shift by +/-0.001.
+//
+// This function uses one internal offscreen (#0); neither source nor jfmap can use it,
+// but they can share internal atlas otherwise. jfmap doesn't need to be cleared before
+// operation.
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
+func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32) {
+	if minAlpha < 0 {
+		panic("minAlpha < 0")
+	}
+	if maxAlpha > 1 {
+		panic("maxAlpha > 1")
+	}
+	if minAlpha > maxAlpha {
+		panic("minAlpha > maxAlpha")
+	}
+
+	ensureShaderJFMInitFillLoaded()
+	r.setFlatCustomVAs01(minAlpha, maxAlpha)
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill)
 }
 
-// JFMComputeUnsafeTemp is a utility method that puts both source and a newly generated jumping flood map into
-// the given internal offscreen, returning references to the new images. This uses [Renderer.JFMCompute]()
-// internally, so the internal offscreen index can't be #0 and all the derived parameter conditions apply.
+// JFMapBoundary computes a jumping flood map of the given source image
+// and stores it in jfmap.
 //
-// For details on internal renderer offscreens, please see [Renderer.UnsafeTemp]().
-func (r *Renderer) JFMComputeUnsafeTemp(offscreenIndex int, source *ebiten.Image, initMode JFMInitMode, maxDistance int, minAlpha, maxAlpha float32) (sourceTemp, jfmapTemp *ebiten.Image) {
-	if offscreenIndex == 0 {
-		panic("JFMComputeTemp expects an offscreenIndex > 0; #0 is already used by JFMCompute")
+// Preconditions (panics if violated):
+//   - source and jfmap must have the same size
+//   - 0 <= maxDistance <= 32k
+//   - 0.0 <= minAlpha <= maxAlpha <= 1.0
+//
+// Parameters:
+//   - minAlpha, maxAlpha: inclusive range defining the area inside the boundary.
+//     For exclusive bounds, shift by +/-0.001.
+//   - outer: if false, the boundary is marked at the last pixel inside the
+//     (minAlpha, maxAlpha) region; if true, at the first pixel outside it.
+//   - extendEdges: if false, out-of-bounds pixels are treated as zero (vec4(0));
+//     if true, the nearest edge pixel is repeated.
+//
+// This function uses one internal offscreen (#0); neither source nor jfmap can use it,
+// but they can share internal atlas otherwise. jfmap doesn't need to be cleared before
+// operation.
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
+func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32, outer bool, extendEdges bool) {
+	if minAlpha < 0 {
+		panic("minAlpha < 0")
 	}
-	_, _, w, h := rectOriginSize(source.Bounds())
-	ox, oy := 0, 0
-	if h <= w {
-		oy = h
-	} else {
-		ox = w
+	if maxAlpha > 1 {
+		panic("maxAlpha > 1")
 	}
-	temp := r.getTemp(offscreenIndex, ox+w, oy+h, false)
-	var opts ebiten.DrawImageOptions
-	opts.Blend = ebiten.BlendCopy
-	temp.DrawImage(source, &opts)
+	if minAlpha > maxAlpha {
+		panic("minAlpha > maxAlpha")
+	}
 
-	sourceTemp = temp.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
-	jfmapTemp = temp.SubImage(image.Rect(ox, oy, ox+w, oy+h)).(*ebiten.Image)
-	r.JFMCompute(jfmapTemp, sourceTemp, initMode, maxDistance, minAlpha, maxAlpha)
-	return sourceTemp, jfmapTemp
+	ensureShaderJFMInitBoundaryLoaded()
+	boolToF32 := func(b bool) float32 {
+		if b {
+			return 1.0
+		}
+		return 0.0
+	}
+	r.setFlatCustomVAs(minAlpha, maxAlpha, boolToF32(outer), boolToF32(extendEdges))
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary)
+}
+
+// helper for JFMapFill and JFMapBoundary. init shader vertex attributes must have already
+// been set. uses unsafe offscreen #0.
+func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initShader *ebiten.Shader) {
+	ox, oy, sw, sh := rectOriginSizeF32(source.Bounds())
+	seeds := r.getTemp(0, int(sw), int(sh), false)
+	r.setDstRectCoords(0, 0, sw, sh)
+	r.setSrcRectCoords(ox, oy, ox+sw, oy+sh)
+
+	memoBlend := r.opts.Blend
+	r.opts.Blend = ebiten.BlendCopy
+	r.opts.Images[0] = source
+	seeds.DrawTrianglesShader(r.vertices[:], r.indices[:], initShader, &r.opts)
+	r.opts.Blend = memoBlend
+
+	r.JFMapCompute(jfmap, seeds, maxDistance)
+}
+
+// JFMHeat is a debug and utility method to draw a heatmap for jfmap into the given target,
+// using 0 and maxDistance as reference distances for "hot" and "cold". The seeds of a
+// jfmap can be visualized by setting maxDistance to a positive value below 1 (e.g. 0.1).
+func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance float32) {
+	ensureShaderJFMHeatLoaded()
+	r.setFlatCustomVA0(maxDistance)
+	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat)
 }
 
 // JFMExpand performs morphological expansion. Thickness must be in [0, 32k].
@@ -187,8 +218,9 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickn
 	}
 
 	if jfmap == nil {
-		jfmapMaxDist := max(int(math.Ceil(float64(thickness))), 1)
-		source, jfmap = r.JFMComputeUnsafeTemp(1, source, JFMPixel, jfmapMaxDist, 0.001, 1.0)
+		jfmapMaxDist := int(math.Ceil(float64(thickness + 1)))
+		source, jfmap = r.UnsafeTempDual(1, source, false)
+		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.001, 1.0)
 	}
 
 	ensureShaderJFMExpansionLoaded()
@@ -213,8 +245,9 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, radius,
 	}
 
 	if jfmap == nil {
-		jfmapMaxDist := max(int(math.Ceil(float64(radius))), 1)
-		source, jfmap = r.JFMComputeUnsafeTemp(1, source, JFMPixel, jfmapMaxDist, 0.0, 0.0)
+		jfmapMaxDist := int(math.Ceil(float64(radius)))
+		source, jfmap = r.UnsafeTempDual(1, source, false)
+		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.0)
 	}
 
 	ensureShaderJFMErosionLoaded()
