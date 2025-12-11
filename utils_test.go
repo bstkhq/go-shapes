@@ -94,8 +94,8 @@ func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*eb
 
 func (app *TestApp) Update() error {
 	app.Ticks += 1
-	left := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-	right := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight)
+	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
 	if left || right {
 		x, y := ebiten.CursorPosition()
 		if left {
