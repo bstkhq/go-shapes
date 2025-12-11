@@ -13,7 +13,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 
 func GetSource0ClampCoords(clamping int) (vec2, vec2) {
 	const unclampedMin, unclampedMax = -16384.0, +16384.0
-	const epsilon = 1.0 / 16384.0
+	const epsilon = 0.001
 	const clampBits = 0b1111
 	const clampTopBit, clampBottomBit = 0b1000, 0b0100
 	const clampLeftBit, clampRightBit = 0b0010, 0b0001
