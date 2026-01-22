@@ -31,7 +31,10 @@ func newOffscreen(maxWidth, maxHeight, extraMargin int) offscreen {
 	}
 }
 
-func (off *offscreen) WithSize(w, h int, clear bool) *ebiten.Image {
+// the returned bool indicates whether the offscreen is clear or not.
+// if clear is requested, then this will always be true. if clear is not
+// requested, this sometimes can still be true.
+func (off *offscreen) WithSize(w, h int, clear bool) (*ebiten.Image, bool) {
 	hasSizeLimits := (off.maxWidth > 0)
 	if hasSizeLimits && (w > off.maxWidth || h > off.maxHeight) {
 		panic(fmt.Sprintf("requested offscreen of size %dx%d, but maxWidth/maxHeight are %dx%d", w, h, off.maxWidth, off.maxHeight))
@@ -45,7 +48,7 @@ func (off *offscreen) WithSize(w, h int, clear bool) *ebiten.Image {
 	if off.image == nil {
 		off.parent = newUnmanagedImage(nw, nh)
 		off.image = off.parent.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
-		return off.image
+		return off.image, true
 	}
 
 	bounds := off.image.Bounds()
@@ -53,7 +56,7 @@ func (off *offscreen) WithSize(w, h int, clear bool) *ebiten.Image {
 		if clear {
 			off.clearParentFor(w, h)
 		}
-		return off.image
+		return off.image, clear
 	}
 
 	bounds = off.parent.Bounds()
@@ -64,10 +67,14 @@ func (off *offscreen) WithSize(w, h int, clear bool) *ebiten.Image {
 		}
 		off.image = off.parent.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
 	} else {
+		if off.parent != nil {
+			off.parent.Deallocate()
+		}
 		off.parent = newUnmanagedImage(max(nw, currWidth), max(nh, currHeight))
 		off.image = off.parent.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
+		clear = true
 	}
-	return off.image
+	return off.image, clear
 }
 
 func (off *offscreen) clearParentFor(w, h int) {

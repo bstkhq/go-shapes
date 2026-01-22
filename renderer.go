@@ -1,12 +1,16 @@
 package shapes
 
 import (
+	"embed"
 	"image"
 	"image/color"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
+
+//go:embed assets
+var assets embed.FS
 
 // AAMargin is the standard antialias margin or soft edge value
 // recommended for operations that accept it explicitly.
@@ -22,7 +26,8 @@ type Renderer struct {
 	singleClr     bool
 	strokeIndices []uint16
 
-	temps []offscreen
+	temps          []offscreen
+	blueNoise64RGB *ebiten.Image
 }
 
 func NewRenderer() *Renderer {
@@ -150,7 +155,8 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, sc
 // offscreen can panic or fail in any other way if an offscreen returned by this function
 // is passed as an input parameter.
 func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.Image {
-	return r.getTemp(offscreenIndex, w, h, clear)
+	temp, _ := r.getTemp(offscreenIndex, w, h, clear)
+	return temp
 }
 
 // UnsafeTempCopy calls [Renderer.UnsafeTemp]() and copies the contents of source into
@@ -158,7 +164,7 @@ func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.
 // argument allows specifying whether a 1 pixel clear margin is required or not.
 func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clear bool) *ebiten.Image {
 	bounds := source.Bounds()
-	temp := r.getTemp(offscreenIndex, bounds.Dx(), bounds.Dy(), clear)
+	temp, _ := r.getTemp(offscreenIndex, bounds.Dx(), bounds.Dy(), clear)
 	var opts ebiten.DrawImageOptions
 	opts.Blend = ebiten.BlendCopy
 	temp.DrawImage(source, &opts)
@@ -170,22 +176,38 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clea
 // on the same offscreen. This function is highly specific and meant to prepare images
 // for shaders that use two source images: an original source and variant or mask for it.
 //
+// If any padding is given, the padding is always cleared.
+//
 // See safety warnings and docs for UnsafeTemp.
-func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
+func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padding int, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
+	if padding < 0 {
+		panic("negative padding")
+	}
+
 	_, _, w, h := rectOriginSize(source.Bounds())
 	ox, oy := 0, 0
+	pw, ph := w+padding*2, h+padding*2
 	if h <= w {
-		oy = h
+		oy = ph
 	} else {
-		ox = w
+		ox = pw
 	}
-	temp := r.getTemp(offscreenIndex, ox+w, oy+h, clear)
+	temp, clear := r.getTemp(offscreenIndex, ox+pw, oy+ph, clear)
+	if padding > 0 && !clear {
+		memoBlend := r.opts.Blend
+		r.opts.Blend = ebiten.BlendClear
+		r.StrokeIntArea(temp, 0, 0, pw, ph, 0, padding)
+		r.opts.Blend = memoBlend
+	}
 	var opts ebiten.DrawImageOptions
 	opts.Blend = ebiten.BlendCopy
+	if padding > 0 {
+		opts.GeoM.Translate(float64(padding), float64(padding))
+	}
 	temp.DrawImage(source, &opts)
 
-	sourceTemp = temp.SubImage(image.Rect(0, 0, w, h)).(*ebiten.Image)
-	variantTemp = temp.SubImage(image.Rect(ox, oy, ox+w, oy+h)).(*ebiten.Image)
+	sourceTemp = temp.SubImage(image.Rect(0, 0, pw, ph)).(*ebiten.Image)
+	variantTemp = temp.SubImage(image.Rect(ox, oy, ox+pw, oy+ph)).(*ebiten.Image)
 	return sourceTemp, variantTemp
 }
 
@@ -251,7 +273,10 @@ func (r *Renderer) SetCustomVAs(vas ...float32) {
 	}
 }
 
-func (r *Renderer) getTemp(offscreenIndex int, w, h int, clear bool) *ebiten.Image {
+// the returned bool indicates whether the returned offscreen is clear
+// (this will always be true if clear was requested, but can be true in
+// some cases even if clear is not requested)
+func (r *Renderer) getTemp(offscreenIndex int, w, h int, clear bool) (*ebiten.Image, bool) {
 	if offscreenIndex >= len(r.temps) {
 		growth := offscreenIndex + 1 - len(r.temps)
 		r.temps = slices.Grow(r.temps, growth)
