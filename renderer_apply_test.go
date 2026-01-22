@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -17,10 +18,11 @@ func TestApplyExpansion(t *testing.T) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+expansion/2.0+1.0)
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, expansion)
+		ctx.Renderer.SetColor(color.RGBA{0, 128, 128, 255})
+		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+expansion)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		x := float32(ctx.DistAnim(float64(expansion), 1.0))
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
@@ -44,11 +46,15 @@ func TestApplyExpansionRect(t *testing.T) {
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lx-Radius, ly-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lx-Radius-Expansion, ly-Radius-Expansion)
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rx-Radius, ry-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rx-Radius-Expansion, ry-Radius-Expansion)
 	})
 	img1 := app.Renderer.NewRect(int(Radius*2), int(Radius*2))
+	img4 := app.Renderer.NewRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
 	img2 := app.Renderer.NewCircle(float64(Radius))
-	app.Images = append(app.Images, img1, img2)
+	img3 := app.Renderer.NewCircle(float64(Radius + Expansion))
+	app.Images = append(app.Images, img1, img2, img3, img4)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +62,7 @@ func TestApplyExpansionRect(t *testing.T) {
 
 // go test -run ^TestApplyErosion$ . -count 1
 func TestApplyErosion(t *testing.T) {
-	radius := float32(64.0)
+	radius := float32(96.0)
 	erosion := float32(16.0)
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -66,12 +72,21 @@ func TestApplyErosion(t *testing.T) {
 		ctx.Renderer.DrawCircle(canvas, lx, ly, radius)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius-erosion/2+1.0)
+		ctx.Renderer.DrawCircle(canvas, lx, ly, radius-erosion)
 
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], lx-radius, ly-radius, erosion)
+		r := float32(ctx.DistAnim(float64(erosion), 1.0))
+		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
+		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+
+		rx, ry := ctx.RightClickF32()
+		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
+		ctx.Renderer.ApplyErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
 	})
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+
+	circle := app.Renderer.NewCircle(float64(radius))
+	triangle := ebiten.NewImage(256, 164)
+	app.Renderer.StrokeTriangle(triangle, 16, 16, 256-16, 16, 16, 164-16, float64(erosion)*2, 0)
+	app.Images = append(app.Images, circle, triangle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -110,13 +125,16 @@ func TestApplyOutline(t *testing.T) {
 // go test -run ^TestApplyBlur$ . -count 1
 func TestApplyBlur(t *testing.T) {
 	radius := float32(64.0)
-	fxRadius := float32(32.0)
+	fxRadius := float32(16.0)
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(color.RGBA{0, 0, 255, 255})
 
 		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetColorF32(0, 0, 0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, fxRadius, 1.0)
+		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius, 1.0)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
@@ -132,23 +150,31 @@ func TestApplyBlur(t *testing.T) {
 // go test -run ^TestApplyBlur2$ . -count 1
 func TestApplyBlur2(t *testing.T) {
 	radius := float32(64.0)
-	fxRadius := float32(32.0)
+	fxRadius := float32(16.0)
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, fxRadius, 1.0)
+		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, r, 1.0)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx+radius, ly-radius, r, 1.0)
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			// NOTE: there are still differences between blur and blur2, as can be
+			// seen here, though they are fairly small. I tested many things, but
+			// I can't see where it comes from. Floating point precision loss is the
+			// most likely candidate, alongside gamma/linearization, but even individual
+			// horz/vert blurs have differences, which is the suspicious part. short on
+			// both directions, slightly offset on vertical (see TestApplyDirBlur)
+			ctx.Renderer.SetBlend(ebiten.BlendXor)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx+radius, ly-radius, r, 1.0)
+			ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
+		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		clrMix := float32(ctx.DistAnim(1.0, 1.0))
 		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, clrMix)
-
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255})
-		ctx.Renderer.SetBlend(ebiten.BlendLighter)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, 0.0)
-		ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
@@ -159,13 +185,14 @@ func TestApplyBlur2(t *testing.T) {
 // go test -run ^TestApplyDirBlur$ . -count 1
 func TestApplyDirBlur(t *testing.T) {
 	radius := float32(64.0)
-	fxRadius := float32(32.0)
+	fxRadius := float32(16.0)
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, fxRadius, 1.0)
+		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
+		ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r, 1.0)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
@@ -174,15 +201,24 @@ func TestApplyDirBlur(t *testing.T) {
 		canvas.SubImage(image.Rect(480-8, 96-16, 480+80-8, 96+16)).(*ebiten.Image).Fill(color.RGBA{0, 255, 0, 255})
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[1], 480, 96, 30.5, 1.0)
+			// see notes on TestApplyBlur2
+			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5, 1.0)
+			ctx.Renderer.SetBlend(ebiten.BlendXor)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[2], 480, 96, 15.5, 1.0)
+			ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
 		} else {
-			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 30.5, 1.0)
+			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5, 1.0)
 		}
 	})
 
 	rect := ebiten.NewImage(80, 80)
 	rect.Fill(color.RGBA{255, 0, 0, 255})
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)), rect)
+	rect2 := ebiten.NewImage(80, 80)
+	app.Renderer.SetColorF32(1, 0, 0, 1)
+	app.Renderer.DrawIntArea(rect2, 0, 20, 80, 40)
+	app.Renderer.DrawIntArea(rect2, 20, 0, 40, 80)
+	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)), rect, rect2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -197,19 +233,47 @@ func TestApplyBlurKern(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 32.0, 1.0)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0, 1.0)
 		} else {
-			ctx.Renderer.ApplyBlurD4(canvas, ctx.Images[0], lx-radius, ly-radius, GaussKern17, GaussKern3, 1.0)
+			ctx.Renderer.ApplyBlurD4(canvas, ctx.Images[0], lx-radius, ly-radius, GaussKern17, GaussKern5, 1.0)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
 		ctx.Renderer.DrawCircle(canvas, lx, ly, radius)
 
 		rx, ry := ctx.RightClickF32()
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, 32.0, 1.0)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, 16.0, 1.0)
 		} else {
-			ctx.Renderer.ApplyBlurD4(canvas, ctx.Images[0], rx-radius, ry-radius, GaussKern17, GaussKern3, 1.0)
+			ctx.Renderer.ApplyBlurD4(canvas, ctx.Images[0], rx-radius, ry-radius, GaussKern11, GaussKern11, 1.0)
 		}
+	})
+	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestApplyBlurKernLoop$ . -count 1
+func TestApplyBlurKernLoop(t *testing.T) {
+	radius := float32(64.0)
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
+		const mink, maxk = GaussKern3, GaussKern17
+
+		delta := uint64(maxk - mink)
+		loop := (120 * delta)
+		t := float64(ctx.Ticks%loop) / float64(loop)
+		kern := GaussKern(math.Round(lerp(float64(mink), float64(maxk), t)))
+
+		ctx.Renderer.ApplyBlurD4(canvas, ctx.Images[0], lx-radius, ly-radius, kern, kern, 1.0)
+
+		rx, ry := ctx.RightClickF32()
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, min(float32(kern.Radius())*4.0, 16.0), 1.0)
+
+		ebiten.SetWindowTitle(fmt.Sprintf("kern size: %d, radius: %d", kern.Size(), kern.Radius()))
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
@@ -257,9 +321,18 @@ func TestApplyShadow(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 
 		mx, my := min(lx, rx), max(ly, ry)
+		const MaxRadius = 16.0
+		r := float32(ctx.DistAnim(MaxRadius, 1.0))
+		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, mx+64, my+64, 64+r)
 		ctx.Renderer.SetColor(color.RGBA{0, 196, 196, 196})
-		ctx.Renderer.ApplyShadow(canvas, ctx.Images[1], mx, my, 0, 0, 32.0, ClampNone)
+		ctx.Renderer.ApplyShadow(canvas, ctx.Images[1], mx, my, 0, 0, r, ClampNone)
 		ctx.DrawAtF32(canvas, ctx.Images[1], mx, my)
+
+		mx, my = max(lx, rx), min(ly, ry)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[1], mx-32, my, r, 1.0)
+		ctx.Renderer.ApplyShadow(canvas, ctx.Images[1], mx+32, my, 0, 0, r, ClampNone)
 	})
 	circle := app.Renderer.NewCircle(64.0)
 	circBounds := circle.Bounds()
@@ -308,7 +381,7 @@ func TestApplyGlow(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], rx, ry, 24+dynRadius, 18, 0.5, 0.6, 0.0)
+		ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 16, 0.5, 0.6, 0.0)
 	})
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
@@ -334,7 +407,7 @@ func TestApplyHorzGlow(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 24+dynRadius, 0.5, 0.6, 0.0)
+		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6, 0.0)
 	})
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
@@ -359,9 +432,12 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry)
-		dynRadius := float32(ctx.DistAnim(6, 2.0))
+		dynRadius := float32(ctx.DistAnim(16, 4.0))
 		ctx.Renderer.SetColor(color.RGBA{64, 0, 0, 255})
-		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, 24+dynRadius, 1, 0.5, 0.0)
+		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5, 0.0)
+		_, h := rectSizeF32(ctx.Images[1].Bounds())
+		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius, 1)
+		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry-h-h/16)
 	})
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
@@ -384,19 +460,27 @@ func TestApplyGlowD4(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
+		hkern, vkern := GaussKern3, GaussKern3
+		gRad := func(kern GaussKern) float32 {
+			// NOTE: this still doesn't match because the edges are blurred/dilated
+			// on downscaling too
+			radius := float32(kern.Size()*4-1) / 2.0
+			return min(radius, 16.0)
+		}
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], lx, ly, 12, 12, 0.2, 0.8, 1.0)
+			ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], lx, ly, gRad(hkern), gRad(vkern), 0.2, 0.8, 1.0)
 		} else {
-			ctx.Renderer.ApplyGlowD4(canvas, ctx.Images[0], lx, ly, GaussKern5, GaussKern5, 0.2, 0.8, 1.0)
+			ctx.Renderer.ApplyGlowD4(canvas, ctx.Images[0], lx, ly, hkern, vkern, 0.2, 0.8, 1.0)
 		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
+		hkern, vkern = GaussKern5, GaussKern15
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], rx, ry, 16, 32, 0.5, 0.6, 0.0)
+			ctx.Renderer.ApplyGlow(canvas, ctx.Images[0], rx, ry, gRad(hkern), gRad(vkern), 0.5, 0.6, 0.0)
 		} else {
-			ctx.Renderer.ApplyGlowD4(canvas, ctx.Images[0], rx, ry, GaussKern5, GaussKern15, 0.5, 0.6, 0.0)
+			ctx.Renderer.ApplyGlowD4(canvas, ctx.Images[0], rx, ry, hkern, vkern, 0.5, 0.6, 0.0)
 		}
 	})
 	const s, m = 96, 16

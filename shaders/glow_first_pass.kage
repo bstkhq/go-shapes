@@ -6,35 +6,35 @@ package main
 // the additive compositing.
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxRadius = 32.0
-	const Edge = 1.333
-	const SafetyMargin = 0.0
+	const MaxRadius = 16.0
 
 	radius := customVAs[0]
 	loThreshold := customVAs[1]
 	hiThreshold := customVAs[2]
 
-	srcCoords := floor(sourceCoords) + vec2(0.5)
-	sigma := max(radius, 0.001) / 3.0
-	sigma2 := 2.0 * sigma * sigma
-	halfRadius := radius / 2.0
 	accColor := vec4(0.0)
 	accWeight := 0.0
-
-	for y := -SafetyMargin; y < MaxRadius; y += 1.0 {
-		if y > radius+SafetyMargin {
-			break
-		}
-		sample := floor(vec2(srcCoords.x, srcCoords.y-halfRadius+y)) + vec2(0.5)
-		clr := imageSrc0At(sample)
-		dist := abs(srcCoords.y - sample.y)
-		if dist <= halfRadius+Edge {
-			luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114))
-			lumFactor := smoothstep(loThreshold, hiThreshold, luminance)
-			dist2 := dist * dist
-			factor := exp(-dist2 / sigma2)
-			accColor += clr * factor * lumFactor
-			accWeight += factor
+	if radius < 0.001 {
+		accColor = imageSrc0At(sourceCoords)
+		accWeight = 1.0
+	} else {
+		srcCoords := floor(sourceCoords) + vec2(0.5)
+		sigma := radius / 3.0
+		sigma2 := 2.0 * sigma * sigma
+		for y := 0.0; y < MaxRadius*2.0; y += 1.0 {
+			if y > radius*2.0 {
+				break
+			}
+			sample := floor(vec2(srcCoords.x, srcCoords.y-radius+y)) + vec2(0.5)
+			clr := imageSrc0At(sample)
+			dist := abs(srcCoords.y - sample.y)
+			if dist <= radius {
+				luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114))
+				lumFactor := smoothstep(loThreshold, hiThreshold, luminance)
+				factor := exp(-(dist * dist) / sigma2)
+				accColor += clr * factor * lumFactor
+				accWeight += factor
+			}
 		}
 	}
 

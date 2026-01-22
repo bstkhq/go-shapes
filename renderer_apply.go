@@ -6,19 +6,28 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Precondition: thickness can't exceed 32.
+type Downsampling uint8
+
+const (
+	DownsampleNone Downsampling = iota
+	DownsampleX2
+	DownsampleX4
+	DownsampleX8
+)
+
+// Precondition: thickness can't exceed 16.
 //
 // WARNING: this is a quadratic algorithm on GPU. For large expansions,
 // consider [Renderer.ApplyExpansionRect]() or [Renderer.JFMExpansion]()
 // instead, but both of those are only useful in specific situations.
 func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if thickness > 32 {
-		panic("thickness can't exceed 32")
+	if thickness > 16 {
+		panic("thickness can't exceed 16")
 	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	ht32 := thickness / 2.0
+	ht32 := thickness
 	dstBounds := target.Bounds()
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
 	minX, minY := dstMinX+ox-ht32, dstMinY+oy-ht32
@@ -52,7 +61,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	// first pass (vert)
 	thickCeil := float32(math.Ceil(float64(thickness)))
 	sx, sy, sw, sh := rectOriginSize(mask.Bounds())
-	temp := r.getTemp(0, sw, sh+int(thickCeil)*2.0, false)
+	temp, _ := r.getTemp(0, sw, sh+int(thickCeil)*2.0, false)
 	sx32, sy32, sw32, sh32 := float32(sx), float32(sy), float32(sw), float32(sh)
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
@@ -77,13 +86,13 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.opts.Images[0] = nil
 }
 
-// Precondition: thickness can't exceed 32.
+// Precondition: thickness can't exceed 16.
 //
 // WARNING: this is a quadratic algorithm on GPU. For large erosions,
 // consider [Renderer.JFMErosion]() instead.
 func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if thickness > 32 {
-		panic("thickness can't exceed 32")
+	if thickness > 16 {
+		panic("thickness can't exceed 16")
 	}
 
 	srcBounds := mask.Bounds()
@@ -137,13 +146,17 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 }
 
 // ApplyBlur applies a gaussian blur to the given mask and draws it onto the given target.
-// colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask colors.
+// colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
+// colors.
 //
-// WARNING: this is a quadratic algorithm on GPU. For radiuses above 4, you want to look at
-// [Renderer.ApplyBlur2]() or [Renderer.ApplyBlurD4]().
+// Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
+//
+// WARNING: this is a quadratic algorithm on GPU. For large radiuses, you typically want to look
+// at [Renderer.ApplyBlur2](), [Renderer.ApplyBlurVogel]() or [Renderer.ApplyBlurD4]() instead.
 func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
-	if radius > 32 {
-		panic("radius can't exceed 32")
+	if radius > 16 {
+		// TODO: relax with stochastic methods, delegate to ApplyBlurVogel.
+		panic("radius can't exceed 16")
 	}
 	if radius < 0 {
 		panic("radius can't be negative")
@@ -151,16 +164,15 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	hr32 := radius / 2.0
 	dstBounds := target.Bounds()
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-hr32, dstMinY+oy-hr32
-	maxX, maxY := dstMinX+ox+srcWidth+hr32, dstMinY+oy+srcHeight+hr32
+	minX, minY := dstMinX+ox-radius, dstMinY+oy-radius
+	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight+radius
 	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-hr32-1, srcMinY-hr32-1, srcMaxX+hr32+1.0, srcMaxY+hr32+1.0)
+	r.setSrcRectCoords(srcMinX-radius-1, srcMinY-radius-1, srcMaxX+radius+1.0, srcMaxY+radius+1.0)
 	r.setFlatCustomVAs01(radius, colorMix)
 
 	// draw shader
@@ -170,34 +182,58 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlur2 is similar to ApplyBlur, but uses two 1D passes instead of a single 2D pass.
-// This greatly reduces the amount of sampled pixels for the shader, and despite breaking
+// ApplyBlurV16 applies a gaussian blur using 16 samples distributed with a vogel disk.
+// This is low quality, but it's fast and can be practical in many scenarios.
+func (r *Renderer) ApplyBlurV16(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
+	// TODO: precompute vogel disk?
+}
+
+// ApplyBlurV32 is the 32 sample version of [Renderer.ApplyBlurV16](). This is medium quality and
+// useful for wide variety of blur effects.
+func (r *Renderer) ApplyBlurV32(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
+	// TODO: precompute vogel disk?
+}
+
+// ApplyBlurV64 is the 64 sample version of [Renderer.ApplyBlur16](). This is expensive and
+// mostly offered for higher end configurations and comparison with the 16 and 32 versions.
+func (r *Renderer) ApplyBlurV64(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
+	// TODO: precompute vogel disk?
+}
+
+// ApplyBlurV32D4 is a version of [Renderer.ApplyBlurV32]() that first downsamples the given
+// mask image for better performance.
+func (r *Renderer) ApplyBlurV32D4(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
+	// ...
+}
+
+// ApplyBlur2 is similar to [Renderer.ApplyBlur](), but uses two 1D passes instead of a single
+// 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
 // batching tends to be much more efficient than [Renderer.ApplyBlur]().
 //
 // This function uses one internal offscreen (#0).
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
-	if radius > 32 {
-		panic("radius can't exceed 32")
+	if radius > 16 {
+		panic("radius can't exceed 16")
 	}
 	if radius < 0 {
 		panic("radius can't be negative")
 	}
 
 	srcBounds := mask.Bounds()
-	w32, h32 := float32(srcBounds.Dx()), float32(srcBounds.Dy())+radius
-	w, h := int(w32), int(math.Ceil(float64(h32)))
-	tmp := r.getTemp(0, w, h, false)
+	ceilRadius := ceilF32(radius)
+	w32, h32 := float32(srcBounds.Dx()), float32(srcBounds.Dy())+2.0*ceilRadius
+	w, h := int(w32), int(h32)
+	tmp, _ := r.getTemp(0, w, h, false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	hrCeil := ceilF32(radius / 2.0)
-	r.ApplyVertBlur(tmp, mask, 0, hrCeil, radius, 1.0)
+	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius, 1.0)
 	r.opts.Blend = preBlend
-	r.ApplyHorzBlur(target, tmp, ox, oy-hrCeil, radius, colorMix)
+	r.ApplyHorzBlur(target, tmp, ox, oy-ceilRadius, radius, colorMix)
 }
 
 func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
-	if radius > 32 {
-		panic("radius can't exceed 32")
+	if radius > 16 {
+		panic("radius can't exceed 16")
 	}
 	if radius < 0 {
 		panic("radius can't be negative")
@@ -207,14 +243,14 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
 	dstBounds := target.Bounds()
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	hrCeil := ceilF32(radius / 2.0)
-	minX, minY := dstMinX+ox, dstMinY+oy-hrCeil
-	maxX, maxY := dstMinX+ox+srcWidth, dstMinY+oy+srcHeight+hrCeil
+	ceilRadius := ceilF32(radius)
+	minX, minY := dstMinX+ox, dstMinY+oy-ceilRadius
+	maxX, maxY := dstMinX+ox+srcWidth, dstMinY+oy+srcHeight+ceilRadius
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX, srcMinY-hrCeil, srcMaxX, srcMaxY+hrCeil)
+	r.setSrcRectCoords(srcMinX, srcMinY-ceilRadius, srcMaxX, srcMaxY+ceilRadius)
 	r.setFlatCustomVAs01(radius, colorMix)
 
 	// draw shader
@@ -225,8 +261,8 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 }
 
 func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
-	if radius > 32 {
-		panic("radius can't exceed 32")
+	if radius > 16 {
+		panic("radius can't exceed 16")
 	}
 	if radius < 0 {
 		panic("radius can't be negative")
@@ -234,16 +270,15 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	hrCeil := ceilF32(radius / 2.0)
 	dstBounds := target.Bounds()
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-hrCeil, dstMinY+oy
-	maxX, maxY := dstMinX+ox+srcWidth+hrCeil, dstMinY+oy+srcHeight
+	minX, minY := dstMinX+ox-radius, dstMinY+oy
+	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-hrCeil, srcMinY, srcMaxX+hrCeil, srcMaxY)
+	r.setSrcRectCoords(srcMinX-radius, srcMinY, srcMaxX+radius, srcMaxY)
 	r.setFlatCustomVAs01(radius, colorMix)
 
 	// draw shader
@@ -290,9 +325,13 @@ func (r *Renderer) ApplyHardShadow(target *ebiten.Image, mask *ebiten.Image, ox,
 	r.opts.Images[0] = nil
 }
 
+// ApplyShadow is a variant of [Renderer.ApplyBlur]() with offsets and clamping.
+// The same performance considerations apply.
+//
+// The function panics if the radius exceeds 16.
 func (r *Renderer) ApplyShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy, xOffset, yOffset, radius float32, clamping Clamping) {
-	if radius > 32 {
-		panic("radius can't exceed 32")
+	if radius > 16 {
+		panic("radius can't exceed 16")
 	}
 	if radius < 0 {
 		panic("radius can't be negative")
@@ -303,28 +342,27 @@ func (r *Renderer) ApplyShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy,
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
 	leftOff, topOff := min(0, xOffset), min(0, yOffset)
 	rightOff, bottomOff := max(0, xOffset), max(0, yOffset)
-	hr32 := radius / 2.0
-	topHR32, bottomHR32, leftHR32, rightHR32 := hr32, hr32, hr32, hr32
+	topR32, bottomR32, leftR32, rightR32 := radius, radius, radius, radius
 	if clamping&ClampBottom != 0 {
-		bottomHR32 = 0
+		bottomR32 = 0
 	}
 	if clamping&ClampTop != 0 {
-		topHR32 = 0
+		topR32 = 0
 	}
 	if clamping&ClampLeft != 0 {
-		leftHR32 = 0
+		leftR32 = 0
 	}
 	if clamping&ClampRight != 0 {
-		rightHR32 = 0
+		rightR32 = 0
 	}
 
-	minX, minY := dstMinX+ox+leftOff-leftHR32, dstMinY+oy+topOff-topHR32
-	maxX, maxY := dstMinX+srcWidth+ox+rightOff+rightHR32, dstMinY+srcHeight+oy+bottomOff+bottomHR32
+	minX, minY := dstMinX+ox+leftOff-leftR32, dstMinY+oy+topOff-topR32
+	maxX, maxY := dstMinX+srcWidth+ox+rightOff+rightR32, dstMinY+srcHeight+oy+bottomOff+bottomR32
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX+leftOff-leftHR32, srcMinY+topOff-topHR32, srcMaxX+rightOff+rightHR32, srcMaxY+bottomOff+bottomHR32)
+	r.setSrcRectCoords(srcMinX+leftOff-leftR32, srcMinY+topOff-topR32, srcMaxX+rightOff+rightR32, srcMaxY+bottomOff+bottomR32)
 	r.setFlatCustomVAs(xOffset, yOffset, radius, float32(clamping))
 
 	// draw shader
@@ -383,6 +421,8 @@ func (r *Renderer) ApplyZoomShadow(target *ebiten.Image, mask *ebiten.Image, ox,
 // ApplySimpleGlow draws the given mask into the target, at the given coordinates, with
 // an glow effect added. The effect mix intensity is determined by the renderer's color
 // alphas. For finer control, see also [Renderer.ApplyGlow]().
+//
+// radius can't exceed 16.
 func (r *Renderer) ApplySimpleGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	r.ApplyGlow(target, mask, ox, oy, radius, radius, 0.4, 0.7, 1.0)
 }
@@ -398,28 +438,27 @@ func (r *Renderer) ApplySimpleGlow(target *ebiten.Image, mask *ebiten.Image, ox,
 //     by the renderer's vertex colors. If 1, the glow color will be determined by the original
 //     mask colors. Any values in between will lead to linear interpolation.
 //
-// Notice that this effect uses an internal offscreen (#0) and two passes, and target and mask
-// can be on the same internal atlas.
+// Notice that this effect uses an internal offscreen (#0) and two passes. Target and mask
+// can be on the same internal atlas. Neither horzRadius nor vertRadius can exceed 16.
 func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
 		panic("threshStart > threshEnd")
 	}
-	if horzRadius > 32 || vertRadius > 32 {
-		panic("radius can't exceed 32")
+	if horzRadius > 16 || vertRadius > 16 {
+		panic("radius can't exceed 16")
 	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	w32, h32 := float32(srcWidth), float32(srcHeight)+vertRadius
+	w32, h32 := float32(srcWidth), float32(srcHeight)+vertRadius*2.0
 	w, h := int(w32), int(math.Ceil(float64(h32)))
-	tmp := r.getTemp(0, w, h, false)
+	tmp, _ := r.getTemp(0, w, h, false)
 
-	hr32 := vertRadius / 2.0
 	r.setDstRectCoords(0, 0, w32, h32+2)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX, srcMinY-hr32-1, srcMaxX, srcMaxY+hr32+1.0)
+	r.setSrcRectCoords(srcMinX, srcMinY-vertRadius-1, srcMaxX, srcMaxY+vertRadius+1.0)
 	r.setFlatCustomVAs(vertRadius, threshStart, threshEnd, 1.0)
 
 	// first pass (threshold + vertical blur)
@@ -432,7 +471,7 @@ func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, h
 
 	// second pass
 	r.opts.Blend = ebiten.BlendLighter
-	r.ApplyHorzBlur(target, tmp, ox, oy-hr32-1.0, horzRadius, colorMix)
+	r.ApplyHorzBlur(target, tmp, ox, oy-vertRadius-1.0, horzRadius, colorMix)
 	r.opts.Blend = preBlend
 }
 
@@ -440,23 +479,24 @@ func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, h
 // given coordinates. See [Renderer.ApplyGlow]() for additional documentation. Comparedto
 // Renderer.ApplyGlow, this effect only applies the glow horizontally and it's much cheaper,
 // requiring no offscreen and a single pass.
+//
+// horzRadius can't exceed 16.
 func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
 		panic("threshStart > threshEnd")
 	}
-	if horzRadius > 32 {
-		panic("radius can't exceed 32")
+	if horzRadius > 16 {
+		panic("radius can't exceed 16")
 	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
 
-	hr32 := horzRadius / 2.0
-	r.setDstRectCoords(ox-hr32-1.0, oy, ox+float32(srcWidth)+hr32+1.0, oy+float32(srcHeight))
+	r.setDstRectCoords(ox-horzRadius-1.0, oy, ox+float32(srcWidth)+horzRadius+1.0, oy+float32(srcHeight))
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-hr32-1, srcMinY, srcMaxX+hr32+1, srcMaxY)
+	r.setSrcRectCoords(srcMinX-horzRadius-1, srcMinY, srcMaxX+horzRadius+1, srcMaxY)
 	r.setFlatCustomVAs(horzRadius, threshStart, threshEnd, colorMix)
 
 	r.opts.Images[0] = mask
@@ -472,24 +512,25 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 // using an additive blending effect around high luminosity areas, it uses multiplicative
 // blending around dark areas.
 //
+// horzRadius can't exceed 16.
+//
 // Notice that unlike regular glow effects, dark glows expects threshStart >= threshEnd.
 func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd, colorMix float32) {
 	if threshStart < threshEnd {
 		panic("threshStart < threshEnd")
 	}
-	if horzRadius > 32 {
-		panic("radius can't exceed 32")
+	if horzRadius > 16 {
+		panic("radius can't exceed 16")
 	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
 
-	hr32 := horzRadius / 2.0
-	r.setDstRectCoords(ox-hr32-1.0, oy, ox+float32(srcWidth)+hr32+1.0, oy+float32(srcHeight))
+	r.setDstRectCoords(ox-horzRadius-1.0, oy, ox+float32(srcWidth)+horzRadius+1.0, oy+float32(srcHeight))
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-hr32-1, srcMinY, srcMaxX+hr32+1, srcMaxY)
+	r.setSrcRectCoords(srcMinX-horzRadius-1, srcMinY, srcMaxX+horzRadius+1, srcMaxY)
 	r.setFlatCustomVAs(horzRadius, threshStart, threshEnd, colorMix)
 
 	r.opts.Images[0] = mask
@@ -554,6 +595,9 @@ var gaussKerns = [][9]float32{ // binomial forms
 // powerful hardware and large blur areas (it uses less memory and compute at the
 // cost of more steps). When enough resources are available (e.g. most medium-sized
 // or small blurs), ApplyBlur2 tends to be slightly more efficient than ApplyBlurD4.
+//
+// Blurs below GaussKern7 look very blocky due to the small kernel size and downscaling,
+// so ApplyBlur2 might be preferred.
 //
 // This function uses two internal offscreens (#0, #1), and target and mask can be on
 // the same internal atlas.
@@ -628,9 +672,9 @@ func (r *Renderer) applyKernelD4(target *ebiten.Image, mask *ebiten.Image, ox, o
 	dkernImgWidth, dkernImgHeight := math.Ceil(dkernW64)+2, math.Ceil(dkernH64)+2
 
 	// get offscreens and smart clears
-	dkern := r.getTemp(0, int(dkernImgWidth), int(dkernImgHeight), false) // get first as the biggest offscreen
-	down := r.getTemp(0, int(downImgWidth), int(downImgHeight), false)    // shared with dkern
-	dkernHorz := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
+	dkern, _ := r.getTemp(0, int(dkernImgWidth), int(dkernImgHeight), false) // get first as the biggest offscreen
+	down, _ := r.getTemp(0, int(downImgWidth), int(downImgHeight), false)    // shared with dkern
+	dkernHorz, _ := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendClear
 	r.StrokeIntRect(down, down.Bounds(), 0, 2)

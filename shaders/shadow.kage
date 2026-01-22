@@ -2,33 +2,36 @@
 package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxRadius = 32.0
+	const MaxRadius = 16.0
 
 	shadowOffset := customVAs.xy
 	radius := customVAs.z
 	sigma := max(radius, 0.001) / 3.0
 	sigma2 := 2.0 * sigma * sigma
-	halfRadius := radius / 2.0
+	if sigma2 < 0.001 {
+		return color * imageSrc0At(sourceCoords).a
+	}
+
 	accColor := vec4(0.0)
 	accWeight := 0.0
 
 	minSrc0, maxSrc0 := GetSource0ClampCoords(int(customVAs.w))
 	srcCoords := floor(sourceCoords) + vec2(0.5) - shadowOffset
 
-	scanOffset := vec2(halfRadius)
-	for y := 0.0; y < MaxRadius; y += 1.0 {
-		if y > radius {
+	scanOffset := vec2(radius)
+	for y := 0.0; y < MaxRadius*2; y += 1.0 {
+		if y > radius*2 {
 			break
 		}
-		for x := 0.0; x < MaxRadius; x += 1.0 {
-			if x > radius {
+		for x := 0.0; x < MaxRadius*2; x += 1.0 {
+			if x > radius*2 {
 				break
 			}
 			offset := vec2(x, y) - scanOffset
 			sample := floor(srcCoords+offset) + vec2(0.5)
 			clr := imageSrc0At(clamp(sample, minSrc0, maxSrc0))
 			dist := distance(srcCoords, sample)
-			if dist <= halfRadius {
+			if dist <= radius {
 				factor := exp(-(dist * dist) / sigma2)
 				accColor += clr * factor
 				accWeight += factor

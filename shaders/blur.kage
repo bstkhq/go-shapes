@@ -2,47 +2,53 @@
 package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxRadius = 32.0
-	const Edge = 1.333
-	const SafetyMargin = 0.0
+	const MaxRadius = 16.0
 
 	srcCoords := floor(sourceCoords) + vec2(0.5)
 	radius := customVAs[0]
 	clrMix := customVAs[1]
-	sigma := max(radius, 0.001) / 3.0
-	sigma2 := 2.0 * sigma * sigma
-	halfRadius := radius / 2.0
+
 	accColor := vec4(0.0)
 	accWeight := 0.0
-
-	scanOffset := vec2(halfRadius)
-	for y := -SafetyMargin; y < MaxRadius; y += 1.0 {
-		if y > radius+SafetyMargin {
-			break
-		}
-		for x := -SafetyMargin; x < MaxRadius; x += 1.0 {
-			if x > radius+SafetyMargin {
+	if radius < 0.001 {
+		accColor = imageSrc0At(sourceCoords)
+		accWeight = 1.0
+	} else {
+		sigma := radius / 3.0
+		sigma2 := 2.0 * sigma * sigma
+		scanOffset := vec2(radius)
+		for y := 0.0; y < MaxRadius*2.0; y += 1.0 {
+			if y > radius*2.0 {
 				break
 			}
-			offset := vec2(x, y) - scanOffset
-			sample := floor(srcCoords+offset) + vec2(0.5)
-			clr := imageSrc0At(sample)
-			dist := distance(srcCoords, sample)
-			if dist <= halfRadius+Edge {
-				// accurate gaussian blur
-				factor := exp(-(dist * dist) / sigma2)
 
-				// approximate gaussian blur
-				// r := halfRadius + Edge
-				// factor := max(0.0, 1.0-(dist*dist)/(r*r))
-				// factor *= factor
+			for x := 0.0; x < MaxRadius*2.0; x += 1.0 {
+				if x > radius*2.0 {
+					break
+				}
+				offset := vec2(x, y) - scanOffset
+				sample := floor(srcCoords+offset) + vec2(0.5)
+				clr := imageSrc0At(sample)
+				dist := distance(srcCoords, sample)
+				if dist <= radius {
+					// accurate gaussian blur
+					factor := exp(-(dist * dist) / sigma2)
 
-				accColor += clr * factor
-				accWeight += factor
+					// approximate gaussian blur
+					// factor := max(0.0, 1.0-(dist*dist)/(radius*radius))
+					// factor *= factor
+
+					accColor += clr * factor
+					accWeight += factor
+				}
 			}
 		}
 	}
 
 	alpha := accColor.a / accWeight
-	return mix(color*alpha, accColor/accWeight, clrMix)
+	out := mix(color*alpha, accColor/accWeight, clrMix)
+	// if out.a < 0.001 { // alpha debug for analysis
+	// 	return vec4(0.5, 0.5, 0, 0.5)
+	// }
+	return out
 }
