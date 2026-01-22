@@ -65,6 +65,23 @@ func TestGradient(t *testing.T) {
 	}
 }
 
+// go test -run ^TestGradientDither$ . -count 1
+func TestGradientDither(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		from, to := color.RGBA{25, 25, 52, 255}, color.RGBA{50, 50, 50, 255}
+		ctx.Renderer.GradientDither(canvas, 0, 0, cw, ch/2, from, to, DirRadsRTL, 1.0)
+		sub := canvas.SubImage(image.Rect(0, int(ch/2), int(cw), int(ch))).(*ebiten.Image)
+		ctx.Renderer.Gradient(sub, nil, 0, 0, from, to, -1, DirRadsRTL, 1.0)
+	})
+
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestGradientRadial$ . -count 1
 func TestGradientRadial(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {

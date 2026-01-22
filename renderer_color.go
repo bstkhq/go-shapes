@@ -35,7 +35,7 @@ func (r *Renderer) SimpleGradient(target *ebiten.Image, from, to color.RGBA, dir
 // early start (e.g. 0.5) or late start (e.g. 2.0). Reasonable CurveFactor values
 // typically fall in the ~[0.2...4.0] range.
 //
-// See also [Renderer.SimpleGradient]().
+// See also [Renderer.SimpleGradient](), [Renderer.GradientDither]() and [Renderer.GradientRadial]().
 func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to color.RGBA, numSteps int, dirRadians, curveFactor float32) {
 	if curveFactor < 0.001 {
 		panic("curveFactor must be positive above 0.001")
@@ -80,6 +80,40 @@ func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to
 	ensureShaderGradientLoaded()
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradient, &r.opts)
 	r.opts.Images[0] = nil
+	clear(r.opts.Uniforms)
+	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
+}
+
+// Gradient paints a high quality gradient over the given target, using dithering to
+// avoid color banding on subtle gradients. Function arguments behave the same as
+// [Renderer.Gradient].
+//
+// See also [Renderer.SimpleGradient]().
+func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, from, to color.RGBA, dirRadians, curveFactor float32) {
+	if curveFactor < 0.001 {
+		panic("curveFactor must be positive above 0.001")
+	}
+	r.ensureBlueNoiseLoaded()
+
+	r.setDstRectCoords(ox, oy, ox+w, oy+h)
+
+	fromF64, toF64 := colorToF64(from), colorToF64(to)
+	memo := r.GetColorF32()
+	fromOklab := rgbToOklab([3]float64(fromF64[:3]))
+	toOklab := rgbToOklab([3]float64(toF64[:3]))
+	r.SetColorF32(float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3]))
+	r.setFlatCustomVAs(float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3]))
+
+	sin, cos := math.Sincos(float64(dirRadians) + math.Pi/2)
+	r.opts.Uniforms["Area"] = [4]float32{ox, oy, w, h}
+	r.opts.Uniforms["DirSinCos"] = [2]float32{float32(sin), float32(cos)}
+	r.opts.Uniforms["CurveFactor"] = curveFactor
+
+	// draw shader
+	r.opts.Images[0] = r.blueNoise64RGB
+
+	ensureShaderGradientDitherLoaded()
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientDither, &r.opts)
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
@@ -160,16 +194,41 @@ func linearize(colorChan float64) float64 {
 }
 
 // OklabShift draws the source image to the target, at the given coordinates,
-// with the given LCh shifts applied on oklab color space. The expected value
-// ranges are the following:
-//   - lightness: [0, 1]
-//   - chroma: [0, 0.5]
+// with the given LCh shifts applied on Oklab color space. Shifts can be positive
+// or negative, with the typical ranges being common:
+//   - chroma: [0, 0.37]. Most clearly distinguishable colors don't even exceed 0.15.
+//   - lightness: [0, 1]. High chromas happen around 0.9 lightness for yellow, around
+//     0.8 for orange, cyan, pink and lime green, 0.7 for light blues, magentas, greens
+//     and light reds, 0.5 for deeper reds, green, purple and blue, and down to 0.3 for
+//     deep blue. Lightness below or above these values in the given hue ranges leads
+//     to very dark or whitish colors with significantly lower chromas.
 //   - hue: in radians, wrapping is done automatically
+//
+// Notice: absolute shifts in perceptually uniform color spaces aren't particularly
+// helpful. Hue itself is not perceptually uniform, so that's one of the most useful
+// values to tweak. Other more effective tools might be exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
 	ensureShaderOklabShiftLoaded()
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
 	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift)
 }
+
+// TODO: absolute shifts are not particularly useful in perceptual spaces. A better tool
+// would apply relative transformations based on the length of the axes (e.g. apply
+// lightness transform, then scale chroma relative to maximum chroma at that hue and
+// lightness, or operate relative to highest chroma/lightness point per hue curve).
+//
+// OklabTransform applies a relative, perceptual color transformation to the given source
+// image based on the given hue, lightness and chromaMult.
+//
+// More precisely, given a pixel with value 'hue' in source, where 'hue' has L1, C1 and H1
+// components in Oklch space, it will be mapped to L1*lightnessMult, C1*chromaMult, H1 (with
+// clipping where appropriate). Other colors will be mapped
+// func (r *Renderer) OklabTransform(target, source *ebiten.Image, hue color.RGBA, lightnessMult, chromaMult float64) {
+// 	// ...
+//  // hueAttraction could be optional (positive attracts, negative repels). or hueExpansion [0...2], with some
+//  // curve factor
+// }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the
 // lightness of each source pixel and remapping it to a color between 'from' and 'to'.
