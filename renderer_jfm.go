@@ -50,6 +50,8 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	if maxDistance == 0 {
 		var opts ebiten.DrawImageOptions
 		opts.Blend = ebiten.BlendCopy
+		bounds := jfmap.Bounds()
+		opts.GeoM.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 		jfmap.DrawImage(seeds, &opts)
 		return
 	}
@@ -70,7 +72,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
-	temp := r.getTemp(0, sw, sh, false)
+	temp, _ := r.getTemp(0, sw, sh, false)
 	jumpSize := 1 << (15 - bits.LeadingZeros16(uint16(maxDistance)))
 	maps := [2]*ebiten.Image{jfmap, temp}
 	mapIndex := 1
@@ -177,7 +179,7 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 // been set. uses unsafe offscreen #0.
 func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initShader *ebiten.Shader) {
 	ox, oy, sw, sh := rectOriginSizeF32(source.Bounds())
-	seeds := r.getTemp(0, int(sw), int(sh), false)
+	seeds, _ := r.getTemp(0, int(sw), int(sh), false)
 	r.setDstRectCoords(0, 0, sw, sh)
 	r.setSrcRectCoords(ox, oy, ox+sw, oy+sh)
 
@@ -208,8 +210,7 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 //     using [JFMPixel] mode with [0.001, 1.0] alpha interval (all not fully transparent pixels
 //     are seeds).
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-//   - aaMargin is the antialias margin. [AAMargin] can be used for a reasonable default.
-func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickness, aaMargin float32) {
+func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickness float32) {
 	if thickness < 0 {
 		panic("thickness < 0")
 	}
@@ -217,16 +218,17 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickn
 		panic("thickness > 32k")
 	}
 
+	var jfmapMaxDist float64
 	if jfmap == nil {
-		jfmapMaxDist := int(math.Ceil(float64(thickness + 1)))
-		source, jfmap = r.UnsafeTempDual(1, source, false)
-		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.001, 1.0)
+		jfmapMaxDist = math.Ceil(float64(thickness))
+		source, jfmap = r.UnsafeTempDual(1, source, int(jfmapMaxDist), false)
+		r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0)
 	}
 
 	ensureShaderJFMExpansionLoaded()
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVAs01(thickness, aaMargin)
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMExpansion)
+	r.setFlatCustomVA0(thickness)
+	r.DrawShaderAt(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), 0, 0, shaderJFMExpansion)
 	r.opts.Images[1] = nil
 }
 
@@ -235,8 +237,7 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickn
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [JFMPixel] mode with [0.0, 0.0] alpha interval (transparent pixels are seeds).
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-//   - aaMargin is the antialias margin. [AAMargin] can be used for a reasonable default.
-func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, radius, aaMargin float32) {
+func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, radius float32) {
 	if radius < 0 {
 		panic("radius < 0")
 	}
@@ -246,13 +247,13 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, radius,
 
 	if jfmap == nil {
 		jfmapMaxDist := int(math.Ceil(float64(radius)))
-		source, jfmap = r.UnsafeTempDual(1, source, false)
+		source, jfmap = r.UnsafeTempDual(1, source, jfmapMaxDist, false)
 		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.0)
 	}
 
 	ensureShaderJFMErosionLoaded()
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVAs01(radius, aaMargin)
+	r.setFlatCustomVA0(radius)
 	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMErosion)
 	r.opts.Images[1] = nil
 }

@@ -5,16 +5,18 @@ package main
 
 func Fragment(_ vec4, sourceCoords0 vec2, color vec4, customVAs vec4) vec4 {
 	thickness := customVAs[0]
-	aaMargin := customVAs[1]
 
 	normCoords0 := (sourceCoords0 - imageSrc0Origin()) / imageSrc0Size()
 	sourceCoords1 := (normCoords0 * imageSrc1Size()) + imageSrc0Origin()
 
-	seedOffset := vec2(jfaComputeOffsetToSeed(imageSrc1At(sourceCoords1)))
-	seedDist := length(seedOffset)
+	seedDist := distanceToSeed(sourceCoords1, sourceCoords0)
+	return color * (1.0 - clamp(seedDist-thickness, 0, 1))
+}
 
-	alphaFactor := 1.0 - smoothstep(max(thickness-aaMargin, 0), thickness, seedDist)
-	return color * alphaFactor
+func distanceToSeed(dfCoords, pxCoords vec2) float {
+	seedOffset := vec2(jfaComputeOffsetToSeed(imageSrc1At(dfCoords)))
+	alphaDist := 1.0 - pow(imageSrc0At(pxCoords).a, 1/2.2)
+	return length(seedOffset) + alphaDist
 }
 
 // taken from jfm_pass.kage

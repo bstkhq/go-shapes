@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const negBit = 0x80
@@ -162,24 +163,47 @@ func (t *testOutputWriter) Update() error {
 
 // go test -run ^TestJFMExpand$ . -count 1
 func TestJFMExpand(t *testing.T) {
+	const BaseRadius = 128
+	const XW, XH = BaseRadius * 2, (BaseRadius * 7) / 4
+	const XMargin, XThick = BaseRadius / 3, BaseRadius / 8
+	const Circ2Radius = 72
+
+	imgIndex := 0
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
+		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			imgIndex = (imgIndex + 1) % len(ctx.Images)
+		}
+
 		bw, bh := rectSizeF32(canvas.Bounds())
-		w, h := rectSizeF32(ctx.Images[0].Bounds())
-		ctx.DrawAtF32(canvas, ctx.Images[0], bw/4-w/2, bh/4-h/2)
-		r := float32(ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], bw-bw/4-w/2, bh/4-h/2, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[0], nil, bw/4-w/2, bh-bh/4-h/2, r, AAMargin*8)
+		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
+		ctx.DrawAtF32(canvas, ctx.Images[imgIndex], bw/4-w/2, bh/4-h/2)
+		r := float32(ctx.DistAnim(16.0, 1.0))
+		if imgIndex == 2 {
+			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
+			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh/4, Circ2Radius+16.0)
+			ctx.Renderer.DrawCircle(canvas, bw/4, bh-bh/4, Circ2Radius+16.0)
+			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		}
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r)
 	})
 
-	const BaseRadius = 128
 	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
 	app.Renderer.GradientRadial(circle, BaseRadius, BaseRadius, color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, BaseRadius*0.25, BaseRadius*0.75, BaseRadius, -1, 3.0)
 	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
 	app.Renderer.Gradient(circle, nil, 0, 0, color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, -1.0, DirRadsBLTR, 0.75)
 	app.Renderer.SetBlend(ebiten.BlendSourceOver)
-	app.Images = append(app.Images, circle)
+	app.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
+	xSign := ebiten.NewImage(XW, XH)
+	app.Renderer.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
+	app.Renderer.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
+	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
+	app.Renderer.SetColorF32(0.5, 0.25, 0.75, 1.0)
+	app.Renderer.DrawCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
+	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Images = append(app.Images, circle, xSign, circ2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -193,9 +217,9 @@ func TestJFMErode(t *testing.T) {
 		bw, bh := rectSizeF32(canvas.Bounds())
 		w, h := rectSizeF32(ctx.Images[0].Bounds())
 		ctx.DrawAtF32(canvas, ctx.Images[0], bw/4-w/2, bh/4-h/2)
-		r := float32(ctx.DistAnim(32.0, 1.0))
+		r := float32(ctx.DistAnim(16.0, 1.0))
 		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], bw-bw/4-w/2, bh/4-h/2, r)
-		ctx.Renderer.JFMErode(canvas, ctx.Images[0], nil, bw/4-w/2, bh-bh/4-h/2, r, AAMargin)
+		ctx.Renderer.JFMErode(canvas, ctx.Images[0], nil, bw/4-w/2, bh-bh/4-h/2, r)
 	})
 
 	const BaseRadius = 128
