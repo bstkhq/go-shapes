@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"cmp"
 	"math"
 )
 
@@ -32,6 +33,10 @@ func (gen *GoldenRatioGen) Float64() float64 {
 
 func ceilF32(x float32) float32 {
 	return float32(math.Ceil(float64(x)))
+}
+
+func clamp[T cmp.Ordered](v, minValue, maxValue T) T {
+	return min(max(v, minValue), maxValue)
 }
 
 func abs[Float float32 | float64](a Float) Float {

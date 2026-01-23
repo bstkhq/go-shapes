@@ -28,6 +28,10 @@ type Renderer struct {
 
 	temps          []offscreen
 	blueNoise64RGB *ebiten.Image
+
+	// Warnings registers events like invalid parameters being sent to
+	// rendering operations and makes them easy to detect, log and fix.
+	Warnings Warnings
 }
 
 func NewRenderer() *Renderer {
@@ -123,6 +127,13 @@ func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float
 //   - scaledSampling can be set to true to mimic Ebitengine's v2.9.0 FilterPixelated.
 //   - Subimages can be scaled without bleeding edges, as the shader uses clamping.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, scaledSampling bool) {
+	if scale <= 0 {
+		if scale < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, scale)
+		}
+		return
+	}
+
 	srcBounds := source.Bounds()
 	srcWidth, srcHeight := srcBounds.Dx(), srcBounds.Dy()
 	srcWidthF32, srcHeightF32 := float32(srcWidth), float32(srcHeight)
@@ -181,7 +192,7 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clea
 // See safety warnings and docs for UnsafeTemp.
 func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padding int, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
 	if padding < 0 {
-		panic("negative padding")
+		r.Warnings.report(WarnNegativeValueZeroed, padding)
 	}
 
 	_, _, w, h := rectOriginSize(source.Bounds())
@@ -266,10 +277,11 @@ func (r *Renderer) SetCustomVAs(vas ...float32) {
 		r.setFlatCustomVAs01(vas[0], vas[1])
 	case 3:
 		r.setFlatCustomVAs(vas[0], vas[1], vas[2], 0.0)
-	case 4:
-		r.setFlatCustomVAs(vas[0], vas[1], vas[2], vas[3])
 	default:
-		panic("only up to 4 custom VAs allowed")
+		if len(vas) > 4 {
+			r.Warnings.report(WarnTooManyVertexAttribs, len(vas))
+		}
+		r.setFlatCustomVAs(vas[0], vas[1], vas[2], vas[3])
 	}
 }
 

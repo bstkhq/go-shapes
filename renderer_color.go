@@ -8,6 +8,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+const MinGradientCurveFactor = 0.001
+
 func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians float32) *ebiten.Image {
 	img := ebiten.NewImage(w, h)
 	r.SimpleGradient(img, from, to, dirRadians)
@@ -37,8 +39,9 @@ func (r *Renderer) SimpleGradient(target *ebiten.Image, from, to color.RGBA, dir
 //
 // See also [Renderer.SimpleGradient](), [Renderer.GradientDither]() and [Renderer.GradientRadial]().
 func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to color.RGBA, numSteps int, dirRadians, curveFactor float32) {
-	if curveFactor < 0.001 {
-		panic("curveFactor must be positive above 0.001")
+	if curveFactor < MinGradientCurveFactor {
+		r.Warnings.report(WarnGradientCurveFactorLifted, curveFactor)
+		curveFactor = MinGradientCurveFactor
 	}
 
 	var srcBounds image.Rectangle
@@ -90,8 +93,9 @@ func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to
 //
 // See also [Renderer.SimpleGradient]().
 func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, from, to color.RGBA, dirRadians, curveFactor float32) {
-	if curveFactor < 0.001 {
-		panic("curveFactor must be positive above 0.001")
+	if curveFactor < MinGradientCurveFactor {
+		r.Warnings.report(WarnGradientCurveFactorLifted, curveFactor)
+		curveFactor = MinGradientCurveFactor
 	}
 	r.ensureBlueNoiseLoaded()
 
@@ -137,11 +141,12 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 // To mask the gradient over an existing image, consider [Renderer.SetBlend](ebiten.BlendSourceIn)
 // and similar tricks.
 func (r *Renderer) GradientRadial(target *ebiten.Image, cx, cy float32, from, to color.RGBA, fromRadius, transRadius, toRadius float32, numSteps int, curveFactor float32) {
-	if curveFactor < 0.001 {
-		panic("curveFactor must be positive above 0.001")
+	if curveFactor < MinGradientCurveFactor {
+		r.Warnings.report(WarnGradientCurveFactorLifted, curveFactor)
+		curveFactor = MinGradientCurveFactor
 	}
 	if transRadius < fromRadius || toRadius < transRadius {
-		panic("invalid radius values (radiuses must be equal or increasing)")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [3]float32{fromRadius, transRadius, toRadius})
 	}
 
 	dstBounds := target.Bounds()
@@ -351,12 +356,15 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	if len(rgbaColors)%4 != 0 {
 		panic("rgbaColors must have length multiple of 4")
 	}
-	numColors := len(rgbaColors) / 4
-	if numColors > 8 {
-		panic("DitherMat4 currently only supports up to 8 colors")
-	} else if numColors <= 1 {
-		panic("DitherMat4 expects at least 2 colors (as 8 float32 values)")
+	if len(rgbaColors) > 8*4 {
+		r.Warnings.report(WarnTooManyColorsClamped, len(rgbaColors)/4)
+		rgbaColors = rgbaColors[:8*4]
 	}
+	numColors := len(rgbaColors) / 4
+	if numColors <= 1 {
+		panic("DitherMat4 requires at least 2 colors (as 8 float32 values)")
+	}
+	// TODO: check alpha premult?
 	var palette [4 * 8]float32
 	copy(palette[:], rgbaColors)
 

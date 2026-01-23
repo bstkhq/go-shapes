@@ -396,8 +396,16 @@ func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThicknes
 		h = -h
 		oy -= h
 	}
-	if outThickness < 0 || inThickness < 0 {
-		panic("outThickness < 0 || inThickness < 0")
+	if outThickness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, outThickness)
+		outThickness = 0
+	}
+	if inThickness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, inThickness)
+		inThickness = 0
+	}
+	if outThickness+inThickness == 0 {
+		return
 	}
 
 	if outThickness == 0 {

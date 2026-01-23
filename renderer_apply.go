@@ -6,15 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-type Downsampling uint8
-
-const (
-	DownsampleNone Downsampling = iota
-	DownsampleX2
-	DownsampleX4
-	DownsampleX8
-)
-
 // Precondition: thickness can't exceed 16.
 //
 // WARNING: this is a quadratic algorithm on GPU. For large expansions,
@@ -22,7 +13,13 @@ const (
 // instead, but both of those are only useful in specific situations.
 func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if thickness > 16 {
-		panic("thickness can't exceed 16")
+		r.Warnings.report(WarnThicknessClamped, thickness)
+		thickness = 16
+	} else if thickness <= 0 {
+		if thickness < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -54,8 +51,14 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 // This function uses one internal offscreen (#0), and target and mask
 // can be on the same internal atlas.
 func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if thickness > 32 {
-		panic("thickness can't exceed 32")
+	if thickness > 16 {
+		r.Warnings.report(WarnThicknessClamped, thickness)
+		thickness = 16
+	} else if thickness <= 0 {
+		if thickness < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		}
+		return
 	}
 
 	// first pass (vert)
@@ -92,7 +95,13 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // consider [Renderer.JFMErosion]() instead.
 func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if thickness > 16 {
-		panic("thickness can't exceed 16")
+		r.Warnings.report(WarnThicknessClamped, thickness)
+		thickness = 16
+	} else if thickness <= 0 {
+		if thickness < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -121,7 +130,13 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 // consider [Renderer.JFMOutline]() instead.
 func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if thickness > 32 {
-		panic("thickness can't exceed 32")
+		r.Warnings.report(WarnThicknessClamped, thickness)
+		thickness = 32
+	} else if thickness <= 0 {
+		if thickness < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -145,21 +160,29 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlur applies a gaussian blur to the given mask and draws it onto the given target.
+// ApplyBlur applies a naive, quadratic gaussian blur to the given mask and draws it onto the
+// given target. Mostly used as a reference method due to its cost: a radius of 4 will already
+// sample (4*2)^2 = 64 pixels.
+//
 // colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
 // colors.
 //
 // Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
 //
+// Notice that this is mostly provided as a reference algorithm. Using radiuses above 4 is
+// heavily discouraged, and other methods
+//
 // WARNING: this is a quadratic algorithm on GPU. For large radiuses, you typically want to look
 // at [Renderer.ApplyBlur2](), [Renderer.ApplyBlurVogel]() or [Renderer.ApplyBlurD4]() instead.
 func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if radius > 16 {
-		// TODO: relax with stochastic methods, delegate to ApplyBlurVogel.
-		panic("radius can't exceed 16")
-	}
-	if radius < 0 {
-		panic("radius can't be negative")
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -182,30 +205,6 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlurV16 applies a gaussian blur using 16 samples distributed with a vogel disk.
-// This is low quality, but it's fast and can be practical in many scenarios.
-func (r *Renderer) ApplyBlurV16(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
-	// TODO: precompute vogel disk?
-}
-
-// ApplyBlurV32 is the 32 sample version of [Renderer.ApplyBlurV16](). This is medium quality and
-// useful for wide variety of blur effects.
-func (r *Renderer) ApplyBlurV32(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
-	// TODO: precompute vogel disk?
-}
-
-// ApplyBlurV64 is the 64 sample version of [Renderer.ApplyBlur16](). This is expensive and
-// mostly offered for higher end configurations and comparison with the 16 and 32 versions.
-func (r *Renderer) ApplyBlurV64(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
-	// TODO: precompute vogel disk?
-}
-
-// ApplyBlurV32D4 is a version of [Renderer.ApplyBlurV32]() that first downsamples the given
-// mask image for better performance.
-func (r *Renderer) ApplyBlurV32D4(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32, colorMix float32) {
-	// ...
-}
-
 // ApplyBlur2 is similar to [Renderer.ApplyBlur](), but uses two 1D passes instead of a single
 // 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
 // batching tends to be much more efficient than [Renderer.ApplyBlur]().
@@ -213,10 +212,13 @@ func (r *Renderer) ApplyBlurV32D4(target *ebiten.Image, mask *ebiten.Image, ox, 
 // This function uses one internal offscreen (#0).
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if radius > 16 {
-		panic("radius can't exceed 16")
-	}
-	if radius < 0 {
-		panic("radius can't be negative")
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -233,10 +235,13 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 
 func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if radius > 16 {
-		panic("radius can't exceed 16")
-	}
-	if radius < 0 {
-		panic("radius can't be negative")
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -262,10 +267,13 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if radius > 16 {
-		panic("radius can't exceed 16")
-	}
-	if radius < 0 {
-		panic("radius can't be negative")
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
 	}
 
 	srcBounds := mask.Bounds()
@@ -331,10 +339,13 @@ func (r *Renderer) ApplyHardShadow(target *ebiten.Image, mask *ebiten.Image, ox,
 // The function panics if the radius exceeds 16.
 func (r *Renderer) ApplyShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy, xOffset, yOffset, radius float32, clamping Clamping) {
 	if radius > 16 {
-		panic("radius can't exceed 16")
-	}
-	if radius < 0 {
-		panic("radius can't be negative")
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
 	}
 
 	dstBounds, srcBounds := target.Bounds(), mask.Bounds()
@@ -374,7 +385,8 @@ func (r *Renderer) ApplyShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy,
 
 func (r *Renderer) ApplyZoomShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy, xOffset, yOffset, zoom float32, clamping Clamping) {
 	if zoom < 1.0 || zoom > 16.0 {
-		panic("zoom must be in [1, 16] range")
+		r.Warnings.report(WarnInvalidZoomClamped, zoom)
+		zoom = clamp(zoom, 1.0, 16.0)
 	}
 
 	dstBounds, srcBounds := target.Bounds(), mask.Bounds()
@@ -442,10 +454,16 @@ func (r *Renderer) ApplySimpleGlow(target *ebiten.Image, mask *ebiten.Image, ox,
 // can be on the same internal atlas. Neither horzRadius nor vertRadius can exceed 16.
 func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
-		panic("threshStart > threshEnd")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
 	}
-	if horzRadius > 16 || vertRadius > 16 {
-		panic("radius can't exceed 16")
+	if horzRadius > 16 {
+		r.Warnings.report(WarnRadiusClamped, horzRadius)
+		horzRadius = 16
+	}
+	if vertRadius > 16 {
+		r.Warnings.report(WarnRadiusClamped, vertRadius)
+		vertRadius = 16
 	}
 
 	srcBounds := mask.Bounds()
@@ -483,10 +501,12 @@ func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, h
 // horzRadius can't exceed 16.
 func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
-		panic("threshStart > threshEnd")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
 	}
 	if horzRadius > 16 {
-		panic("radius can't exceed 16")
+		r.Warnings.report(WarnRadiusClamped, horzRadius)
+		horzRadius = 16
 	}
 
 	srcBounds := mask.Bounds()
@@ -516,11 +536,13 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 //
 // Notice that unlike regular glow effects, dark glows expects threshStart >= threshEnd.
 func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd, colorMix float32) {
-	if threshStart < threshEnd {
-		panic("threshStart < threshEnd")
+	if threshStart > threshEnd {
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
 	}
 	if horzRadius > 16 {
-		panic("radius can't exceed 16")
+		r.Warnings.report(WarnRadiusClamped, horzRadius)
+		horzRadius = 16
 	}
 
 	srcBounds := mask.Bounds()
@@ -616,7 +638,8 @@ func (r *Renderer) ApplyBlurD4(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 // the same internal atlas.
 func (r *Renderer) ApplyGlowD4(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzKernel, vertKernel GaussKern, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
-		panic("threshStart > threshEnd")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
 	}
 
 	r.applyKernelD4(target, mask, ox, oy, horzKernel, vertKernel, func(downHorzTarget *ebiten.Image) {
@@ -633,12 +656,9 @@ func (r *Renderer) ApplyGlowD4(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 // the same internal atlas.
 func (r *Renderer) ApplyColorGlowD4(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzKernel, vertKernel GaussKern, rgb [3]float32, threshStart, threshEnd, colorMix float32) {
 	if threshStart > threshEnd {
-		panic("threshStart > threshEnd")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
 	}
-
-	// note: quadratic approximations don't hold up well with threshStart close to zero
-	// adjustedThreshStart := 1.0 - (threshEnd * threshEnd / 3.0)
-	// adjustedThreshEnd := 1.0 - (threshStart * threshStart / 3.0)
 
 	r.applyKernelD4(target, mask, ox, oy, horzKernel, vertKernel, func(downHorzTarget *ebiten.Image) {
 		r.opts.Uniforms["RGB"] = rgb
@@ -658,6 +678,8 @@ func (r *Renderer) ApplyColorGlowD4(target *ebiten.Image, mask *ebiten.Image, ox
 // This function uses two internal offscreens (#0, #1), and target and mask can be on
 // the same internal atlas.
 func (r *Renderer) applyKernelD4(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzKernel, vertKernel GaussKern, invokeShader func(downHorzTarget *ebiten.Image), lighterBlend bool) {
+	// TODO: we are not using bicubic to upscale back up
+
 	// measures
 	const downscaling = 4
 	maskBounds := mask.Bounds()
@@ -732,16 +754,18 @@ func (r *Renderer) ApplyScanlinesSharp(target *ebiten.Image, darkThick, clearThi
 
 func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dirRadians float64) {
 	if minFillRate > maxFillRate {
-		panic("minFillRate > maxFillRate")
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{minFillRate, maxFillRate})
 	}
 	if minFillRate < 0 {
-		panic("minFillRate < 0")
+		r.Warnings.report(WarnInvalidRateClamped, minFillRate)
+		minFillRate = 0
+	}
+	if maxFillRate > 1.0 {
+		r.Warnings.report(WarnInvalidRateClamped, maxFillRate)
+		maxFillRate = 1.0
 	}
 	if maxFillRate == 0 {
 		return
-	}
-	if maxFillRate > 1.0 {
-		panic("maxFillRate > 1.0")
 	}
 
 	minFillThick := minFillRate * lineThick

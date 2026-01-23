@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"math/bits"
 
@@ -30,12 +31,11 @@ import (
 // This is a low-level operation; most users should use [Renderer.JFMapFill]()
 // or [Renderer.JFMapBoundary]() instead.
 func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
-	// safety assertions
-	if maxDistance < 0 {
-		panic("maxDistance < 0")
-	}
 	if maxDistance > 32000 { // up to 32766 should be technically distinguishable
-		panic("maxDistance > 32000")
+		r.Warnings.report(WarnDistanceClamped, maxDistance)
+		maxDistance = 32000
+	} else if maxDistance < 0 {
+		panic("maxDistance < 0")
 	}
 
 	sbounds := seeds.Bounds()
@@ -102,7 +102,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 // JFMapFill computes a jumping flood map of the given source image
 // and stores it in jfmap.
 //
-// Preconditions (panics if violated):
+// Preconditions:
 //   - source and jfmap must have the same size
 //   - 0 <= maxDistance <= 32k
 //   - 0.0 <= minAlpha <= maxAlpha <= 1.0
@@ -118,13 +118,17 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32) {
 	if minAlpha < 0 {
-		panic("minAlpha < 0")
+		r.Warnings.report(WarnInvalidAlphaClamped, minAlpha)
+		minAlpha = 0
 	}
-	if maxAlpha > 1 {
-		panic("maxAlpha > 1")
+	if maxAlpha > 1.0 {
+		r.Warnings.report(WarnInvalidAlphaClamped, maxAlpha)
+		maxAlpha = 1.0
 	}
 	if minAlpha > maxAlpha {
-		panic("minAlpha > maxAlpha")
+		r.Warnings.report(WarnInconsistentRangeInvalidated, [2]float32{minAlpha, maxAlpha})
+		jfmap.Fill(color.RGBA{255, 255, 255, 255})
+		return
 	}
 
 	ensureShaderJFMInitFillLoaded()
@@ -155,13 +159,17 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32, outer bool, extendEdges bool) {
 	if minAlpha < 0 {
-		panic("minAlpha < 0")
+		r.Warnings.report(WarnInvalidAlphaClamped, minAlpha)
+		minAlpha = 0
 	}
-	if maxAlpha > 1 {
-		panic("maxAlpha > 1")
+	if maxAlpha > 1.0 {
+		r.Warnings.report(WarnInvalidAlphaClamped, maxAlpha)
+		maxAlpha = 1.0
 	}
 	if minAlpha > maxAlpha {
-		panic("minAlpha > maxAlpha")
+		r.Warnings.report(WarnInconsistentRangeInvalidated, [2]float32{minAlpha, maxAlpha})
+		jfmap.Fill(color.RGBA{255, 255, 255, 255})
+		return
 	}
 
 	ensureShaderJFMInitBoundaryLoaded()
@@ -201,7 +209,7 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat)
 }
 
-// JFMExpand performs morphological expansion. Thickness must be in [0, 32k].
+// JFMExpand performs morphological expansion. distance must be in [0, 32k].
 // Notice that since jumping flood algorithms are based on distances to seeds,
 // the only work well for shapes with hard edges. For soft edges, pure
 // [Renderer.ApplyExpansion]() is the only real high quality option.
@@ -210,50 +218,50 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 //     using [JFMPixel] mode with [0.001, 1.0] alpha interval (all not fully transparent pixels
 //     are seeds).
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, thickness float32) {
-	if thickness < 0 {
-		panic("thickness < 0")
-	}
-	if thickness > 32000 {
-		panic("thickness > 32k")
+func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
+	if distance > 32000 { // up to 32766 should be technically distinguishable
+		r.Warnings.report(WarnDistanceClamped, distance)
+		distance = 32000
+	} else if distance < 0 {
+		panic("distance < 0")
 	}
 
 	var jfmapMaxDist float64
 	if jfmap == nil {
-		jfmapMaxDist = math.Ceil(float64(thickness))
+		jfmapMaxDist = math.Ceil(float64(distance))
 		source, jfmap = r.UnsafeTempDual(1, source, int(jfmapMaxDist), false)
 		r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0)
 	}
 
 	ensureShaderJFMExpansionLoaded()
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVA0(thickness)
+	r.setFlatCustomVA0(distance)
 	r.DrawShaderAt(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), 0, 0, shaderJFMExpansion)
 	r.opts.Images[1] = nil
 }
 
-// JFMErode performs morphological erosion. Radius must be in [0, 32k].
+// JFMErode performs morphological erosion. distance must be in [0, 32k].
 //
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [JFMPixel] mode with [0.0, 0.0] alpha interval (transparent pixels are seeds).
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, radius float32) {
-	if radius < 0 {
-		panic("radius < 0")
-	}
-	if radius > 32000 {
-		panic("radius > 32k")
+func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
+	if distance > 32000 { // up to 32766 should be technically distinguishable
+		r.Warnings.report(WarnDistanceClamped, distance)
+		distance = 32000
+	} else if distance < 0 {
+		panic("distance < 0")
 	}
 
 	if jfmap == nil {
-		jfmapMaxDist := int(math.Ceil(float64(radius)))
+		jfmapMaxDist := int(math.Ceil(float64(distance)))
 		source, jfmap = r.UnsafeTempDual(1, source, jfmapMaxDist, false)
 		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.0)
 	}
 
 	ensureShaderJFMErosionLoaded()
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVA0(radius)
+	r.setFlatCustomVA0(distance)
 	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMErosion)
 	r.opts.Images[1] = nil
 }

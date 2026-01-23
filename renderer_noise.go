@@ -17,7 +17,8 @@ import (
 // Seed must be in [0, 1].
 func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle float32) {
 	if seed < 0.0 || seed > 1.0 {
-		panic("seed must be in [0..1]")
+		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)
+		seed = clamp(seed, 0.0, 1.0)
 	}
 	ensureShaderNoiseLoaded()
 	r.setFlatCustomVAs(intensity, seed, cycle, 0.0)

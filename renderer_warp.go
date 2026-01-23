@@ -26,21 +26,26 @@ import (
 //
 // Warps of different signs will panic.
 func (r *Renderer) WarpBarrel(target, source *ebiten.Image, ox, oy float32, horzWarp, vertWarp float32) {
+	if horzWarp == 0 && vertWarp == 0 {
+		return
+	}
 	if (horzWarp < 0 || vertWarp < 0) && (horzWarp > 0 || vertWarp > 0) {
 		panic("horzWarp and vertWarp must have the same sign")
 	}
-	if horzWarp <= 0 && vertWarp <= 0 {
+
+	switch {
+	case horzWarp <= 0 && vertWarp <= 0:
 		r.warpPincushionQuad(target, source, ox, oy, -horzWarp, -vertWarp)
-		return
+	default:
+		r.setFlatCustomVAs01(horzWarp, vertWarp)
+		ensureShaderWarpBarrelLoaded()
+		r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel)
 	}
-	r.setFlatCustomVAs01(horzWarp, vertWarp)
-	ensureShaderWarpBarrelLoaded()
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel)
 }
 
 func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float32, horzWarp, vertWarp float32) {
 	if horzWarp < 0 || vertWarp < 0 {
-		panic("horzWarp < 0 || vertWarp < 0")
+		panic("broken internal code")
 	}
 
 	// perceptual adjustment to better match WarpBarrel strength
