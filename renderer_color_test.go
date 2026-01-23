@@ -113,6 +113,26 @@ func TestGradientRadial(t *testing.T) {
 	}
 }
 
+// go test -run ^TestGradientRadialDither$ . -count 1
+func TestGradientRadialDither(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		w, h := rectSizeF32(canvas.Bounds())
+		curveShift := float32(ctx.DistAnim(2.0, 2.0))
+		from, to := color.RGBA{25, 25, 50, 96}, color.RGBA{50, 50, 50, 96}
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			ctx.Renderer.GradientRadial(canvas, w/2, h/2, from, to, 0.0, 320.0, 320.0, -1, 1.0+curveShift)
+		} else {
+			ctx.Renderer.GradientRadialDither(canvas, w/2, h/2, from, to, 0.0, 320.0, 320.0, 1.0+curveShift)
+		}
+	})
+
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestColorizeByLightness$ . -count 1
 func TestColorizeByLightness(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {

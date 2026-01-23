@@ -89,7 +89,7 @@ func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to
 
 // Gradient paints a high quality gradient over the given target, using dithering to
 // avoid color banding on subtle gradients. Function arguments behave the same as
-// [Renderer.Gradient].
+// [Renderer.Gradient]().
 //
 // See also [Renderer.SimpleGradient]().
 func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, from, to color.RGBA, dirRadians, curveFactor float32) {
@@ -115,9 +115,9 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 
 	// draw shader
 	r.opts.Images[0] = r.blueNoise64RGB
-
 	ensureShaderGradientDitherLoaded()
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientDither, &r.opts)
+	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
@@ -174,6 +174,51 @@ func (r *Renderer) GradientRadial(target *ebiten.Image, cx, cy float32, from, to
 	// draw shader
 	ensureShaderGradientRadialLoaded()
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadial, &r.opts)
+	clear(r.opts.Uniforms)
+	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
+}
+
+// GradientRadialDither paints a high quality radial gradient over the given target.
+// GradientRadialDither paints a high quality radial gradient over the given target,
+// using dithering to avoid color banding on subtle gradients. Function arguments
+// behave the same as [Renderer.GradientRadial]().
+func (r *Renderer) GradientRadialDither(target *ebiten.Image, cx, cy float32, from, to color.RGBA, fromRadius, transRadius, toRadius float32, curveFactor float32) {
+	if curveFactor < MinGradientCurveFactor {
+		r.Warnings.report(WarnGradientCurveFactorLifted, curveFactor)
+		curveFactor = MinGradientCurveFactor
+	}
+	if transRadius < fromRadius || toRadius < transRadius {
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [3]float32{fromRadius, transRadius, toRadius})
+	}
+
+	r.ensureBlueNoiseLoaded()
+
+	dstBounds := target.Bounds()
+	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
+	dstWidthF64, dstHeightF64 := float64(dstBounds.Dx()), float64(dstBounds.Dy())
+	cxF64, cyF64, toRadiusF64 := float64(cx), float64(cy), float64(toRadius)
+	ox, oy := float32(max(math.Floor(cxF64-toRadiusF64), 0)), float32(max(math.Floor(cyF64-toRadiusF64), 0))
+	fx, fy := float32(min(math.Ceil(cxF64+toRadiusF64), dstWidthF64)), float32(min(math.Ceil(cyF64+toRadiusF64), dstHeightF64))
+	minX, minY := dstMinX+ox, dstMinY+oy
+	maxX, maxY := dstMinX+fx, dstMinY+fy
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+
+	fromF64, toF64 := colorToF64(from), colorToF64(to)
+	memo := r.GetColorF32()
+	fromOklab := rgbToOklab([3]float64(fromF64[:3]))
+	toOklab := rgbToOklab([3]float64(toF64[:3]))
+	r.SetColorF32(float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3]))
+	r.setFlatCustomVAs(float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3]))
+
+	r.opts.Uniforms["Radius"] = [3]float32{fromRadius, transRadius, toRadius}
+	r.opts.Uniforms["Origin"] = [2]float32{cx, cy}
+	r.opts.Uniforms["CurveFactor"] = curveFactor
+
+	// draw shader
+	r.opts.Images[0] = r.blueNoise64RGB
+	ensureShaderGradientRadialDitherLoaded()
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadialDither, &r.opts)
+	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
