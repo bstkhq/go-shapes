@@ -12,6 +12,10 @@ import (
 // consider [Renderer.ApplyExpansionRect]() or [Renderer.JFMExpansion]()
 // instead, but both of those are only useful in specific situations.
 func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
@@ -46,11 +50,17 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 // ApplyExpansionRect performs double pass expansion with a square kernel.
 // This is less general but more efficient than [Renderer.ApplyExpansion]().
 //
-// Precondition: thickness can't exceed 32.
+// Precondition: thickness can't exceed 16.
 //
 // This function uses one internal offscreen (#0), and target and mask
 // can be on the same internal atlas.
+//
+// Cost: two passes, 4*ceil(thickness) samples per pixel (2*ceil(thickness) on each pass).
 func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
@@ -94,6 +104,10 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // WARNING: this is a quadratic algorithm on GPU. For large erosions,
 // consider [Renderer.JFMErosion]() instead.
 func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
@@ -129,6 +143,10 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 // WARNING: this is a quadratic algorithm on GPU. For large outlines,
 // consider [Renderer.JFMOutline]() instead.
 func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if thickness > 32 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 32
@@ -161,20 +179,21 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 }
 
 // ApplyBlur applies a naive, quadratic gaussian blur to the given mask and draws it onto the
-// given target. Mostly used as a reference method due to its cost: a radius of 4 will already
-// sample (4*2)^2 = 64 pixels.
+// given target.
+//
+// Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
 //
 // colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
 // colors.
 //
-// Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
-//
-// Notice that this is mostly provided as a reference algorithm. Using radiuses above 4 is
-// heavily discouraged, and other methods
-//
-// WARNING: this is a quadratic algorithm on GPU. For large radiuses, you typically want to look
-// at [Renderer.ApplyBlur2](), [Renderer.ApplyBlurVogel]() or [Renderer.ApplyBlurD4]() instead.
+// Notice that this method is designed mostly as a comparison baseline due to its high cost
+// (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most applications should use
+// [Renderer.ApplyBlur2]() and [Renderer.ApplyBlurVogel]() instead.
 func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
@@ -210,7 +229,14 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 // batching tends to be much more efficient than [Renderer.ApplyBlur]().
 //
 // This function uses one internal offscreen (#0).
+//
+// TODO: document when blur2 (or blur2D) is inferior to vogel: boxier results, less stable under
+// heavy downscaling, smoothness for dynamic radius
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
@@ -234,6 +260,10 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 }
 
 func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
@@ -266,6 +296,10 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 }
 
 func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
@@ -312,6 +346,11 @@ const (
 )
 
 func (r *Renderer) ApplyHardShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy, xOffset, yOffset float32, clamping Clamping) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+
 	dstBounds, srcBounds := target.Bounds(), mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
 	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
@@ -619,7 +658,7 @@ var gaussKerns = [][9]float32{ // binomial forms
 // or small blurs), ApplyBlur2 tends to be slightly more efficient than ApplyBlurD4.
 //
 // Blurs below GaussKern7 look very blocky due to the small kernel size and downscaling,
-// so ApplyBlur2 might be preferred.
+// so ApplyBlur2 might be preferred. TODO: consider bicubic upscaling?
 //
 // This function uses two internal offscreens (#0, #1), and target and mask can be on
 // the same internal atlas.

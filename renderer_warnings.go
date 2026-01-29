@@ -20,8 +20,9 @@ const (
 	// spatial / geometric limits
 	WarnRadiusClamped     // blur, glow, shadows, ...
 	WarnNumSamplesClamped // blur, glow, ...
-	WarnThicknessClamped  // strokes, morphological ops, ...
-	WarnDistanceClamped   // jfa, ...
+	WarnNotEnoughSamplesOpSkipped
+	WarnThicknessClamped // strokes, morphological ops, ...
+	WarnDistanceClamped  // jfa, ...
 
 	// value integrity
 	WarnNegativeValueZeroed
@@ -51,6 +52,8 @@ func (w Warning) Message() string {
 		return "radius exceeds max value, clamped"
 	case WarnNumSamplesClamped:
 		return "numSamples exceeds max value, clamped"
+	case WarnNotEnoughSamplesOpSkipped:
+		return "numSamples must be strictly positive, operation skipped"
 	case WarnThicknessClamped:
 		return "thickness exceeds max value, clamped"
 	case WarnDistanceClamped:
