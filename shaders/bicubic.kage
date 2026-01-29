@@ -17,8 +17,8 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 }
 
 func cubicRow(coords vec2, minCoords, maxCoords vec2, percentX float) vec4 {
-	halfPercentX := SourceRelativeTextureUnitX / 2.0
-	oneHalfPercX := SourceRelativeTextureUnitX + halfPercentX
+	halfPercentX := percentX / 2.0
+	oneHalfPercX := percentX + halfPercentX
 	a := imageSrc0UnsafeAt(clamp(coords-vec2(oneHalfPercX, 0), minCoords, maxCoords))
 	b := imageSrc0UnsafeAt(clamp(coords-vec2(halfPercentX, 0), minCoords, maxCoords))
 	c := imageSrc0UnsafeAt(clamp(coords+vec2(halfPercentX, 0), minCoords, maxCoords))

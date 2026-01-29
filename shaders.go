@@ -105,6 +105,9 @@ var shaderHorzBlurKernSrc []byte
 //go:embed shaders/vert_blur_kern.kage
 var shaderVertBlurKernSrc []byte
 
+//go:embed shaders/blur_vogel.kage
+var shaderBlurVogelSrc []byte
+
 //go:embed shaders/glow_first_pass.kage
 var shaderGlowFirstPassSrc []byte
 
@@ -222,6 +225,22 @@ var shaderJFMErosionSrc []byte
 //go:embed shaders/study_wave_funcs.kage
 var shaderStudyWaveFuncsSrc []byte
 
+type shaderRef struct {
+	shader *ebiten.Shader
+	src    []byte
+}
+
+func (s *shaderRef) Load() *ebiten.Shader {
+	if s.shader == nil {
+		var err error
+		s.shader, err = ebiten.NewShader(s.src)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return s.shader
+}
+
 var shaderDefault *ebiten.Shader
 var shaderBilinear *ebiten.Shader
 var shaderBicubic *ebiten.Shader
@@ -255,6 +274,7 @@ var shaderHorzBlur *ebiten.Shader
 var shaderVertBlur *ebiten.Shader
 var shaderHorzBlurKern *ebiten.Shader
 var shaderVertBlurKern *ebiten.Shader
+var shaderBlurVogel = shaderRef{src: shaderBlurVogelSrc}
 var shaderGlowFirstPass *ebiten.Shader
 var shaderHorzGlow *ebiten.Shader
 var shaderDarkHorzGlow *ebiten.Shader

@@ -1,0 +1,35 @@
+//kage:unit pixels
+package main
+
+var NumSamples int
+var Disk [64]vec2 // radius already applied
+
+func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const Pi = 3.14159265359
+
+	//radius := customVAs[0]
+	clrMix := customVAs[1]
+
+	rotation := hash2A(targetCoords.xy-imageDstOrigin()) * 2 * Pi
+	sinR, cosR := sin(rotation), cos(rotation)
+	rotMat := mat2(cosR, sinR, -sinR, cosR)
+
+	accColor := vec4(0.0)
+	for i := 0; i < 64; i++ {
+		if i >= NumSamples {
+			break
+		}
+
+		offset := rotMat * Disk[i]
+		accColor += imageSrc0At(sourceCoords + offset)
+	}
+
+	alpha := accColor.a / float(NumSamples)
+	out := mix(color*alpha, accColor/float(NumSamples), clrMix)
+	return out
+}
+
+func hash2A(uv vec2) float {
+	magic := vec3(0.06711056, 0.00583715, 52.9829189)
+	return fract(magic.z * fract(dot(uv, magic.xy)))
+}
