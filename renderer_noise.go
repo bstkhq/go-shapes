@@ -20,9 +20,8 @@ func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle fl
 		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)
 		seed = clamp(seed, 0.0, 1.0)
 	}
-	ensureShaderNoiseLoaded()
 	r.setFlatCustomVAs(intensity, seed, cycle, 0.0)
-	r.DrawShader(target, 0, 0, shaderNoise)
+	r.DrawShader(target, 0, 0, shaderNoise.Load())
 }
 
 // NoiseGolden draws a grid geometric noise with the current renderer color over the
@@ -34,9 +33,8 @@ func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle fl
 // The param t controls the animation pace. Increase t at a rate of 1.0 per second
 // for a natural animation rate.
 func (r *Renderer) NoiseGolden(target *ebiten.Image, scale, intensity, t float32) {
-	ensureShaderNoiseGoldenLoaded()
 	r.setFlatCustomVAs(scale, intensity, t, 0)
-	r.DrawShader(target, 0, 0, shaderNoiseGolden)
+	r.DrawShader(target, 0, 0, shaderNoiseGolden.Load())
 }
 
 func (r *Renderer) ensureBlueNoiseLoaded() {

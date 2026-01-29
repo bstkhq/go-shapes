@@ -18,8 +18,7 @@ func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians f
 
 // FlatPaint draws the mask onto the given target using the renderer vertex colors.
 func (r *Renderer) FlatPaint(target, mask *ebiten.Image, ox, oy float32) {
-	ensureShaderFlatPaintLoaded()
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderFlatPaint)
+	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderFlatPaint.Load())
 }
 
 // SimpleGradient paints a high quality gradient over the given target.
@@ -80,8 +79,7 @@ func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderGradientLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradient, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradient.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
@@ -115,8 +113,7 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 
 	// draw shader
 	r.opts.Images[0] = r.blueNoise64RGB
-	ensureShaderGradientDitherLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientDither, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientDither.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
@@ -172,8 +169,7 @@ func (r *Renderer) GradientRadial(target *ebiten.Image, cx, cy float32, from, to
 	r.opts.Uniforms["CurveFactor"] = curveFactor
 
 	// draw shader
-	ensureShaderGradientRadialLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadial, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadial.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
@@ -216,8 +212,7 @@ func (r *Renderer) GradientRadialDither(target *ebiten.Image, cx, cy float32, fr
 
 	// draw shader
 	r.opts.Images[0] = r.blueNoise64RGB
-	ensureShaderGradientRadialDitherLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadialDither, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadialDither.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
@@ -258,9 +253,8 @@ func linearize(colorChan float64) float64 {
 // helpful. Hue itself is not perceptually uniform, so that's one of the most useful
 // values to tweak. Other more effective tools might be exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
-	ensureShaderOklabShiftLoaded()
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift)
+	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift.Load())
 }
 
 // TODO: absolute shifts are not particularly useful in perceptual spaces. A better tool
@@ -293,13 +287,12 @@ func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift
 //     <= 1.0 to bias towards 'from', > 1.0 to bias towards 'to'. Recommended
 //     range: [0.2, 5.0].
 func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float32, from, to color.RGBA, fromLightness, toLightness float32, steps int, curveFactor float32) {
-	ensureShaderColorizeByLightnessLoaded()
 	fromF64, toF64 := colorToF64(from), colorToF64(to)
 	fromOklab, toOklab := rgbToOklab([3]float64(fromF64[:3])), rgbToOklab([3]float64(toF64[:3]))
 	r.opts.Uniforms["From"] = [4]float32{float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3])}
 	r.opts.Uniforms["To"] = [4]float32{float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3])}
 	r.setFlatCustomVAs(fromLightness, toLightness, float32(steps), curveFactor)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderColorizeByLightness)
+	r.DrawShaderAt(target, source, x, y, 0, 0, shaderColorizeByLightness.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -328,8 +321,7 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y int, alpha, m
 	r.setFlatCustomVAs01(alpha, mixLevel)
 	r.opts.Images[0] = base
 	r.opts.Images[1] = over
-	ensureShaderColorMixLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderColorMix, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderColorMix.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 }
@@ -417,6 +409,5 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	r.opts.Uniforms["Matrix"] = ditherMatrix
 	r.opts.Uniforms["NumColors"] = numColors
 	r.opts.Uniforms["Colors"] = palette
-	ensureShaderDitherMat4Loaded()
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderDitherMat4)
+	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderDitherMat4.Load())
 }

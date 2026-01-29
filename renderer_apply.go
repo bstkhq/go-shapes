@@ -42,8 +42,7 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderExpansionLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansion, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansion.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -82,8 +81,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.setDstRectCoords(0, 0, sw32, sh32+thickCeil*2)
 	r.setFlatCustomVA0(thickness)
 	r.opts.Images[0] = mask
-	ensureShaderExpansionVertLoaded()
-	temp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionVert, &r.opts)
+	temp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionVert.Load(), &r.opts)
 	r.opts.Images[0] = nil
 
 	// second pass (horz)
@@ -94,8 +92,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	oy += dy
 	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
 	r.opts.Images[0] = temp
-	ensureShaderExpansionHorzLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionHorz, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionHorz.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -133,8 +130,7 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderErosionLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderErosion, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderErosion.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -173,8 +169,7 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderOutlineLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderOutline, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderOutline.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -219,8 +214,7 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderBlurLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlur, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -290,8 +284,7 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderVertBlurLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlur, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -325,8 +318,7 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderHorzBlurLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlur, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -367,8 +359,7 @@ func (r *Renderer) ApplyHardShadow(target *ebiten.Image, mask *ebiten.Image, ox,
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderHardShadowLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHardShadow, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHardShadow.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -417,8 +408,7 @@ func (r *Renderer) ApplyShadow(target *ebiten.Image, mask *ebiten.Image, ox, oy,
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderShadowLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderShadow, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderShadow.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -464,8 +454,7 @@ func (r *Renderer) ApplyZoomShadow(target *ebiten.Image, mask *ebiten.Image, ox,
 
 	// draw shader
 	r.opts.Images[0] = mask
-	ensureShaderZoomShadowLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderZoomShadow, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderZoomShadow.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -504,6 +493,10 @@ func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, h
 		r.Warnings.report(WarnRadiusClamped, vertRadius)
 		vertRadius = 16
 	}
+	if colorMix < 0 || colorMix > 1 {
+		r.Warnings.report(WarnInvalidColorMixClamped, colorMix)
+		colorMix = clamp(colorMix, 0, 1)
+	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -522,8 +515,7 @@ func (r *Renderer) ApplyGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, h
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	ensureShaderGlowFirstPassLoaded()
-	tmp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGlowFirstPass, &r.opts)
+	tmp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGlowFirstPass.Load(), &r.opts)
 	r.opts.Images[0] = nil
 
 	// second pass
@@ -559,10 +551,9 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.setFlatCustomVAs(horzRadius, threshStart, threshEnd, colorMix)
 
 	r.opts.Images[0] = mask
-	ensureShaderHorzGlowLoaded()
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendLighter
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlow, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlow.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -595,11 +586,10 @@ func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 	r.setFlatCustomVAs(horzRadius, threshStart, threshEnd, colorMix)
 
 	r.opts.Images[0] = mask
-	ensureShaderDarkHorzGlowLoaded()
 	preBlend := r.opts.Blend
 	r.opts.Blend = BlendMultiply
 	//r.opts.Blend = BlendSubtract // also possible with a shader flag, but multiply feels more natural
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderDarkHorzGlow, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderDarkHorzGlow.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -665,8 +655,7 @@ var gaussKerns = [][9]float32{ // binomial forms
 func (r *Renderer) ApplyBlurD4(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzKernel, vertKernel GaussKern, colorMix float32) {
 	r.applyKernelD4(target, mask, ox, oy, horzKernel, vertKernel, func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(colorMix)
-		ensureShaderHorzBlurKernLoaded()
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlurKern, &r.opts)
+		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
 	}, false)
 }
 
@@ -683,8 +672,7 @@ func (r *Renderer) ApplyGlowD4(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 
 	r.applyKernelD4(target, mask, ox, oy, horzKernel, vertKernel, func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVAs(threshStart, threshEnd, colorMix, 0)
-		ensureShaderHorzGlowKernLoaded()
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlowKern, &r.opts)
+		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlowKern.Load(), &r.opts)
 	}, true)
 }
 
@@ -702,8 +690,7 @@ func (r *Renderer) ApplyColorGlowD4(target *ebiten.Image, mask *ebiten.Image, ox
 	r.applyKernelD4(target, mask, ox, oy, horzKernel, vertKernel, func(downHorzTarget *ebiten.Image) {
 		r.opts.Uniforms["RGB"] = rgb
 		r.setFlatCustomVAs(threshStart, threshEnd, colorMix, 0)
-		ensureShaderHorzColorGlowLoaded()
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzColorGlow, &r.opts)
+		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzColorGlow.Load(), &r.opts)
 		clear(r.opts.Uniforms)
 	}, true)
 }
@@ -716,6 +703,8 @@ func (r *Renderer) ApplyColorGlowD4(target *ebiten.Image, mask *ebiten.Image, ox
 //
 // This function uses two internal offscreens (#0, #1), and target and mask can be on
 // the same internal atlas.
+//
+// TODO: generalize with Downscaling options
 func (r *Renderer) applyKernelD4(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzKernel, vertKernel GaussKern, invokeShader func(downHorzTarget *ebiten.Image), lighterBlend bool) {
 	// TODO: we are not using bicubic to upscale back up
 
@@ -767,8 +756,7 @@ func (r *Renderer) applyKernelD4(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.setDstRectCoords(0, 0, float32(dkernW64)+2, float32(dkernH64)+2)
 	r.setSrcRectCoords(0, float32(-halfVertMargin), float32(dkernW64)+2, float32(downH64+halfVertMargin)+2)
 	r.opts.Images[0] = dkernHorz
-	ensureShaderVertBlurKernLoaded()
-	dkern.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlurKern, &r.opts)
+	dkern.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 
@@ -787,8 +775,7 @@ func (r *Renderer) applyKernelD4(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 func (r *Renderer) ApplyScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
 	r.setFlatCustomVAs(float32(darkThick), float32(clearThick), intensity, offset)
-	ensureShaderScanlinesSharpLoaded()
-	r.DrawShader(target, 0, 0, shaderScanlinesSharp)
+	r.DrawShader(target, 0, 0, shaderScanlinesSharp.Load())
 }
 
 func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dirRadians float64) {
@@ -817,7 +804,6 @@ func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, 
 	r.opts.Uniforms["DirRadsSin"] = float32(drs)
 	r.opts.Uniforms["DirRadsCos"] = float32(drc)
 	r.setFlatCustomVAs(lineThick, minFillThick, maxFillThick, waveLen)
-	ensureShaderWaveLinesLoaded()
-	r.DrawShader(target, 0, 0, shaderWaveLines)
+	r.DrawShader(target, 0, 0, shaderWaveLines.Load())
 	clear(r.opts.Uniforms)
 }

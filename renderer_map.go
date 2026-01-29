@@ -15,8 +15,7 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
 	r.setFlatCustomVAs01(1.0, 1.0)
 	r.opts.Images[0] = source
-	ensureShaderBilinearLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBilinear, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBilinear.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -47,14 +46,13 @@ func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
 	r.setFlatCustomVAs01(1.0, 1.0)
 	r.opts.Images[0] = source
-	ensureShaderMapQuad4Loaded()
 	indices := []uint16{
 		0, 1, 4,
 		1, 2, 4,
 		2, 3, 4,
 		3, 0, 4,
 	}
-	target.DrawTrianglesShader(r.vertices[:], indices, shaderMapQuad4, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], indices, shaderMapQuad4.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.vertices = r.vertices[:4]
 }
@@ -93,8 +91,7 @@ func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32)
 		homography[2], homography[5], homography[8],
 	}
 	r.opts.Images[0] = source
-	ensureShaderMapProjectiveLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMapProjective, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMapProjective.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

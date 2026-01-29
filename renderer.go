@@ -129,14 +129,12 @@ func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float
 //   - scaledSampling can be set to true to mimic Ebitengine's v2.9.0 FilterPixelated.
 //   - Subimages can be scaled without bleeding edges, as the shader uses clamping.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, scaledSampling bool) {
-	ensureShaderBilinearLoaded()
-	r.scaleShader(target, source, shaderBilinear, ox, oy, scale, scaledSampling)
+	r.scaleShader(target, source, shaderBilinear.Load(), ox, oy, scale, scaledSampling)
 }
 
 // ScaleBicubic is the bicubic version of [Renderer.Scale]().
 func (r *Renderer) ScaleBicubic(target, source *ebiten.Image, ox, oy, scale float32, scaledScampling bool) {
-	ensureShaderBicubicLoaded()
-	r.scaleShader(target, source, shaderBicubic, ox, oy, scale, scaledScampling)
+	r.scaleShader(target, source, shaderBicubic.Load(), ox, oy, scale, scaledScampling)
 }
 
 func (r *Renderer) scaleShader(target, source *ebiten.Image, shader *ebiten.Shader, ox, oy, scale float32, scaledSampling bool) {

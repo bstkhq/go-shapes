@@ -57,7 +57,6 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	}
 
 	// we use 1+JFA, so the first pass uses jump size = 1
-	ensureShaderJFMPassLoaded()
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 
@@ -68,7 +67,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	r.opts.Images[0] = seeds
 	r.setDstRectCoords(mapCoords[0][0], mapCoords[0][1], mapCoords[0][2], mapCoords[0][3])
 	r.setSrcRectCoords(mapCoords[1][0], mapCoords[1][1], mapCoords[1][2], mapCoords[1][3])
-	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass, &r.opts)
+	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass.Load(), &r.opts)
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
@@ -82,7 +81,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 		newIndex := 1 - mapIndex
 		r.setSrcRectCoords(mapCoords[newIndex][0], mapCoords[newIndex][1], mapCoords[newIndex][2], mapCoords[newIndex][3])
 		r.opts.Images[0] = maps[newIndex]
-		maps[mapIndex].DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass, &r.opts)
+		maps[mapIndex].DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass.Load(), &r.opts)
 		mapIndex = newIndex
 		jumpSize /= 2
 	}
@@ -131,9 +130,8 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 		return
 	}
 
-	ensureShaderJFMInitFillLoaded()
 	r.setFlatCustomVAs01(minAlpha, maxAlpha)
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill)
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill.Load())
 }
 
 // JFMapBoundary computes a jumping flood map of the given source image
@@ -172,7 +170,6 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 		return
 	}
 
-	ensureShaderJFMInitBoundaryLoaded()
 	boolToF32 := func(b bool) float32 {
 		if b {
 			return 1.0
@@ -180,7 +177,7 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 		return 0.0
 	}
 	r.setFlatCustomVAs(minAlpha, maxAlpha, boolToF32(outer), boolToF32(extendEdges))
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary)
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary.Load())
 }
 
 // helper for JFMapFill and JFMapBoundary. init shader vertex attributes must have already
@@ -204,9 +201,8 @@ func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initSha
 // using 0 and maxDistance as reference distances for "hot" and "cold". The seeds of a
 // jfmap can be visualized by setting maxDistance to a positive value below 1 (e.g. 0.1).
 func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance float32) {
-	ensureShaderJFMHeatLoaded()
 	r.setFlatCustomVA0(maxDistance)
-	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat)
+	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat.Load())
 }
 
 // JFMExpand performs morphological expansion. distance must be in [0, 32k].
@@ -233,10 +229,9 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 		r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0)
 	}
 
-	ensureShaderJFMExpansionLoaded()
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
-	r.DrawShaderAt(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), 0, 0, shaderJFMExpansion)
+	r.DrawShaderAt(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), 0, 0, shaderJFMExpansion.Load())
 	r.opts.Images[1] = nil
 }
 
@@ -259,10 +254,9 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.0)
 	}
 
-	ensureShaderJFMErosionLoaded()
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMErosion)
+	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMErosion.Load())
 	r.opts.Images[1] = nil
 }
 

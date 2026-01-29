@@ -2,6 +2,8 @@ package shapes
 
 import "math"
 
+// PointF32 is a helper type for operations with quads like [Renderer.DrawQuad](),
+// [Renderer.MapQuad4]() and [Renderer.MapProjective]().
 type PointF32 struct {
 	X, Y float32
 }

@@ -38,8 +38,7 @@ func (r *Renderer) WarpBarrel(target, source *ebiten.Image, ox, oy float32, horz
 		r.warpPincushionQuad(target, source, ox, oy, -horzWarp, -vertWarp)
 	default:
 		r.setFlatCustomVAs01(horzWarp, vertWarp)
-		ensureShaderWarpBarrelLoaded()
-		r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel)
+		r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel.Load())
 	}
 }
 
@@ -53,8 +52,7 @@ func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float
 	vertWarp *= 0.2
 
 	r.setFlatCustomVAs01(horzWarp, vertWarp)
-	ensureShaderWarpPincushionQuadLoaded()
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpPincushionQuad)
+	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpPincushionQuad.Load())
 }
 
 // WarpArc projects the given source image onto a curved arc on target.
@@ -90,10 +88,9 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 	r.setSrcRectCoords(sox, soy, sfx, sfy)
 
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))
-	ensureShaderWarpArcLoaded()
 	r.opts.Images[0] = source
 	r.opts.Uniforms["Center"] = [2]float32{cx, cy}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderWarpArc, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

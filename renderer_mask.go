@@ -19,8 +19,7 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32) {
 	r.setFlatCustomVAs01(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	ensureShaderMaskLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMask, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMask.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 }
@@ -37,8 +36,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	r.setFlatCustomVAs01(ox-oxMask, oy-oyMask)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	ensureShaderMaskAtLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskAt, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskAt.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 }
@@ -61,8 +59,7 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 	r.setFlatCustomVAs(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32, reveal, 0.0)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	ensureShaderMaskThresholdLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskThreshold, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskThreshold.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 }
@@ -70,9 +67,8 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 // MaskHorz draws 'source' over 'target' but with an horizontal alpha fade between
 // the given points.
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, x, y, inX, outX float32) {
-	ensureShaderMaskHorzLoaded()
 	r.setFlatCustomVAs01(inX, outX)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderMaskHorz)
+	r.DrawShaderAt(target, source, x, y, 0, 0, shaderMaskHorz.Load())
 }
 
 // MaskCircle draws 'source' into 'target', centered at (cx + srcOffsetX, cy + srcOffset),
@@ -98,8 +94,7 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, 
 
 	r.opts.Images[0] = source
 	r.setFlatCustomVAs(cx, cy, hardRadius, softEdge)
-	ensureShaderMaskCircleLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -119,9 +114,8 @@ const (
 // to the renderer's color at >= dist. This is primarily a utility method to create
 // masks for [Renderer.Mask]() or [Renderer.MaskThreshold]() operations.
 func (r *Renderer) DrawAlphaMaskCirc(target *ebiten.Image, ox, oy, dist, distRand float32, pattern AlphaMaskPattern) {
-	ensureShaderAlphaMaskCircLoaded()
 	r.opts.Uniforms["RngPattern"] = int(pattern)
 	r.setFlatCustomVAs(ox, oy, dist, distRand)
-	r.DrawShader(target, 0, 0, shaderAlphaMaskCirc)
+	r.DrawShader(target, 0, 0, shaderAlphaMaskCirc.Load())
 	clear(r.opts.Uniforms)
 }

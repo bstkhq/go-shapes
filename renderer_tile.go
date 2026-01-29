@@ -10,8 +10,7 @@ func (r *Renderer) TileRectsGrid(target *ebiten.Image, outWidth, outHeight, inWi
 		r.opts.Uniforms["Offsets"] = [2]float32{xOffset, yOffset}
 	}
 	r.setFlatCustomVAs(outWidth, outHeight, inWidth, inHeight)
-	ensureShaderTileRectsGridLoaded()
-	r.DrawShader(target, 0, 0, shaderTileRectsGrid)
+	r.DrawShader(target, 0, 0, shaderTileRectsGrid.Load())
 	if useOffsets {
 		clear(r.opts.Uniforms)
 	}
@@ -21,24 +20,20 @@ func (r *Renderer) TileRectsGrid(target *ebiten.Image, outWidth, outHeight, inWi
 // lattice. HorzSpacing should always be at least twice the radius.
 func (r *Renderer) TileDotsHex(target *ebiten.Image, radius, horzSpacing, xOffset, yOffset float32) {
 	r.setFlatCustomVAs(radius, horzSpacing, xOffset, yOffset)
-	ensureShaderTileDotsHexLoaded()
-	r.DrawShader(target, 0, 0, shaderTileDotsHex)
+	r.DrawShader(target, 0, 0, shaderTileDotsHex.Load())
 }
 
 func (r *Renderer) TileDotsGrid(target *ebiten.Image, radius, spacing, xOffset, yOffset float32) {
 	r.setFlatCustomVAs(radius, spacing, xOffset, yOffset)
-	ensureShaderTileDotsGridLoaded()
-	r.DrawShader(target, 0, 0, shaderTileDotsGrid)
+	r.DrawShader(target, 0, 0, shaderTileDotsGrid.Load())
 }
 
 func (r *Renderer) TileTriUpGrid(target *ebiten.Image, outTriBase, inTriBase, xOffset, yOffset float32) {
 	r.setFlatCustomVAs(xOffset, yOffset, outTriBase, inTriBase)
-	ensureShaderTileTriUpGridLoaded()
-	r.DrawShader(target, 0, 0, shaderTileTriUpGrid)
+	r.DrawShader(target, 0, 0, shaderTileTriUpGrid.Load())
 }
 
 func (r *Renderer) TileTriHex(target *ebiten.Image, outTriBase, inTriBase, xOffset, yOffset float32) {
 	r.setFlatCustomVAs(xOffset, yOffset, outTriBase, inTriBase)
-	ensureShaderTileTriHexLoaded()
-	r.DrawShader(target, 0, 0, shaderTileTriHex)
+	r.DrawShader(target, 0, 0, shaderTileTriHex.Load())
 }
