@@ -172,7 +172,7 @@ func TestJFMExpand(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 			imgIndex = (imgIndex + 1) % len(ctx.Images)
 		}
 

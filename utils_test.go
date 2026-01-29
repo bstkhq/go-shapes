@@ -31,6 +31,7 @@ type TestAppCtx struct {
 	Ticks      uint64
 	LeftClick  image.Point
 	RightClick image.Point
+	NewInput   bool // if using inpututil.IsKeyJustPressed inside draw, check for this too
 }
 
 func (ctx *TestAppCtx) LeftClickF32() (x, y float32) {
@@ -93,6 +94,16 @@ func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*eb
 }
 
 func (app *TestApp) Update() error {
+	if app.Renderer.Warnings.HasAny() {
+		var warning Warning
+		for w := range app.Renderer.Warnings.All() {
+			warning = w
+			break
+		}
+		return fmt.Errorf("Warning: %s", warning.Message())
+	}
+
+	app.NewInput = true
 	app.Ticks += 1
 	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
@@ -110,4 +121,5 @@ func (app *TestApp) Update() error {
 
 func (app *TestApp) Draw(canvas *ebiten.Image) {
 	app.drawer(canvas, app.TestAppCtx)
+	app.NewInput = false // input will be stale if calling draw again (e.g. high refresh rate displays)
 }

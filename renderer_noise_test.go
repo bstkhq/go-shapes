@@ -15,7 +15,7 @@ func TestNoise(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		if inpututil.IsKeyJustPressed(ebiten.KeyControl) {
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyControl) {
 			move = !move
 		}
 
@@ -77,8 +77,8 @@ func TestNoiseGolden(t *testing.T) {
 		canvas.Fill(color.Black)
 
 		shift := ebiten.IsKeyPressed(ebiten.KeyShift)
-		up := inpututil.IsKeyJustPressed(ebiten.KeyArrowUp)
-		down := inpututil.IsKeyJustPressed(ebiten.KeyArrowDown)
+		up := ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyArrowUp)
+		down := ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyArrowDown)
 		switch {
 		case inpututil.IsKeyJustPressed(ebiten.KeyControl):
 			move = !move
