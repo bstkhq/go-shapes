@@ -12,6 +12,9 @@ var shaderDefaultSrc []byte
 //go:embed shaders/bilinear.kage
 var shaderBilinearSrc []byte
 
+//go:embed shaders/bicubic.kage
+var shaderBicubicSrc []byte
+
 //go:embed shaders/rect.kage
 var shaderRectSrc []byte
 
@@ -144,6 +147,9 @@ var shaderGradientDitherSrc []byte
 //go:embed shaders/gradient_radial.kage
 var shaderGradientRadialSrc []byte
 
+//go:embed shaders/gradient_radial_dither.kage
+var shaderGradientRadialDitherSrc []byte
+
 //go:embed shaders/colorize_lightness.kage
 var shaderColorizeByLightnessSrc []byte
 
@@ -218,6 +224,7 @@ var shaderStudyWaveFuncsSrc []byte
 
 var shaderDefault *ebiten.Shader
 var shaderBilinear *ebiten.Shader
+var shaderBicubic *ebiten.Shader
 var shaderRect *ebiten.Shader
 var shaderStrokeRect *ebiten.Shader
 var shaderLine *ebiten.Shader
@@ -262,6 +269,7 @@ var shaderFlatPaint *ebiten.Shader
 var shaderGradient *ebiten.Shader
 var shaderGradientDither *ebiten.Shader
 var shaderGradientRadial *ebiten.Shader
+var shaderGradientRadialDither *ebiten.Shader
 var shaderColorizeByLightness *ebiten.Shader
 var shaderOklabShift *ebiten.Shader
 var shaderColorMix *ebiten.Shader
@@ -305,6 +313,12 @@ func ensureShaderDefaultLoaded() {
 func ensureShaderBilinearLoaded() {
 	if shaderBilinear == nil {
 		shaderBilinear = mustCompile(shaderBilinearSrc)
+	}
+}
+
+func ensureShaderBicubicLoaded() {
+	if shaderBicubic == nil {
+		shaderBicubic = mustCompile(shaderBicubicSrc)
 	}
 }
 
@@ -569,6 +583,12 @@ func ensureShaderGradientDitherLoaded() {
 func ensureShaderGradientRadialLoaded() {
 	if shaderGradientRadial == nil {
 		shaderGradientRadial = mustCompile(shaderGradientRadialSrc)
+	}
+}
+
+func ensureShaderGradientRadialDitherLoaded() {
+	if shaderGradientRadialDither == nil {
+		shaderGradientRadialDither = mustCompile(shaderGradientRadialDitherSrc)
 	}
 }
 

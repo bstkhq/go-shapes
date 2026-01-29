@@ -1,0 +1,38 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	percent := customVAs.xy
+	halfPercent := percent / 2.0
+	minCoords, maxCoords := getMinMaxSourceCoords()
+
+	halfPercentY := halfPercent.y / 2.0
+	oneHalfPercY := percent.y + halfPercentY
+	a := cubicRow(sourceCoords-vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x)
+	b := cubicRow(sourceCoords-vec2(0, halfPercentY), minCoords, maxCoords, percent.x)
+	c := cubicRow(sourceCoords+vec2(0, halfPercentY), minCoords, maxCoords, percent.x)
+	d := cubicRow(sourceCoords+vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x)
+	delta := min(fract(sourceCoords.y+halfPercentY), percent.y) / percent.y
+	return clamp(cubicInterp(delta, a, b, c, d), vec4(0, 0, 0, 0), vec4(1, 1, 1, 1))
+}
+
+func cubicRow(coords vec2, minCoords, maxCoords vec2, percentX float) vec4 {
+	halfPercentX := SourceRelativeTextureUnitX / 2.0
+	oneHalfPercX := SourceRelativeTextureUnitX + halfPercentX
+	a := imageSrc0UnsafeAt(clamp(coords-vec2(oneHalfPercX, 0), minCoords, maxCoords))
+	b := imageSrc0UnsafeAt(clamp(coords-vec2(halfPercentX, 0), minCoords, maxCoords))
+	c := imageSrc0UnsafeAt(clamp(coords+vec2(halfPercentX, 0), minCoords, maxCoords))
+	d := imageSrc0UnsafeAt(clamp(coords+vec2(oneHalfPercX, 0), minCoords, maxCoords))
+	delta := min(fract(coords.x+halfPercentX), percentX) / percentX
+	return cubicInterp(delta, a, b, c, d)
+}
+
+func cubicInterp(x float, a, b, c, d vec4) vec4 {
+	return (-0.5*a+1.5*b-1.5*c+0.5*d)*(x*x*x) + (a-2.5*b+2.0*c-0.5*d)*(x*x) + (-0.5*a+0.5*c)*x + b
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	const epsilon = 0.001 // high epsilon for f16 compatibility
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

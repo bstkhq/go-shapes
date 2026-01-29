@@ -28,6 +28,8 @@ type Renderer struct {
 
 	temps          []offscreen
 	blueNoise64RGB *ebiten.Image
+	vogelPoints    [128]float32
+	vogelSinCos    [][2]float64
 
 	// Warnings registers events like invalid parameters being sent to
 	// rendering operations and makes them easy to detect, log and fix.
@@ -127,6 +129,17 @@ func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float
 //   - scaledSampling can be set to true to mimic Ebitengine's v2.9.0 FilterPixelated.
 //   - Subimages can be scaled without bleeding edges, as the shader uses clamping.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, scaledSampling bool) {
+	ensureShaderBilinearLoaded()
+	r.scaleShader(target, source, shaderBilinear, ox, oy, scale, scaledSampling)
+}
+
+// ScaleBicubic is the bicubic version of [Renderer.Scale]().
+func (r *Renderer) ScaleBicubic(target, source *ebiten.Image, ox, oy, scale float32, scaledScampling bool) {
+	ensureShaderBicubicLoaded()
+	r.scaleShader(target, source, shaderBicubic, ox, oy, scale, scaledScampling)
+}
+
+func (r *Renderer) scaleShader(target, source *ebiten.Image, shader *ebiten.Shader, ox, oy, scale float32, scaledSampling bool) {
 	if scale <= 0 {
 		if scale < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, scale)
@@ -147,13 +160,12 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, sc
 	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
 	r.opts.Images[0] = source
 
-	ensureShaderBilinearLoaded()
 	if scaledSampling {
 		r.setFlatCustomVAs(1.0/scale, 1.0/scale, 0, 0)
 	} else {
 		r.setFlatCustomVAs(1.0, 1.0, 0, 0)
 	}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBilinear, &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }
 
