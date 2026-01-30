@@ -21,4 +21,4 @@ Many of the SDFs are based on https://iquilezles.org/articles/distfunctions2d.
 
 - Ebitengine still doesn't handle color linearization properly for shaders. A few shaders are compensating this manually, like those involving Oklab color conversions or those requiring smooth edges, but in many significant cases, like blurs, all this is ignored. Once Ebitengine provides linearized colors in Kage, this will have to be homogenized.
 - Revise target origins being properly applied everywhere, and document target/source origins behavior clearly.
-- All shapes that accept rounding should support a positive rounding value for SDF expansion, and optionally, if inner rounding is allowed, handle it through negative values. Currently, most shapes do inner rounding with positive values, so newer functions can't even be properly adapted. This respects size boundaries but it's a missed opportunity.
+- Not all shapes supporting rounding parameters implement them perfectly.

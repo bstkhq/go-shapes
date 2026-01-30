@@ -410,4 +410,5 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	r.opts.Uniforms["NumColors"] = numColors
 	r.opts.Uniforms["Colors"] = palette
 	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderDitherMat4.Load())
+	clear(r.opts.Uniforms)
 }

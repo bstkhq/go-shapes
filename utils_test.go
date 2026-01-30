@@ -89,20 +89,12 @@ func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*eb
 	app.LeftClick = image.Pt((128*4)/3, 128)
 	app.RightClick = image.Pt((320*4)/3, 320)
 	app.Renderer = NewRenderer()
+	app.Renderer.Warnings.SetHandler(NewWarningPanicHandler())
 	app.drawer = drawer
 	return &app
 }
 
 func (app *TestApp) Update() error {
-	if app.Renderer.Warnings.HasAny() {
-		var warning Warning
-		for w := range app.Renderer.Warnings.All() {
-			warning = w
-			break
-		}
-		return fmt.Errorf("Warning: %s", warning.Message())
-	}
-
 	app.NewInput = true
 	app.Ticks += 1
 	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)

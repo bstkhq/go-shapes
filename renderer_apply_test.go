@@ -293,8 +293,8 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyGlowD4$ . -count 1
-func TestApplyGlowD4(t *testing.T) {
+// go test -run ^TestApplyGlowK$ . -count 1
+func TestApplyGlowK(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 

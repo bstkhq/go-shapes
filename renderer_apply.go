@@ -395,7 +395,7 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 //
 // Notice that unlike regular glow effects, dark glows expects threshStart >= threshEnd.
 func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd, colorMix float32) {
-	if threshStart > threshEnd {
+	if threshStart < threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
 	}
@@ -506,13 +506,13 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	//   has 1 pixel margins, this won't happen in practice. Otherwise the clear should
 	//   be delayed until after the horz kernel application
 
-	// apply effect
-	r.applyKernelOp(target, down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
-
 	// downscaling
 	r.opts.Blend = ebiten.BlendCopy
 	df32 := float32(df)
 	r.Scale(down, mask, 1, 1, 1.0/df32, opts.Scaling)
+
+	// apply effect
+	r.applyKernelOp(target, down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
 
 	// upscale
 	if lighterBlend {
