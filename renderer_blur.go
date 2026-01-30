@@ -6,36 +6,177 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// TODO: implement new blurs on this file and progressively refactor
+// ApplyBlur applies a naive, quadratic gaussian blur to the given mask and draws it onto the
+// given target.
+//
+// Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
+//
+// colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
+// colors.
+//
+// Notice that this method is designed mostly as a comparison baseline due to its high cost
+// (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most applications should use
+// [Renderer.ApplyBlur2]() and [Renderer.ApplyBlurVogel]() instead.
+func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	if radius > 16 {
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
+	}
 
-// Downscaling can be used with some operations
-type Downscaling uint8
+	srcBounds := mask.Bounds()
+	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
+	dstBounds := target.Bounds()
+	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
+	minX, minY := dstMinX+ox-radius, dstMinY+oy-radius
+	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight+radius
+	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
 
-const (
-	DownscaleNone Downscaling = iota
-	DownscaleX2
-	DownscaleX4
-	DownscaleX8
-	DownscaleX16
-)
+	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
+	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
+	r.setSrcRectCoords(srcMinX-radius-1, srcMinY-radius-1, srcMaxX+radius+1.0, srcMaxY+radius+1.0)
+	r.setFlatCustomVAs01(radius, colorMix)
 
-func (d Downscaling) valid() bool {
-	return d >= DownscaleNone && d <= DownscaleX16
+	// draw shader
+	r.opts.Images[0] = mask
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlur.Load(), &r.opts)
+	r.opts.Images[0] = nil
 }
 
-func (d Downscaling) Factor() int {
-	return int(1 << d)
+// ApplyBlur2 is similar to [Renderer.ApplyBlur](), but uses two 1D passes instead of a single
+// 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
+// batching tends to be much more efficient than [Renderer.ApplyBlur]().
+//
+// This function uses one internal offscreen (#0).
+//
+// TODO: document when blur2 (or blur2D) is inferior to vogel: boxier results, less stable under
+// heavy downscaling, smoothness for dynamic radius
+func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	if radius > 16 {
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
+	}
+
+	srcBounds := mask.Bounds()
+	ceilRadius := ceilF32(radius)
+	w32, h32 := float32(srcBounds.Dx()), float32(srcBounds.Dy())+2.0*ceilRadius
+	w, h := int(w32), int(h32)
+	tmp, _ := r.getTemp(0, w, h, false)
+	preBlend := r.opts.Blend
+	r.opts.Blend = ebiten.BlendCopy
+	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius, 1.0)
+	r.opts.Blend = preBlend
+	r.ApplyHorzBlur(target, tmp, ox, oy-ceilRadius, radius, colorMix)
+}
+
+func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	if radius > 16 {
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
+	}
+
+	srcBounds := mask.Bounds()
+	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
+	dstBounds := target.Bounds()
+	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
+	ceilRadius := ceilF32(radius)
+	minX, minY := dstMinX+ox, dstMinY+oy-ceilRadius
+	maxX, maxY := dstMinX+ox+srcWidth, dstMinY+oy+srcHeight+ceilRadius
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+
+	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
+	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
+	r.setSrcRectCoords(srcMinX, srcMinY-ceilRadius, srcMaxX, srcMaxY+ceilRadius)
+	r.setFlatCustomVAs01(radius, colorMix)
+
+	// draw shader
+	r.opts.Images[0] = mask
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlur.Load(), &r.opts)
+	r.opts.Images[0] = nil
+}
+
+func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	if radius > 16 {
+		r.Warnings.report(WarnRadiusClamped, radius)
+		radius = 16
+	} else if radius <= 0 {
+		if radius < 0 {
+			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		}
+		return
+	}
+
+	srcBounds := mask.Bounds()
+	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
+	dstBounds := target.Bounds()
+	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
+	minX, minY := dstMinX+ox-radius, dstMinY+oy
+	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+
+	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
+	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
+	r.setSrcRectCoords(srcMinX-radius, srcMinY, srcMaxX+radius, srcMaxY)
+	r.setFlatCustomVAs01(radius, colorMix)
+
+	// draw shader
+	r.opts.Images[0] = mask
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlur.Load(), &r.opts)
+	r.opts.Images[0] = nil
+}
+
+// ApplyBlurK is a separable blur using a fixed [GaussKernel] and optional downscaling
+// instead of a dynamic radius like [Renderer.ApplyBlur2]() or [Renderer.ApplyBlurVogel]().
+//
+// When using downscaling, this function uses two internal offscreens (#0, #1), and target
+// and mask can be on the same internal atlas.
+func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
+	invokeShader := func(downHorzTarget *ebiten.Image) {
+		r.setFlatCustomVA0(opts.ColorMix)
+		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
+	}
+	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
 }
 
 // ApplyBlurVogel applies a gaussian blur using numSamples distributed with a vogel disk.
 //
 // In comparison to pure gaussian blurs, vogel blurs have a more grainy, frosted glass look.
 // This can look anywhere from artistic to noisy. It can be an efficient way to implement
-// bokeh or depth of field effects. It works well on full images, much less so for specific,
-// isolated shapes.
+// bokeh or depth of field effects. It works well on full images, much less so for isolated
+// shapes.
 //
 // Common numSamples values:
-//   - 16: low quality, but fast and practical in many scenarios.
+//   - 16: low quality and noisy, but fast and practical in certain scenarios.
 //   - 32: medium quality and useful for a wide variety of blur effects.
 //   - 64: maximum allowed value.
 //
@@ -144,11 +285,11 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 	oy -= scaledShift
 
 	// upscale
+	var scaleOpts ScaleOptions
 	if downscale < 4 {
-		r.Scale(target, mid, ox, oy, float32(downscale), false)
-	} else {
-		r.ScaleBicubic(target, mid, ox, oy, float32(downscale), false)
+		scaleOpts.Bicubic = true
 	}
+	r.Scale(target, mid, ox, oy, float32(downscale), &scaleOpts)
 }
 
 func (r *Renderer) refreshVogelPoints(n int, radius float64) {
