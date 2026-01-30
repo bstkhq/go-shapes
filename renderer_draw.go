@@ -497,12 +497,15 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 
 // StrokeRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
 // When no rounding is required, prefer [Renderer.DrawIntArea]() instead.
-func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, outThickness, inThickness, rounding float32) {
-	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), outThickness, inThickness, rounding)
+func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness, rounding float32) {
+	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), inThickness, outThickness, rounding)
 }
 
-// TODO: fix rounding
-func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness, rounding float32) {
+// StrokeArea draws an outline on the given area's boundary, with explicit controls for in/out
+// border thickness. Rounding controls the outer edge rounding radius (inner radius if negative).
+//
+// If you have an image.Rectangle for the rect, consider [Renderer.StrokeRect]() instead.
+func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -526,6 +529,16 @@ func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, outThickness, 
 }
 
 func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32) {
+	if rounding < 0 {
+		// adjust for inner boundary
+		rounding = -(rounding - inThickness)
+	}
+
+	const SafeMargin = 2.0
+	if rounding >= min(w, h)*2.0+SafeMargin {
+		return // ignore
+	}
+
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["InnerThickness"] = inThickness
 	r.opts.Uniforms["Rounding"] = rounding

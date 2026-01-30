@@ -107,10 +107,10 @@ func TestStrokeArea(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		ctx.Renderer.DrawArea(canvas, lx, ly, 200, 50, 16)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 2, 0, 16)
+		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 0, 2, 16)
 
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 0, 2, 16)
+		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 2, 0, 16)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
@@ -127,6 +127,17 @@ func TestStrokeArea(t *testing.T) {
 		extra := float32(ctx.DistAnim(16, 1.0))
 		subRounding := float32(ctx.DistAnim(20, 1.0))
 		ctx.Renderer.StrokeArea(canvas, lx, ry, 80+extra, 50, 8, 8, 25-subRounding)
+
+		w, h := rectSizeF32(canvas.Bounds())
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.StrokeArea(canvas, w-16, 16, -200, 64, 0, 8, 32)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		ctx.Renderer.DrawCircle(canvas, w-16-32+8, 16+32-8, 32)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.StrokeArea(canvas, 16, h-16, 96, -64, 0, 8, -32.0)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		ctx.Renderer.DrawCircle(canvas, 16+32, h-16-32, 32)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
