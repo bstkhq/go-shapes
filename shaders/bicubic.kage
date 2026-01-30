@@ -2,11 +2,9 @@
 package main
 
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
-	percent := customVAs.xy
-	halfPercent := percent / 2.0
 	minCoords, maxCoords := getMinMaxSourceCoords()
-
-	halfPercentY := halfPercent.y / 2.0
+	percent := customVAs.xy
+	halfPercentY := percent.y / 2.0
 	oneHalfPercY := percent.y + halfPercentY
 	a := cubicRow(sourceCoords-vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x)
 	b := cubicRow(sourceCoords-vec2(0, halfPercentY), minCoords, maxCoords, percent.x)
