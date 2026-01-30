@@ -127,19 +127,25 @@ func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float
 	r.DrawRectShader(target, 0, 0, float32(bounds.Dx()), float32(bounds.Dy()), horzMargin, vertMargin, shader)
 }
 
-// Scale draws the source into the given target with two differences from Ebitengine's scaling:
-//   - scaledSampling can be set to true to mimic Ebitengine's v2.9.0 FilterPixelated.
-//   - Subimages can be scaled without bleeding edges, as the shader uses clamping.
-func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, scaledSampling bool) {
-	r.scaleShader(target, source, shaderBilinear.Load(), ox, oy, scale, scaledSampling)
+// ScaleOptions are used in [Renderer.Scale]() and optionally in some other operations.
+type ScaleOptions struct {
+	// When true, samples outside bounds will be clamped to the image limits.
+	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
+	Clamp bool
+
+	// When true, sampling is done in destination space (1.0/scale px offsets).
+	// When false, sampling is done in source space (1.0px offsets).
+	//
+	// DstSampling = true is equivalent to Ebitengine's v2.9.0 FilterPixelated.
+	DstSampling bool
+
+	// When true, bicubic algorithm will be used instead of bilinear.
+	Bicubic bool
 }
 
-// ScaleBicubic is the bicubic version of [Renderer.Scale]().
-func (r *Renderer) ScaleBicubic(target, source *ebiten.Image, ox, oy, scale float32, scaledScampling bool) {
-	r.scaleShader(target, source, shaderBicubic.Load(), ox, oy, scale, scaledScampling)
-}
-
-func (r *Renderer) scaleShader(target, source *ebiten.Image, shader *ebiten.Shader, ox, oy, scale float32, scaledSampling bool) {
+// Scale draws the source into the given target with the given parameters. opts can be nil,
+// but notice that in that case Ebitengine default functions can already do the job fine.
+func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, opts *ScaleOptions) {
 	if scale <= 0 {
 		if scale < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, scale)
@@ -160,11 +166,24 @@ func (r *Renderer) scaleShader(target, source *ebiten.Image, shader *ebiten.Shad
 	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
 	r.opts.Images[0] = source
 
-	if scaledSampling {
-		r.setFlatCustomVAs(1.0/scale, 1.0/scale, 0, 0)
-	} else {
-		r.setFlatCustomVAs(1.0, 1.0, 0, 0)
+	var clamp, sampling float32 = 0.0, 1.0
+	var shader *ebiten.Shader
+	if opts != nil {
+		if opts.Clamp {
+			clamp = 1.0
+		}
+		if opts.DstSampling {
+			sampling /= scale
+		}
+		if opts.Bicubic {
+			shader = shaderBicubic.Load()
+		}
 	}
+	if shader == nil {
+		shader = shaderBilinear.Load()
+	}
+
+	r.setFlatCustomVAs(sampling, sampling, clamp, 0)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }

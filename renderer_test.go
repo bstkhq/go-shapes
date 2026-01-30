@@ -24,9 +24,13 @@ func TestScale(t *testing.T) {
 		canvas.DrawImage(ctx.Images[0], &opts)
 
 		size := float32(3 * scale)
-		ctx.Renderer.Scale(canvas, ctx.Images[0], 0, float32(h)-size, float32(scale), false)
+		var scOpts ScaleOptions
+		scOpts.Clamp = ebiten.IsKeyPressed(ebiten.KeyC)
+		scOpts.DstSampling = ebiten.IsKeyPressed(ebiten.KeyD)
 
-		ctx.Renderer.ScaleBicubic(canvas, ctx.Images[0], float32(w)-size, float32(h)-size, float32(scale), false)
+		ctx.Renderer.Scale(canvas, ctx.Images[0], 0, float32(h)-size, float32(scale), &scOpts)
+		scOpts.Bicubic = true
+		ctx.Renderer.Scale(canvas, ctx.Images[0], float32(w)-size, float32(h)-size, float32(scale), &scOpts)
 	})
 
 	sq9 := ebiten.NewImage(3, 3)

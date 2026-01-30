@@ -1,22 +1,48 @@
 //kage:unit pixels
 package main
 
+// NOTE: this could be a single texture tap if linear sampling was available.
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	percent := customVAs.xy
 	halfPercent := percent / 2.0
-	minCoords, maxCoords := getMinMaxSourceCoords()
-	tl := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(-halfPercent.x, -halfPercent.y), minCoords, maxCoords))
-	tr := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(+halfPercent.x, -halfPercent.y), minCoords, maxCoords))
-	bl := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(-halfPercent.x, +halfPercent.y), minCoords, maxCoords))
-	br := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(+halfPercent.x, +halfPercent.y), minCoords, maxCoords))
+	clamping := customVAs[2]
+
+	tlCoords := sourceCoords + vec2(-halfPercent.x, -halfPercent.y)
+	trCoords := sourceCoords + vec2(+halfPercent.x, -halfPercent.y)
+	blCoords := sourceCoords + vec2(-halfPercent.x, +halfPercent.y)
+	brCoords := sourceCoords + vec2(+halfPercent.x, +halfPercent.y)
+
+	minCoords, maxCoords := getMinMaxSourceCoords(0.001 * clamping)
+	var tlIn, trIn, blIn, brIn float = 1.0, 1.0, 1.0, 1.0
+	if clamping == 1.0 {
+		tlCoords = clamp(tlCoords, minCoords, maxCoords)
+		trCoords = clamp(trCoords, minCoords, maxCoords)
+		blCoords = clamp(blCoords, minCoords, maxCoords)
+		brCoords = clamp(brCoords, minCoords, maxCoords)
+	} else {
+		tlIn = whenWithin(tlCoords, minCoords, maxCoords)
+		trIn = whenWithin(trCoords, minCoords, maxCoords)
+		blIn = whenWithin(blCoords, minCoords, maxCoords)
+		brIn = whenWithin(brCoords, minCoords, maxCoords)
+	}
+
+	tl := imageSrc0UnsafeAt(tlCoords) * tlIn
+	tr := imageSrc0UnsafeAt(trCoords) * trIn
+	bl := imageSrc0UnsafeAt(blCoords) * blIn
+	br := imageSrc0UnsafeAt(brCoords) * brIn
 	delta := min(fract(sourceCoords+vec2(+halfPercent.x, +halfPercent.y)), percent) / percent
 	top := mix(tl, tr, delta.x)
 	bottom := mix(bl, br, delta.x)
 	return mix(top, bottom, delta.y)
 }
 
-func getMinMaxSourceCoords() (vec2, vec2) {
-	const epsilon = 0.001 // high epsilon for f16 compatibility
+func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
 	origin := imageSrc0Origin()
 	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}
+
+// test reference https://go.dev/play/p/YtYyZRUi9uu
+func whenWithin(xy, minInc, maxExc vec2) float {
+	in := step(minInc, xy) - step(maxExc, xy)
+	return in.x * in.y
 }

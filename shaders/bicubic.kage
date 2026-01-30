@@ -1,26 +1,47 @@
 //kage:unit pixels
 package main
 
+// NOTE: this could be done in 4 texture taps instead of 16 if linear sampling was available.
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
-	minCoords, maxCoords := getMinMaxSourceCoords()
 	percent := customVAs.xy
 	halfPercentY := percent.y / 2.0
 	oneHalfPercY := percent.y + halfPercentY
-	a := cubicRow(sourceCoords-vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x)
-	b := cubicRow(sourceCoords-vec2(0, halfPercentY), minCoords, maxCoords, percent.x)
-	c := cubicRow(sourceCoords+vec2(0, halfPercentY), minCoords, maxCoords, percent.x)
-	d := cubicRow(sourceCoords+vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x)
+	clamping := customVAs[2]
+	minCoords, maxCoords := getMinMaxSourceCoords(0.001 * clamping)
+	a := cubicRow(sourceCoords-vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x, clamping)
+	b := cubicRow(sourceCoords-vec2(0, halfPercentY), minCoords, maxCoords, percent.x, clamping)
+	c := cubicRow(sourceCoords+vec2(0, halfPercentY), minCoords, maxCoords, percent.x, clamping)
+	d := cubicRow(sourceCoords+vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x, clamping)
 	delta := min(fract(sourceCoords.y+halfPercentY), percent.y) / percent.y
 	return clamp(cubicInterp(delta, a, b, c, d), vec4(0, 0, 0, 0), vec4(1, 1, 1, 1))
 }
 
-func cubicRow(coords vec2, minCoords, maxCoords vec2, percentX float) vec4 {
+func cubicRow(coords vec2, minCoords, maxCoords vec2, percentX float, clamping float) vec4 {
 	halfPercentX := percentX / 2.0
 	oneHalfPercX := percentX + halfPercentX
-	a := imageSrc0UnsafeAt(clamp(coords-vec2(oneHalfPercX, 0), minCoords, maxCoords))
-	b := imageSrc0UnsafeAt(clamp(coords-vec2(halfPercentX, 0), minCoords, maxCoords))
-	c := imageSrc0UnsafeAt(clamp(coords+vec2(halfPercentX, 0), minCoords, maxCoords))
-	d := imageSrc0UnsafeAt(clamp(coords+vec2(oneHalfPercX, 0), minCoords, maxCoords))
+
+	aCoords := coords - vec2(oneHalfPercX, 0)
+	bCoords := coords - vec2(halfPercentX, 0)
+	cCoords := coords + vec2(halfPercentX, 0)
+	dCoords := coords + vec2(oneHalfPercX, 0)
+
+	var aIn, bIn, cIn, dIn float = 1.0, 1.0, 1.0, 1.0
+	if clamping == 1.0 {
+		aCoords = clamp(aCoords, minCoords, maxCoords)
+		bCoords = clamp(bCoords, minCoords, maxCoords)
+		cCoords = clamp(cCoords, minCoords, maxCoords)
+		dCoords = clamp(dCoords, minCoords, maxCoords)
+	} else {
+		aIn = whenWithin(aCoords, minCoords, maxCoords)
+		bIn = whenWithin(bCoords, minCoords, maxCoords)
+		cIn = whenWithin(cCoords, minCoords, maxCoords)
+		dIn = whenWithin(dCoords, minCoords, maxCoords)
+	}
+
+	a := imageSrc0UnsafeAt(aCoords) * aIn
+	b := imageSrc0UnsafeAt(bCoords) * bIn
+	c := imageSrc0UnsafeAt(cCoords) * cIn
+	d := imageSrc0UnsafeAt(dCoords) * dIn
 	delta := min(fract(coords.x+halfPercentX), percentX) / percentX
 	return cubicInterp(delta, a, b, c, d)
 }
@@ -29,8 +50,12 @@ func cubicInterp(x float, a, b, c, d vec4) vec4 {
 	return (-0.5*a+1.5*b-1.5*c+0.5*d)*(x*x*x) + (a-2.5*b+2.0*c-0.5*d)*(x*x) + (-0.5*a+0.5*c)*x + b
 }
 
-func getMinMaxSourceCoords() (vec2, vec2) {
-	const epsilon = 0.001 // high epsilon for f16 compatibility
+func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
 	origin := imageSrc0Origin()
 	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}
+
+func whenWithin(xy, minInc, maxExc vec2) float {
+	in := step(minInc, xy) - step(maxExc, xy)
+	return in.x * in.y
 }
