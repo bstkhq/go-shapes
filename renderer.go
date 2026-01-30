@@ -26,10 +26,12 @@ type Renderer struct {
 	singleClr     bool
 	strokeIndices []uint16
 
-	temps          []offscreen
-	blueNoise64RGB *ebiten.Image
-	vogelPoints    [128]float32
-	vogelSinCos    [][2]float64
+	temps           []offscreen
+	blueNoise64RGB  *ebiten.Image
+	vogelPoints     [128]float32
+	vogelSinCos     [][2]float64
+	vogelLastRadius float64
+	vogelStickyN    int
 
 	// Warnings registers events like invalid parameters being sent to
 	// rendering operations and makes them easy to detect, log and fix.

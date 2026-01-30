@@ -69,7 +69,6 @@ func TestNoiseAspectRatio(t *testing.T) {
 
 // go test -run ^TestNoiseGolden$ . -count 1
 func TestNoiseGolden(t *testing.T) {
-	anim := float32(0.0)
 	scale := float32(1.0)
 	move := true
 
@@ -106,8 +105,8 @@ func TestNoiseGolden(t *testing.T) {
 			sub = canvas.SubImage(bounds).(*ebiten.Image)
 		}
 
-		anim += 1.0 / 60.0
-		ctx.Renderer.NoiseGolden(sub, scale, 1.0, anim)
+		anim := float64(ctx.Ticks) / 60.0
+		ctx.Renderer.NoiseGolden(sub, scale, 1.0, float32(anim))
 	})
 
 	if err := ebiten.RunGame(app); err != nil {

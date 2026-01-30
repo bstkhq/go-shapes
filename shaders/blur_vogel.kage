@@ -2,15 +2,19 @@
 package main
 
 var NumSamples int
-var Disk [64]vec2 // radius already applied
+var Disk [64]vec2
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const Pi = 3.14159265359
 
-	//radius := customVAs[0]
+	radius := customVAs[0]
 	clrMix := customVAs[1]
+	seed := customVAs[2]
+	shift := customVAs[3]
 
-	rotation := hash2A(targetCoords.xy-imageDstOrigin()) * 2 * Pi
+	// NOTE: also tried blue noise, not any better
+	noise := hash3A(vec3(targetCoords.xy-imageDstOrigin()-shift, seed))
+	rotation := noise * 2 * Pi
 	sinR, cosR := sin(rotation), cos(rotation)
 	rotMat := mat2(cosR, sinR, -sinR, cosR)
 
@@ -20,7 +24,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 			break
 		}
 
-		offset := rotMat * Disk[i]
+		offset := rotMat * (Disk[i] * radius)
 		accColor += imageSrc0At(sourceCoords + offset)
 	}
 
@@ -29,7 +33,6 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	return out
 }
 
-func hash2A(uv vec2) float {
-	magic := vec3(0.06711056, 0.00583715, 52.9829189)
-	return fract(magic.z * fract(dot(uv, magic.xy)))
+func hash3A(xyz vec3) float {
+	return fract(sin(dot(xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453)
 }
