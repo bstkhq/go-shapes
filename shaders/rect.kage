@@ -15,7 +15,8 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 }
 
 func distanceToRoundedRect(coords vec2, width, height, radius float) float {
-	return distanceToRect(coords, width-radius*2, height-radius*2) - radius
+	th := min(0, radius*2)
+	return distanceToRect(coords, width+th, height+th) - abs(radius)
 }
 
 func distanceToRect(coords vec2, width, height float) float {

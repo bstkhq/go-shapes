@@ -49,12 +49,21 @@ func TestDrawArea(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		w1, h1 := float32(128), float32(48)
 		w2, h2 := float32(48), float32(128)
-		ctx.Renderer.DrawArea(canvas, lx-w1/2, ly-h1/2, w1, h1, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
-		ctx.Renderer.DrawArea(canvas, rx-w2/2, ry-h2/2, w2, h2, 0)
+		ctx.Renderer.DrawArea(canvas, lx-w1/2, ly-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.DrawArea(canvas, rx-w2/2, ry-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 
 		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
 		ctx.Renderer.DrawCircle(canvas, lx, ly, max(w1, h1)/2.0)
 		ctx.Renderer.DrawCircle(canvas, rx, ry, max(w2, h2)/2.0)
+
+		_, _, _, h := rectOriginSizeF32(canvas.Bounds())
+		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+		ctx.Renderer.DrawArea(canvas, 16, h-16, 128, -128, 0)
+		ctx.Renderer.DrawArea(canvas, 32, h-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
+
+		ctx.Renderer.DrawCircle(canvas, 164+32, h-16-32, 32)
+		ctx.Renderer.DrawCircle(canvas, 164+128-32, h-16-128+32, 32)
+		ctx.Renderer.DrawArea(canvas, 164, h-16, 128, -128, -float32(ctx.DistAnim(32, 1.0)))
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

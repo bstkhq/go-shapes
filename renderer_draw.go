@@ -33,6 +33,8 @@ func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding
 	r.DrawArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
 }
 
+// DrawArea draws a rectangle with the given properties. Rounding can be zero,
+// positive for outwards rounding, or negative for inwards rounding.
 func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32) {
 	if w < 0 {
 		w = -w
@@ -42,9 +44,14 @@ func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32
 		h = -h
 		oy -= h
 	}
+	if rounding < -max(w, h)*2 {
+		return // ignore
+	}
+
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, 0, 0, shaderRect.Load())
+	margin := float32(math.Abs(math.Ceil(-float64(rounding))))
+	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -494,6 +501,7 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, outThi
 	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), outThickness, inThickness, rounding)
 }
 
+// TODO: fix rounding
 func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness, rounding float32) {
 	if w < 0 {
 		w = -w
