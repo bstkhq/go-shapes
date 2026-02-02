@@ -341,14 +341,25 @@ func TestDrawAreaSoft(t *testing.T) {
 		ctx.Renderer.DrawAreaSoft(canvas, cw/3-64, ch/3-32, 128, 64, rounding, soft)
 		ctx.Renderer.DrawAreaSoft(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2, 0.0)
 
+		const brW, brH = 128, 96
+		ox, oy := cw-cw/3-64, ch/3-32
+		brSoft := float32(ctx.DistAnim(16.0, 1.0))
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
+			ctx.Renderer.DrawArea(tmp, 96/2, 96/2, brW, brH, rounding)
+			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft, 0.0)
+		} else {
+			ctx.Renderer.DrawAreaBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
+		}
+
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.Renderer.SetColorF32(1, 0, 0, 1)
 			ctx.Renderer.ScaleAlphaBy(0.333)
 			ctx.Renderer.DrawArea(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
 			ctx.Renderer.DrawArea(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
 		}
-
 	})
+
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

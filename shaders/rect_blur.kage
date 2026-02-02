@@ -2,27 +2,17 @@
 package main
 
 var Rounding float   // can only be zero or positive (inwards rounding)
-var SoftRadius float // can be zero, positive or negative
+var BlurRadius float // can only be zero or positive
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	origin := customVAs.xy
 	size := customVAs.zw
 
 	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
-	dist := distanceToRoundedRect(p, size.x, size.y, Rounding)
-	if SoftRadius > 0 {
-		dist = max(0, dist)
-	} else {
-		dist = min(0, dist)
-	}
-
-	sigma := abs(SoftRadius) / 3.0
-	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
-	alpha := clamp(exp(-(dist*dist)/sigma2), 0, 1)
-	if SoftRadius <= 0 {
-		alpha = 1.0 - alpha
-	}
-
+	sigma := BlurRadius / 3.0
+	dist := distanceToRoundedRect(p, size.x, size.y, Rounding+sigma/3.0)
+	const k = 1.65 // gaussian-like slope constant
+	alpha := 1.0 / (1.0 + exp(k*dist/sigma))
 	return color * alpha
 }
 

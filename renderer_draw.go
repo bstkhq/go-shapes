@@ -651,11 +651,8 @@ func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickeni
 // the more expensive raster-based blurs.
 //
 // Rounding can be zero, positive for outwards rounding, or negative for inwards rounding.
-// SoftRadius extends beyond the
-// TODO: benchmark fps for 64 boxes with shadows or something
+// SoftRadius extends beyond the boundary.
 func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {
-	// TODO: first, normalize rounding and soft radius to positive values by shifting boundaries?
-	// or should I handle negative soft radius directly in shader? yeah that might be better...
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -681,7 +678,44 @@ func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = -rounding
 	r.opts.Uniforms["SoftRadius"] = softRadius
-	margin := float32(math.Ceil(float64(max(softRadius, 0)) * 1.25)) // TODO: 1.25? compare to proper gaussian blurs
+	margin := max(softRadius, 0)
 	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRectSoft.Load())
+	clear(r.opts.Uniforms)
+}
+
+// DrawAreaBlur behaves very similarly to [Renderer.DrawAreaSoft](), but accepts only non-negative
+// blur radiuses, and "blurs" around the boundary instead of before or after it.
+func (r *Renderer) DrawAreaBlur(target *ebiten.Image, ox, oy, w, h, rounding, blurRadius float32) {
+	if w < 0 {
+		w = -w
+		ox -= w
+	}
+	if h < 0 {
+		h = -h
+		oy -= h
+	}
+
+	if rounding > 0 {
+		r2 := rounding + rounding
+		w, h = w+r2, h+r2
+		ox -= rounding
+		oy -= rounding
+		rounding = -rounding
+	}
+
+	if blurRadius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, blurRadius)
+		blurRadius = 0.0
+	}
+
+	// TODO: restore after accounting for soft radius
+	// if rounding < -max(w, h)*2 {
+	// 	return // ignore
+	// }
+
+	r.setFlatCustomVAs(ox, oy, w, h)
+	r.opts.Uniforms["Rounding"] = -rounding
+	r.opts.Uniforms["BlurRadius"] = blurRadius
+	r.DrawRectShader(target, ox, oy, w, h, blurRadius, blurRadius, shaderRectBlur.Load())
 	clear(r.opts.Uniforms)
 }
