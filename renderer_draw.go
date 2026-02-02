@@ -670,10 +670,9 @@ func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		rounding = -rounding
 	}
 
-	// TODO: restore after accounting for soft radius
-	// if rounding < -max(w, h)*2 {
-	// 	return // ignore
-	// }
+	if rounding+max(softRadius, 0) < -max(w, h)*2 {
+		return // ignore
+	}
 
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = -rounding
@@ -708,10 +707,9 @@ func (r *Renderer) DrawAreaBlur(target *ebiten.Image, ox, oy, w, h, rounding, bl
 		blurRadius = 0.0
 	}
 
-	// TODO: restore after accounting for soft radius
-	// if rounding < -max(w, h)*2 {
-	// 	return // ignore
-	// }
+	if rounding+blurRadius < -max(w, h)*2 {
+		return // ignore
+	}
 
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = -rounding

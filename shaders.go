@@ -42,6 +42,10 @@ var shaderRect = shaderRef{src: shaderRectSrc}
 var shaderRectSoftSrc []byte
 var shaderRectSoft = shaderRef{src: shaderRectSoftSrc}
 
+//go:embed shaders/rect_blur.kage
+var shaderRectBlurSrc []byte
+var shaderRectBlur = shaderRef{src: shaderRectBlurSrc}
+
 //go:embed shaders/stroke_rect.kage
 var shaderStrokeRectSrc []byte
 var shaderStrokeRect = shaderRef{src: shaderStrokeRectSrc}
