@@ -328,3 +328,28 @@ func TestDrawQuadSoft(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// go test -run ^TestDrawAreaSoft$ . -count 1
+func TestDrawAreaSoft(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		cw, ch := rectSizeF32(canvas.Bounds())
+
+		rounding := float32(-32 + ctx.DistAnim(48, 1.0))
+		rounding2 := float32(-32 + ctx.DistAnim(48, 0.777))
+		soft := float32(-16.0 + ctx.DistAnim(32, 1.0))
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.DrawAreaSoft(canvas, cw/3-64, ch/3-32, 128, 64, rounding, soft)
+		ctx.Renderer.DrawAreaSoft(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2, 0.0)
+
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			ctx.Renderer.SetColorF32(1, 0, 0, 1)
+			ctx.Renderer.ScaleAlphaBy(0.333)
+			ctx.Renderer.DrawArea(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
+			ctx.Renderer.DrawArea(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
+		}
+
+	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}

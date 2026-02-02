@@ -1,7 +1,8 @@
 //kage:unit pixels
 package main
 
-var Rounding float // can be zero, positive (outwards) or negative (inwards)
+var Rounding float   // can only be zero or positive (inwards rounding)
+var SoftRadius float // can be zero, positive or negative
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	origin := customVAs.xy
@@ -9,14 +10,25 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 
 	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
 	dist := distanceToRoundedRect(p, size.x, size.y, Rounding)
-	alpha := 1.0 - smoothstep(-1.333, 0, dist)
+	if SoftRadius > 0 {
+		dist = max(0, dist)
+	} else {
+		dist = min(0, dist)
+	}
+
+	sigma := abs(SoftRadius) / 3.0
+	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
+	alpha := clamp(exp(-(dist*dist)/sigma2), 0, 1)
+	if SoftRadius <= 0 {
+		alpha = 1.0 - alpha
+	}
+
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }
 
 func distanceToRoundedRect(coords vec2, width, height, radius float) float {
-	th := min(0, radius*2)
-	return distanceToRect(coords, width+th, height+th) - abs(radius)
+	return distanceToRect(coords, width-radius*2, height-radius*2) - radius
 }
 
 func distanceToRect(coords vec2, width, height float) float {

@@ -35,6 +35,9 @@ func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding
 
 // DrawArea draws a rectangle with the given properties. Rounding can be zero,
 // positive for outwards rounding, or negative for inwards rounding.
+//
+// If you need shadows for rects or capsules drawn with this method, consider
+// [Renderer.DrawAreaSoft]().
 func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32) {
 	if w < 0 {
 		w = -w
@@ -50,7 +53,10 @@ func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32
 
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
-	margin := float32(math.Abs(math.Ceil(-float64(rounding))))
+	margin := float32(0.0)
+	if rounding > 0 {
+		margin = float32(math.Ceil(float64(rounding)))
+	}
 	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
@@ -640,5 +646,42 @@ func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickeni
 	clear(r.opts.Uniforms)
 }
 
-// TODO: analytical rect blur
-func (r *Renderer) DrawSoftBox(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {}
+// DrawAreaSoft draws a rect like [Renderer.DrawArea]() but with an extra softRadius, which
+// creates a shadow-like soft edge. This is ideal for rendering rect shadows in UIs avoiding
+// the more expensive raster-based blurs.
+//
+// Rounding can be zero, positive for outwards rounding, or negative for inwards rounding.
+// SoftRadius extends beyond the
+// TODO: benchmark fps for 64 boxes with shadows or something
+func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {
+	// TODO: first, normalize rounding and soft radius to positive values by shifting boundaries?
+	// or should I handle negative soft radius directly in shader? yeah that might be better...
+	if w < 0 {
+		w = -w
+		ox -= w
+	}
+	if h < 0 {
+		h = -h
+		oy -= h
+	}
+
+	if rounding > 0 {
+		r2 := rounding + rounding
+		w, h = w+r2, h+r2
+		ox -= rounding
+		oy -= rounding
+		rounding = -rounding
+	}
+
+	// TODO: restore after accounting for soft radius
+	// if rounding < -max(w, h)*2 {
+	// 	return // ignore
+	// }
+
+	r.setFlatCustomVAs(ox, oy, w, h)
+	r.opts.Uniforms["Rounding"] = -rounding
+	r.opts.Uniforms["SoftRadius"] = softRadius
+	margin := float32(math.Ceil(float64(max(softRadius, 0)) * 1.25)) // TODO: 1.25? compare to proper gaussian blurs
+	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRectSoft.Load())
+	clear(r.opts.Uniforms)
+}

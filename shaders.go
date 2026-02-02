@@ -38,6 +38,10 @@ var shaderBicubic = shaderRef{src: shaderBicubicSrc}
 var shaderRectSrc []byte
 var shaderRect = shaderRef{src: shaderRectSrc}
 
+//go:embed shaders/rect_soft.kage
+var shaderRectSoftSrc []byte
+var shaderRectSoft = shaderRef{src: shaderRectSoftSrc}
+
 //go:embed shaders/stroke_rect.kage
 var shaderStrokeRectSrc []byte
 var shaderStrokeRect = shaderRef{src: shaderStrokeRectSrc}
