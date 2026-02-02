@@ -58,8 +58,8 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 // This function uses one internal offscreen (#0), and target and mask can be on the same
 // internal atlas.
 //
-// TODO: document when blur2 (or blur2D) is inferior to vogel: boxier results, less stable under
-// heavy downscaling, smoothness for dynamic radius
+// See [Renderer.ApplyBlurK]() if downscaling or fixed kernels are desired.
+//
 // TODO: handle Blur and Blur2 radius = 0 properly, it should still perform the color mixing
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if mask == nil {

@@ -147,16 +147,17 @@ func TestApplyBlurK(t *testing.T) {
 		ctx.Renderer.DrawCircle(canvas, lx, ly, radius)
 
 		rx, ry := ctx.RightClickF32()
+		k := GaussK9
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, 16.0, 1.0)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0, 1.0)
 		} else {
-			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK11, VertKernel: GaussK11, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k, ColorMix: 1.0}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
 		}
 
 		_, ch := rectSizeF32(canvas.Bounds())
-		k := GaussK17
+		k = GaussK29
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()), 1.0)
 		} else {

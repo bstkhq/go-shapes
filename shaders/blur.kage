@@ -14,6 +14,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 		accColor = imageSrc0At(sourceCoords)
 		accWeight = 1.0
 	} else {
+		// note: for different distributions, sigma values could be parametrized.
+		// for example, using sigma = sqrt(radius/2.0) would be closer to the binomial
 		sigma := radius / 3.0
 		sigma2 := 2.0 * sigma * sigma
 		scanOffset := vec2(radius)
