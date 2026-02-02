@@ -117,15 +117,30 @@ func TestApplyDirBlur(t *testing.T) {
 // go test -run ^TestApplyBlurK$ . -count 1
 func TestApplyBlurK(t *testing.T) {
 	radius := float32(64.0)
+	dscale := DownscaleX4
+	bicubic := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [downscaling: x%d (D), bicubic = %t (B)]", ctx.Title(), dscale.Factor(), bicubic))
+
+		if ctx.NewInput {
+			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+				dscale += 1
+				if dscale > DownscaleX16 {
+					dscale = DownscaleNone
+				}
+			} else if inpututil.IsKeyJustPressed(ebiten.KeyB) {
+				bicubic = !bicubic
+			}
+		}
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0, 1.0)
 		} else {
-			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: GaussK17, VertKernel: GaussK5, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5, ColorMix: 1.0}
+			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
@@ -135,8 +150,18 @@ func TestApplyBlurK(t *testing.T) {
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, 16.0, 1.0)
 		} else {
-			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: GaussK11, VertKernel: GaussK11, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK11, VertKernel: GaussK11, ColorMix: 1.0}
+			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
+		}
+
+		_, ch := rectSizeF32(canvas.Bounds())
+		k := GaussK17
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()), 1.0)
+		} else {
+			kOpts := KernelOptions{Downscaling: DownscaleNone, HorzKernel: k, VertKernel: k, ColorMix: 1.0}
+			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], 16, ch-16-radius*2, kOpts)
 		}
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))

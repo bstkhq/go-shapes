@@ -208,8 +208,8 @@ func TestApplyZoomShadow(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyGlow$ . -count 1
-func TestApplyGlow(t *testing.T) {
+// go test -run ^TestApplyGlow2$ . -count 1
+func TestApplyGlow2(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
@@ -335,11 +335,11 @@ func TestApplyGlowK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyGlowKernBleed$ . -count 1
+// go test -run ^TestApplyGlowKBleed$ . -count 1
 // Notice: some bleeding edge cases are quite difficult to reproduce
 // and haven't been able to catch them through tests yet, only live
 // code in more complex projects.
-func TestApplyGlowKernBleed(t *testing.T) {
+func TestApplyGlowKBleed(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 

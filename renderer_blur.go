@@ -55,10 +55,12 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 // 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
 // batching tends to be much more efficient than [Renderer.ApplyBlur]().
 //
-// This function uses one internal offscreen (#0).
+// This function uses one internal offscreen (#0), and target and mask can be on the same
+// internal atlas.
 //
 // TODO: document when blur2 (or blur2D) is inferior to vogel: boxier results, less stable under
 // heavy downscaling, smoothness for dynamic radius
+// TODO: handle Blur and Blur2 radius = 0 properly, it should still perform the color mixing
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -67,18 +69,15 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
-	} else if radius <= 0 {
-		if radius < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		}
+	} else if radius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
 		return
 	}
 
-	srcBounds := mask.Bounds()
 	ceilRadius := ceilF32(radius)
-	w32, h32 := float32(srcBounds.Dx()), float32(srcBounds.Dy())+2.0*ceilRadius
-	w, h := int(w32), int(h32)
-	tmp, _ := r.getTemp(0, w, h, false)
+	w32, h32 := rectSizeF32(mask.Bounds())
+	h32 += 2.0 * ceilRadius
+	tmp, _ := r.getTemp(0, int(w32), int(h32), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius, 1.0)
@@ -101,18 +100,11 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 		return
 	}
 
-	srcBounds := mask.Bounds()
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
+	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
+	dox, doy := rectOriginF32(target.Bounds())
 	ceilRadius := ceilF32(radius)
-	minX, minY := dstMinX+ox, dstMinY+oy-ceilRadius
-	maxX, maxY := dstMinX+ox+srcWidth, dstMinY+oy+srcHeight+ceilRadius
-	r.setDstRectCoords(minX, minY, maxX, maxY)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX, srcMinY-ceilRadius, srcMaxX, srcMaxY+ceilRadius)
+	r.setDstRectCoords(dox+ox, doy+oy-ceilRadius, dox+ox+sw, doy+oy+sh+ceilRadius)
+	r.setSrcRectCoords(sox, soy-ceilRadius, sox+sw, soy+sh+ceilRadius)
 	r.setFlatCustomVAs01(radius, colorMix)
 
 	// draw shader
@@ -158,8 +150,8 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 // ApplyBlurK is a separable blur using a fixed [GaussKernel] and optional downscaling
 // instead of a dynamic radius like [Renderer.ApplyBlur2]() or [Renderer.ApplyBlurVogel]().
 //
-// When using downscaling, this function uses two internal offscreens (#0, #1), and target
-// and mask can be on the same internal atlas.
+// This function uses the internal offscreen (#0), and if downscaling also (#1).
+// Target and mask can be on the same internal atlas.
 func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(opts.ColorMix)

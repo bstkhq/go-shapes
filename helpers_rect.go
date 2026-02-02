@@ -20,6 +20,10 @@ func rectSizeF32(bounds image.Rectangle) (w, h float32) {
 	return float32(bounds.Dx()), float32(bounds.Dy())
 }
 
+func rectSizeF64(bounds image.Rectangle) (w, h float64) {
+	return float64(bounds.Dx()), float64(bounds.Dy())
+}
+
 func rectPointsF32(bounds image.Rectangle) (minX, minY, maxX, maxY float32) {
 	return float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Max.X), float32(bounds.Max.Y)
 }

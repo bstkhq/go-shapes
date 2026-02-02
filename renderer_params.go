@@ -99,6 +99,10 @@ var gaussKernels = [][9]float32{ // binomial forms
 // }
 
 // KernelOptions are used in kernel-based blur and glows.
+//
+// Scaling is optional and can be nil, but for downscaling factors of [DownscaleX8] and above
+// using bicubic scaling is heavily recommended. At [DownscaleX4] the decision depends more
+// on the desired quality, effect and performance constraints.
 type KernelOptions struct {
 	Downscaling Downscaling
 	HorzKernel  GaussKernel

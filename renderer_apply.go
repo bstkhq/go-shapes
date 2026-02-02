@@ -426,8 +426,8 @@ func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 // ApplyGlowK is the multipass downscaling version of [Renderer.ApplyGlow]().
 // See [Renderer.ApplyBlurKernel]() for further docs and context.
 //
-// This function uses two internal offscreens (#0, #1), and target and mask can be on
-// the same internal atlas.
+// This function uses the internal offscreen (#0), and if downscaling also (#1).
+// Target and mask can be on the same internal atlas.
 func (r *Renderer) ApplyGlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -443,8 +443,8 @@ func (r *Renderer) ApplyGlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 // ApplyColorGlowK is a color-specific version of [Renderer.ApplyGlowK](), where glow
 // intensity is determined by color similarity instead of lightness.
 //
-// This function uses two internal offscreens (#0, #1), and target and mask can be on
-// the same internal atlas.
+// This function uses the internal offscreen (#0), and if downscaling also (#1).
+// Target and mask can be on the same internal atlas.
 func (r *Renderer) ApplyColorGlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, rgb [3]float32, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -474,23 +474,26 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	if !opts.HorzKernel.valid() || !opts.VertKernel.valid() {
 		panic("invalid GaussKernel value")
 	}
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+
+	if opts.Downscaling == DownscaleNone {
+		r.applyKernelDirect(target, mask, ox, oy, opts, invokeShader, lighterBlend)
+		return
+	}
 
 	// measures
 	df := opts.Downscaling.Factor()
-	maskBounds := mask.Bounds()
-	maskWidth, maskHeight := maskBounds.Dx(), maskBounds.Dy()
-	maskW64, maskH64 := float64(maskWidth), float64(maskHeight)
+	maskW64, maskH64 := rectSizeF64(mask.Bounds())
 	downW64, downH64 := maskW64/float64(df), maskH64/float64(df)
-	downImgWidth, downImgHeight := math.Ceil(downW64)+2, math.Ceil(downH64)+2
-
 	halfHorzMargin, halfVertMargin := float64(opts.HorzKernel.Radius()), float64(opts.VertKernel.Radius())
-	horzMargin, vertMargin := halfHorzMargin*2.0, halfVertMargin*2.0
-	dkernW64, dkernH64 := downW64+horzMargin, downH64+vertMargin
-	dkernImgWidth, dkernImgHeight := math.Ceil(dkernW64)+2, math.Ceil(dkernH64)+2
-
-	// TODO: optimize DownscaleNone case
+	dkernW64, dkernH64 := downW64+halfHorzMargin+halfHorzMargin, downH64+halfVertMargin+halfVertMargin
 
 	// get offscreens and smart clears
+	downImgWidth, downImgHeight := math.Ceil(downW64)+2, math.Ceil(downH64)+2
+	dkernImgWidth, dkernImgHeight := math.Ceil(dkernW64)+2, math.Ceil(dkernH64)+2
 	dkern, _ := r.getTemp(0, int(dkernImgWidth), int(dkernImgHeight), false) // get first as the biggest offscreen
 	down, _ := r.getTemp(0, int(downImgWidth), int(downImgHeight), false)    // shared with dkern
 	dkernHorz, _ := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
@@ -512,7 +515,7 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	r.Scale(down, mask, 1, 1, 1.0/df32, opts.Scaling)
 
 	// apply effect
-	r.applyKernelOp(target, down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
+	r.applyKernelOp(down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
 
 	// upscale
 	if lighterBlend {
@@ -527,7 +530,45 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	}
 }
 
-func (r *Renderer) applyKernelOp(target, down, dkern, dkernHorz *ebiten.Image, dkernW64, dkernH64, downW64, downH64 float64, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image)) {
+func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(horzTarget *ebiten.Image), lighterBlend bool) {
+	horzKernelLen := opts.HorzKernel.Size()
+	ceilHRadius := float32(horzKernelLen)
+	ox32, oy32, w32, h32 := rectOriginSizeF32(mask.Bounds())
+	w32 += float32(horzKernelLen + horzKernelLen)
+	tmp, _ := r.getTemp(0, int(w32), int(h32), true) // TODO: remove clear flag after debug
+	preBlend := r.opts.Blend
+
+	// apply horz kern shader
+	r.setDstRectCoords(0, 0, w32, h32)
+	//ox32, oy32 = 0.0, 0.0
+	sx := ox32 - ceilHRadius
+	r.setSrcRectCoords(sx, oy32, sx+w32, oy32+h32)
+	r.opts.Blend = ebiten.BlendCopy
+	r.opts.Images[0] = mask
+	r.opts.Uniforms["KernelLen"] = opts.HorzKernel.Size()
+	r.opts.Uniforms["Kernel"] = gaussKernels[opts.HorzKernel]
+	invokeShader(tmp) // set VAs, more uniforms, invoke shader and clear(r.opts.Uniforms) if needed
+
+	dox, doy := rectOriginF32(target.Bounds())
+	ceilVRadius := float32(opts.VertKernel.Radius())
+	dx := dox + ox - ceilHRadius
+	r.setDstRectCoords(dx, doy+oy-ceilVRadius, dx+w32, doy+oy+h32+ceilVRadius)
+	r.setSrcRectCoords(0, -ceilVRadius, w32, h32+ceilVRadius)
+
+	r.opts.Blend = preBlend
+	if lighterBlend {
+		r.opts.Blend = ebiten.BlendLighter
+	}
+	r.opts.Uniforms["KernelLen"] = opts.VertKernel.Size()
+	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
+	r.opts.Images[0] = tmp
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
+	r.opts.Images[0] = nil
+	clear(r.opts.Uniforms)
+	r.opts.Blend = preBlend
+}
+
+func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64, dkernH64, downW64, downH64 float64, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image)) {
 	halfHorzMargin, halfVertMargin := float64(opts.HorzKernel.Radius()), float64(opts.VertKernel.Radius())
 
 	// apply horz kern shader
