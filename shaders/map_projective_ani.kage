@@ -1,0 +1,51 @@
+//kage:unit pixels
+package main
+
+// NOTE: this version uses anisotropic-style offsets taken from dfdx/dfdy
+//       in order to improve texture stability, but requires 8 samples (two
+//       bilinear lookups) in order to avoid jaggies.
+
+var Homography mat3
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	relCoords := targetCoords.xy - imageDstOrigin()
+
+	uvw := Homography * vec3(relCoords, 1.0)
+	uv := uvw.xy / uvw.z
+
+	texPos := imageSrc0Origin() + uv*imageSrc0Size()
+
+	dPdx := dfdx(uv) * imageSrc0Size()
+	dPdy := dfdy(uv) * imageSrc0Size()
+
+	majorAxis := dPdx
+	if dot(dPdy, dPdy) > dot(dPdx, dPdx) {
+		majorAxis = dPdy
+	}
+
+	offset := majorAxis * 0.25
+	c1 := imageBiSrc0At(texPos - offset)
+	c2 := imageBiSrc0At(texPos + offset)
+	return ((c1 + c2) * 0.5) * color
+}
+
+func imageBiSrc0At(coords vec2) vec4 {
+	percent := vec2(1.0)
+	halfPercent := percent / 2.0
+	minCoords, maxCoords := getMinMaxSourceCoords()
+	_, _ = minCoords, maxCoords
+	tl := imageSrc0UnsafeAt(clamp(coords+vec2(-halfPercent.x, -halfPercent.y), minCoords, maxCoords))
+	tr := imageSrc0UnsafeAt(clamp(coords+vec2(+halfPercent.x, -halfPercent.y), minCoords, maxCoords))
+	bl := imageSrc0UnsafeAt(clamp(coords+vec2(-halfPercent.x, +halfPercent.y), minCoords, maxCoords))
+	br := imageSrc0UnsafeAt(clamp(coords+vec2(+halfPercent.x, +halfPercent.y), minCoords, maxCoords))
+	delta := min(fract(coords+vec2(+halfPercent.x, +halfPercent.y)), percent) / percent
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	const epsilon = 0.001 // high epsilon for f16 compatibility
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

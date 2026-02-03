@@ -71,9 +71,15 @@ func quadCenter(quad [4]PointF32) PointF32 {
 //
 // quad must be given in clockwise order starting from top-left.
 //
+// The anisotropic flag can be set to true to reduce texture distortion
+// at extreme angles, at the price of sampling 8 times instead of 4.
+//
+// To avoid jaggy edges, it's recommended to have one pixel of transparent
+// padding in the source texture.
+//
 // The renderer's color is applied multiplicatively as a color scale;
 // set it to white for neutral operation.
-func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32) {
+func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32, anisotropic bool) {
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)
 
@@ -91,7 +97,13 @@ func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32)
 		homography[2], homography[5], homography[8],
 	}
 	r.opts.Images[0] = source
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMapProjective.Load(), &r.opts)
+	var shader *ebiten.Shader
+	if anisotropic {
+		shader = shaderMapProjectiveAni.Load()
+	} else {
+		shader = shaderMapProjective.Load()
+	}
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

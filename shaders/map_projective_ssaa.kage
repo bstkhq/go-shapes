@@ -1,0 +1,34 @@
+//kage:unit pixels
+package main
+
+// NOTE: unused. This has decent texture stability and uses 4 samples, but
+//       has jaggies due to offsets sometimes falling inside the same pixel.
+
+var Homography mat3
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const Offset = 0.25
+
+	normCoords := targetCoords.xy - imageDstOrigin()
+	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
+
+	tlCoords := texCoords(normCoords + vec2(-Offset, -Offset))
+	acc := imageSrc0UnsafeAt(clamp(tlCoords, minCoords, maxCoords))
+	trCoords := texCoords(normCoords + vec2(+Offset, -Offset))
+	acc += imageSrc0UnsafeAt(clamp(trCoords, minCoords, maxCoords))
+	blCoords := texCoords(normCoords + vec2(-Offset, +Offset))
+	acc += imageSrc0UnsafeAt(clamp(blCoords, minCoords, maxCoords))
+	brCoords := texCoords(normCoords + vec2(+Offset, +Offset))
+	acc += imageSrc0UnsafeAt(clamp(brCoords, minCoords, maxCoords))
+	return (acc / 4.0) * color
+}
+
+func texCoords(normCoords vec2) vec2 {
+	uvw := Homography * vec3(normCoords, 1.0)
+	return imageSrc0Origin() + (uvw.xy/uvw.z)*imageSrc0Size()
+}
+
+func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

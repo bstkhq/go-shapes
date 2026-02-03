@@ -246,6 +246,10 @@ var shaderDitherMat4 = shaderRef{src: shaderDitherMat4Src}
 var shaderMapProjectiveSrc []byte
 var shaderMapProjective = shaderRef{src: shaderMapProjectiveSrc}
 
+//go:embed shaders/map_projective_ani.kage
+var shaderMapProjectiveAniSrc []byte
+var shaderMapProjectiveAni = shaderRef{src: shaderMapProjectiveAniSrc}
+
 //go:embed shaders/map_quad4.kage
 var shaderMapQuad4Src []byte
 var shaderMapQuad4 = shaderRef{src: shaderMapQuad4Src}

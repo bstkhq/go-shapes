@@ -1,12 +1,14 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestMap$ . -count 1
@@ -14,11 +16,20 @@ func TestMap(t *testing.T) {
 	const CardWidth, CardHeight = 128, 164
 	card := newCardWaver(CardWidth, CardHeight)
 
+	anisotropic := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		card.Update()
+		if ctx.NewInput {
+			card.Update()
+			if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+				anisotropic = !anisotropic
+			}
+		}
+
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [anisotropic = %t]", ctx.Title(), anisotropic))
 
 		canvas.Fill(color.Black)
 
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ox, oy, w, h := rectOriginSize(canvas.Bounds())
 		c1x, c1y := float32(ox+w/4), float32(oy+h/4)
 		c2x, c2y := float32(ox+3*w/4), float32(oy+h/4)
@@ -31,13 +42,87 @@ func TestMap(t *testing.T) {
 		if (ctx.Ticks/180)&1 == 1 {
 			ctx.Renderer.SetColorF32(0, 0, 0, 0, 2, 3)
 		}
-		ctx.Renderer.MapProjective(canvas, ctx.Images[0], card.Quad(c3x, c3y))
+		ctx.Renderer.MapProjective(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))
 	})
 
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
-	app.Renderer.DrawRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), 6.0)
+	app.Renderer.DrawArea(img, 1, 1, CardWidth, CardHeight, -6.0)
+
 	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.SetColorF32(0, 0, 0, 0.1)
+	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
+	app.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
+	app.Renderer.StrokeArea(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
+	app.Renderer.SetBlend(ebiten.BlendClear)
+	app.Renderer.DrawArea(img, 8, 0, 32, 64, 0)
+	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.SetColorF32(1, 1, 1, 1)
+
+	app.Images = append(app.Images, img)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestMapProjectiveTilt$ . -count 1
+func TestMapProjectiveTilt(t *testing.T) {
+	const CardWidth, CardHeight = 256, 328
+
+	tilt := 0.0
+	clamping := false
+	anisotropic := false
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [tilt: %.05f, anisotropic: %t]", ctx.Title(), tilt, anisotropic))
+
+		if ctx.NewInput {
+			const CoarseTilt = 0.1
+			shift := CoarseTilt
+			if ebiten.IsKeyPressed(ebiten.KeyShift) {
+				shift /= 10.0
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyControl) {
+				shift /= 100.0
+			}
+
+			if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+				tilt = max(tilt-shift, -1.0)
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+				tilt = min(tilt+shift, 1.0)
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyC) {
+				clamping = !clamping
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+				anisotropic = !anisotropic
+			}
+		}
+
+		canvas.Fill(color.Black)
+		cox, coy, cw, ch := rectOriginSizeF32(canvas.Bounds())
+		cx, cy := cox+cw/2, coy+ch/2
+		xOff := float32(-CardWidth/2 + math.Abs(tilt)*CardWidth/2)
+		lx, rx := cx+xOff, cx-xOff
+		ty, by := cy-CardHeight/2, cy+CardHeight/2
+		pts := [4]PointF32{{lx, ty}, {rx, ty}, {rx, by}, {lx, by}}
+
+		yOff := float32(tilt) * 15.00
+		pts[0].Y -= yOff
+		pts[3].Y += yOff
+		pts[1].Y += yOff
+		pts[2].Y -= yOff
+
+		ctx.Renderer.MapProjective(canvas, ctx.Images[0], pts, anisotropic)
+	})
+
+	img := ebiten.NewImage(CardWidth, CardHeight)
+	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
+
+	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.GradientDither(img, 0, 0, CardWidth, CardHeight, color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, DirRadsTTB, 1.0)
+	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
+	app.Renderer.DrawPieRate(img, CardWidth/2, CardHeight/2-32, 64, DirRadsTTB, 0.15, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 
@@ -64,8 +149,10 @@ func TestMapProjectiveStress(t *testing.T) {
 	}
 
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		for _, cardWaver := range cardWavers {
-			cardWaver.Update()
+		if ctx.NewInput {
+			for _, cardWaver := range cardWavers {
+				cardWaver.Update()
+			}
 		}
 		canvas.Fill(color.Black)
 
@@ -76,7 +163,7 @@ func TestMapProjectiveStress(t *testing.T) {
 		for range NumRows {
 			cx := float32(ox) + dx
 			for range NumCols {
-				ctx.Renderer.MapProjective(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy))
+				ctx.Renderer.MapProjective(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), false)
 				cx += dx
 				waverIdx += 1
 			}
@@ -86,9 +173,9 @@ func TestMapProjectiveStress(t *testing.T) {
 
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	img2 := ebiten.NewImage(CardWidth+2, CardHeight+2)
-	app.Renderer.DrawRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), 6.0)
+	app.Renderer.DrawRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
 	app.Renderer.SetColorF32(1, 0.3, 1, 1)
-	app.Renderer.DrawRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), 6.0)
+	app.Renderer.DrawRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
 
 	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)

@@ -70,6 +70,39 @@ func TestDrawArea(t *testing.T) {
 	}
 }
 
+// go test -run ^TestDrawAreaPrecise$ . -count 1
+func TestDrawAreaPrecise(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.DrawIntArea(canvas, 0, 0, 258, 258)
+		ctx.DrawAtF32(canvas, ctx.Images[0], 1, 1)
+		ctx.DrawAtF32(canvas, ctx.Images[1], 2, 2)
+
+		ctx.DrawAtF32(canvas, ctx.Images[2], 270, 1)
+		ctx.DrawAtF32(canvas, ctx.Images[3], 271, 2)
+	})
+
+	box := ebiten.NewImage(256, 256)
+	app.Renderer.DrawArea(box, 1, 1, 254, 254, 0)
+	box2 := ebiten.NewImage(254, 254)
+	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.DrawArea(box2, 1, 1, 252, 252, 0)
+
+	box3 := ebiten.NewImage(256, 256)
+	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Renderer.DrawArea(box3, 1, 1, 254, 254, -6.0)
+	box4 := ebiten.NewImage(254, 254)
+	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.DrawArea(box4, 1, 1, 252, 252, -6.0)
+
+	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+
+	app.Images = append(app.Images, box, box2, box3, box4)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestDrawIntArea$ . -count 1
 func TestStrokeIntArea(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
