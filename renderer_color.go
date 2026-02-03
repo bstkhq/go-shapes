@@ -106,9 +106,9 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 	r.SetColorF32(float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3]))
 	r.setFlatCustomVAs(float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3]))
 
-	sin, cos := math.Sincos(float64(dirRadians) + math.Pi/2)
+	sin, cos := math.Sincos(float64(dirRadians))
 	r.opts.Uniforms["Area"] = [4]float32{ox, oy, w, h}
-	r.opts.Uniforms["DirSinCos"] = [2]float32{float32(sin), float32(cos)}
+	r.opts.Uniforms["DirCosSin"] = [2]float32{float32(cos), float32(sin)}
 	r.opts.Uniforms["CurveFactor"] = curveFactor
 
 	// draw shader

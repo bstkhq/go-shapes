@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestFlatPaint$ . -count 1
@@ -67,14 +68,20 @@ func TestGradient(t *testing.T) {
 
 // go test -run ^TestGradientDither$ . -count 1
 func TestGradientDither(t *testing.T) {
+	dirs := []float32{DirRadsRTL, DirRadsBLTR, DirRadsTTB, DirRadsTLBR}
+	dirIndex := 0
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			dirIndex = (dirIndex + 1) % len(dirs)
+		}
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		from, to := color.RGBA{25, 25, 52, 255}, color.RGBA{50, 50, 50, 255}
-		ctx.Renderer.GradientDither(canvas, 0, 0, cw, ch/2, from, to, DirRadsRTL, 1.0)
+		dir := dirs[dirIndex]
+		ctx.Renderer.GradientDither(canvas, 0, 0, cw, ch/2, from, to, dir, 1.0)
 		sub := canvas.SubImage(image.Rect(0, int(ch/2), int(cw), int(ch))).(*ebiten.Image)
-		ctx.Renderer.Gradient(sub, nil, 0, 0, from, to, -1, DirRadsRTL, 1.0)
+		ctx.Renderer.Gradient(sub, nil, 0, 0, from, to, -1, dir, 1.0)
 	})
 
 	if err := ebiten.RunGame(app); err != nil {

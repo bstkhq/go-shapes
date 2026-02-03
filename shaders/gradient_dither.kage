@@ -2,7 +2,7 @@
 package main
 
 var Area vec4 // ox, oy, w, h
-var DirSinCos vec2
+var DirCosSin vec2
 var CurveFactor float // 0.5 for early start, 2.0 for late start, etc.
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
@@ -13,11 +13,11 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	noiseSampleCoords := mod(inAreaCoords, vec2(64))
 	noise := imageSrc0At(noiseSampleCoords + imageSrc0Origin()).r
 
-	ptProj := dot(inAreaCoords, DirSinCos)
+	ptProj := dot(inAreaCoords, DirCosSin)
 	tlProj := 0.0
-	trProj := dot(vec2(areaSize.x, 0), DirSinCos)
-	blProj := dot(vec2(0, areaSize.y), DirSinCos)
-	brProj := dot(areaSize, DirSinCos)
+	trProj := dot(vec2(areaSize.x, 0), DirCosSin)
+	blProj := dot(vec2(0, areaSize.y), DirCosSin)
+	brProj := dot(areaSize, DirCosSin)
 	minProj := min(min(tlProj, trProj), min(blProj, brProj))
 	maxProj := max(max(tlProj, trProj), max(blProj, brProj))
 	progress := (ptProj - minProj) / (maxProj - minProj)
