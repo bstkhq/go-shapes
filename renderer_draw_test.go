@@ -64,13 +64,26 @@ func TestDrawTriangles(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		//cw, ch := rectSizeF32(canvas.Bounds())
-		rounding := float32(ctx.DistAnim(64.0, 1.0))
+		cw, _ := rectSizeF32(canvas.Bounds())
+		rounding := float32(ctx.DistAnim(24.0, 1.0))
 		var points [3]PointF32
 		points[0] = PointF32{X: 24, Y: 24}
 		points[1] = points[0].AddXY(108, 12)
 		points[2] = points[0].AddXY(23, 48)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.DrawTriangle(canvas, points, rounding)
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.DrawCircle(canvas, points[0].X, points[0].Y, rounding)
+		ctx.Renderer.DrawCircle(canvas, points[1].X, points[1].Y, rounding)
+		ctx.Renderer.DrawCircle(canvas, points[2].X, points[2].Y, rounding)
+
+		points[0] = PointF32{X: cw / 2, Y: 24}
+		points[1] = points[0].AddXY(64, 24)
+		points[2] = points[0].AddXY(-32, 56)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.StrokeTriangle(canvas, points, 4.0, -rounding)
+		ctx.Renderer.SetColorF32(0.5, 0, 0, 0.5)
+		ctx.Renderer.StrokeTriangle(canvas, points, -2.0, -rounding)
 	})
 
 	if err := ebiten.RunGame(app); err != nil {

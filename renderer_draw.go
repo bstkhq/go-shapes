@@ -561,8 +561,10 @@ func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickne
 }
 
 // DrawTriangle draws a smooth triangle using the given vertices and an optional rounding factor.
-// Notice that, if provided, handling the rounding is relatively non-trivial (two dozen f64 products
-// and 3 square roots for CPU-side precomputations).
+//
+// Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice that
+// inwards rounding is non-trivial (two dozen f64 products and 3 square roots for CPU-side
+// precomputations).
 func (r *Renderer) DrawTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
 	r.drawTriangle(target, points, 0.0, rounding)
 }
@@ -572,14 +574,14 @@ func (r *Renderer) DrawTriangle(target *ebiten.Image, points [3]PointF32, roundi
 // only, going from [-thickness, 0].
 //
 // For more details on rounding, see [Renderer.DrawTriangle]().
-// TODO: check thickness 0, should cut earlier
 func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
+	if thickness == 0 {
+		return
+	}
 	r.drawTriangle(target, points, thickness, rounding)
 }
 
-// TODO: change rounding interpretation, allow [3]PointF32 probably, skip if inner rounding collapses the shape
-// (currently it degenerates), test all orientations, check if P0/P1/P2 can be written as [2]float32 and it makes
-// any difference
+// TODO: skip if inner rounding collapses the shape (currently it degenerates), test all orientations
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
 	area := abs((points[0].X*(points[1].Y-points[2].Y) + points[1].X*(points[2].Y-points[0].Y) + points[2].X*(points[0].Y-points[1].Y)) / 2)
 	if area < 1e-6 {
@@ -614,9 +616,9 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 	r.opts.Uniforms["P0"] = [2]float32{p0.X, p0.Y}
 	r.opts.Uniforms["P1"] = [2]float32{p1.X, p1.Y}
 	r.opts.Uniforms["P2"] = [2]float32{p2.X, p2.Y}
-	r.opts.Uniforms["Rounding"] = rounding
-	r.opts.Uniforms["Thickness"] = thickness
+	r.setFlatCustomVAs01(abs(rounding), thickness)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
+	clear(r.opts.Uniforms)
 }
 
 // Sqrt3Div2 is commonly used to derive a hexagon's apothem from its radius, or

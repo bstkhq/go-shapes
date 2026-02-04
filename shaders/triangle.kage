@@ -4,25 +4,26 @@ package main
 var P0 vec2
 var P1 vec2
 var P2 vec2
-var Rounding float
-var Thickness float
 
-func Fragment(targetCoords vec4, _ vec2, color vec4) vec4 {
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
+
+	rounding := customVAs[0]  // can only be positive for outwards rounding
+	thickness := customVAs[1] // zero for fill, positive for both sides, negative for interior
 
 	dist := distanceToTriangle(targetCoords.xy-imageDstOrigin(), P0, P1, P2)
 	var alpha float
-	if Thickness > 0 {
-		hthick := Thickness / 2.0
-		inAlpha := smoothstep(-hthick, -hthick+AAMargin, dist+Rounding)
-		outAlpha := 1.0 - smoothstep(hthick-AAMargin, hthick, dist+Rounding)
+	if thickness > 0 {
+		hthick := thickness / 2.0
+		inAlpha := smoothstep(-hthick, -hthick+AAMargin, dist-rounding)
+		outAlpha := 1.0 - smoothstep(hthick-AAMargin, hthick, dist-rounding)
 		alpha = inAlpha * outAlpha
-	} else if Thickness < 0 {
-		inAlpha := smoothstep(Thickness, Thickness+AAMargin, dist+Rounding)
-		outAlpha := 1.0 - smoothstep(-AAMargin, 0, dist+Rounding)
+	} else if thickness < 0 {
+		inAlpha := smoothstep(thickness, thickness+AAMargin, dist-rounding)
+		outAlpha := 1.0 - smoothstep(-AAMargin, 0, dist-rounding)
 		alpha = inAlpha * outAlpha
 	} else {
-		alpha = 1.0 - smoothstep(-AAMargin, 0, dist+Rounding)
+		alpha = 1.0 - smoothstep(-AAMargin, 0, dist-rounding)
 	}
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
