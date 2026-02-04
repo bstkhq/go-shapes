@@ -1,11 +1,13 @@
 package shapes
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestDrawShapes$ . -count 1
@@ -33,8 +35,105 @@ func TestDrawShapes(t *testing.T) {
 
 		rads := ctx.RadsAnim(1.0)
 		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, 0, float32(rads))
-		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, 0, float32(rads))
+
+		rounding := float32(ctx.DistAnim(48.0, 1.0))
+		ctx.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
+		ctx.Renderer.DrawHexagon(canvas, 420, 400, 60, rounding, float32(rads))
+		ctx.Renderer.ScaleAlphaBy(0.5)
+		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, rounding, float32(rads))
+
 	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestDrawHexagons$ . -count 1
+func TestDrawHexagons(t *testing.T) {
+	manRounding := float32(0.0)
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		cw, ch := rectSizeF32(canvas.Bounds())
+
+		const Pad, MinRadius, MaxRadius = 16, 48, 64
+		radius := MinRadius + float32(ctx.DistAnim(MaxRadius-MinRadius, 1.0))
+		rads := float32(ctx.RadsAnim(1.0))
+
+		// radius bounded hexagon, no roundness
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, Pad+MaxRadius, Pad+MaxRadius, radius)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagon(canvas, Pad+MaxRadius, Pad+MaxRadius, radius, 0.0, rads)
+
+		// radius bounded hexagon with animated roundness
+		roundness := float32(ctx.DistAnim(MaxRadius+16, 0.5))
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, cw/2, Pad+MaxRadius, radius)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, cw/2, Pad+MaxRadius, roundness)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagon(canvas, cw/2, Pad+MaxRadius, radius, roundness, rads)
+
+		// apothem bounded hexagon, no rounding
+		apothem := radius * Sqrt3Div2
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, Pad+MaxRadius, ch/2, apothem)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagonApothem(canvas, Pad+MaxRadius, ch/2, apothem, 0.0, rads)
+
+		// apothem bounded hexagon, outwards rounding
+		rounding := float32(ctx.DistAnim(24.0, 1.0))
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, apothem+rounding)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, apothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, rounding)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
+
+		// apothem bounded hexagon, inwards rounding
+		const MinApothem = MinRadius * Sqrt3Div2
+		inRounding := float32(ctx.DistAnim(MinApothem, 0.5))
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, cw-16-MaxRadius, ch/2, inRounding)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
+
+		// manual control
+		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem = %.02f]", ctx.Title(), manRounding, MinApothem))
+		if ctx.NewInput {
+			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+				manRounding += 1.0
+			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+				manRounding -= 1.0
+			}
+		}
+
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		if manRounding < 0 {
+			ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, -manRounding)
+		} else {
+			ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem+manRounding)
+		}
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
+	})
+
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

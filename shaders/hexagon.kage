@@ -1,15 +1,16 @@
 //kage:unit pixels
 package main
 
-var Roundness float
+var Rounding float // use negative for vertex collapse, positive for outer rounding
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	center := customVAs.xy
 	apothem := customVAs.z
 	radians := customVAs.w
 	p := (targetCoords.xy - imageDstOrigin()) - center
-	dist := distanceToHexagon(p, apothem, radians)
-	alpha := 1.0 - smoothstep(-1.333, 0, dist-Roundness)
+
+	dist := distanceToHexagon(p, apothem+min(Rounding, 0), radians)
+	alpha := 1.0 - smoothstep(-1.333, 0, dist-abs(Rounding))
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }

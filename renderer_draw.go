@@ -94,6 +94,7 @@ func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickn
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
 }
 
+// TODO: fix negative radius being accepted
 func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
 	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
 	r.setFlatCustomVAs(cx, cy, radius, 0.0)
@@ -606,17 +607,66 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, o
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
 }
 
+// Sqrt3Div2 is commonly used to derive a hexagon's apothem from its radius, or
+// viceversa (apothem = radius*Sqrt3Div2).
+const Sqrt3Div2 = 0.86602540378443864676372317075293618347140262690519031402790348 // https://oeis.org/A010527
+
 // DrawHexagon renders an hexagon that can be fully contained within the given radius.
 // Roundness can be used to round the corners. Rads can be used to rotate the hexagon,
 // in radians.
-func (r *Renderer) DrawHexagon(target *ebiten.Image, ox, oy, radius, roundness, rads float32) {
-	r.setDstRectCoords(ox-radius, oy-radius, ox+radius, oy+radius)
+//
+// Roundness must be non-negative. When > 0, the sides of the hexagon will expand while
+// the radius of the shape is maintained, effectively rounding the vertices. Roundness
+// >= 'radius' will turn the hexagon into a perfect circle and start increasing the
+// effective radius. For inwards/outwards rounding, consider [Renderer.DrawHexagonApothem]()
+// instead.
+func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
+	if roundness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, roundness)
+		roundness = 0.0
+	}
+	if radius == 0 {
+		return
+	}
+	if radius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+	}
 
-	// draw shader
-	const apothemToRadiusFactor = 0.866025404 // math.Sqrt(3)/2
-	apothem := (radius - roundness) * apothemToRadiusFactor
+	if roundness >= radius {
+		r.DrawCircle(target, cx, cy, roundness)
+		return
+	}
+
+	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
+	apothem := (radius - roundness) * Sqrt3Div2
+	r.setFlatCustomVAs(cx, cy, apothem, rads)
+	r.opts.Uniforms["Rounding"] = roundness
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
+}
+
+// DrawHexagonApothem is an alternative form to [Renderer.DrawHexagon]() that requires the apothem
+// of the hexagon instead of its radius and supports signed rounding.
+//
+// Rounding values above 0 will increase the effective apothem by that amount while rounding corners
+// outwards. Values between 0 and -apothem will preserve the apothem while rounding corners inwards.
+// Values between -apothem and -2*apothem draw a perfect circle.
+func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rounding, rads float32) {
+	if apothem == 0 {
+		return
+	}
+	if apothem < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, apothem)
+	}
+	inset := -(apothem + rounding)
+	if inset >= 0 {
+		r.DrawCircle(target, ox, oy, apothem-inset)
+		return
+	}
+	boundingApothem := apothem + max(rounding, 0)
+	radius := boundingApothem / Sqrt3Div2
+	r.setDstRectCoords(ox-radius, oy-radius, ox+radius, oy+radius)
 	r.setFlatCustomVAs(ox, oy, apothem, rads)
-	r.opts.Uniforms["Roundness"] = roundness
+	r.opts.Uniforms["Rounding"] = rounding
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
 }
 
