@@ -94,8 +94,15 @@ func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickn
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
 }
 
-// TODO: fix negative radius being accepted
+// DrawCircle draws a filled circle. Radius can't be negative.
 func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
+	if radius == 0 {
+		return
+	}
+	if radius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		return
+	}
 	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
 	r.setFlatCustomVAs(cx, cy, radius, 0.0)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
@@ -630,6 +637,7 @@ func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	}
 	if radius < 0 {
 		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		return
 	}
 
 	if roundness >= radius {
@@ -656,6 +664,7 @@ func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	}
 	if apothem < 0 {
 		r.Warnings.report(WarnNegativeValueOpSkipped, apothem)
+		return
 	}
 	inset := -(apothem + rounding)
 	if inset >= 0 {
