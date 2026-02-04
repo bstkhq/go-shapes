@@ -19,11 +19,9 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
-	} else if thickness <= 0 {
-		if thickness < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
-		}
-		return
+	} else if thickness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, thickness)
+		thickness = 0
 	}
 
 	srcBounds := mask.Bounds()
@@ -63,11 +61,9 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
-	} else if thickness <= 0 {
-		if thickness < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
-		}
-		return
+	} else if thickness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, thickness)
+		thickness = 0
 	}
 
 	// first pass (vert)
@@ -108,10 +104,9 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	if thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = 16
-	} else if thickness <= 0 {
-		if thickness < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
-		}
+	} else if thickness < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, thickness)
+		thickness = 0
 		return
 	}
 

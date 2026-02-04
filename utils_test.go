@@ -58,7 +58,7 @@ func (ctx *TestAppCtx) DistAnim(maxDist, speedFactor float64) float64 {
 }
 func (ctx *TestAppCtx) Title() string {
 	return fmt.Sprintf(
-		"LeftClick (%d, %d), RightClick (%d, %d) [%.02f FPS]",
+		"Clicks L(%d, %d) R(%d, %d) [%.02f FPS]",
 		ctx.LeftClick.X, ctx.LeftClick.Y, ctx.RightClick.X, ctx.RightClick.Y, ebiten.ActualFPS(),
 	)
 }
@@ -83,7 +83,6 @@ type TestApp struct {
 }
 
 func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*ebiten.Image) *TestApp {
-	//ebiten.SetVsyncEnabled(false)
 	var app TestApp
 	app.Images = images
 	app.LeftClick = image.Pt((128*4)/3, 128)
@@ -106,6 +105,9 @@ func (app *TestApp) Update() error {
 		} else {
 			app.RightClick = image.Pt(x, y)
 		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyV) {
+		ebiten.SetVsyncEnabled(!ebiten.IsVsyncEnabled())
 	}
 	ebiten.SetWindowTitle(app.Title())
 	return app.BaseTestApp.Update()

@@ -72,7 +72,7 @@ func normURads(r float64) float64 {
 
 // Given two points of a line, it returns its A, B and C
 // coefficients from the form "Ax + By + C = 0".
-func toLinearFormABC(ox, oy, fx, fy float64) (float64, float64, float64) {
+func toLinearFormABC[Float ~float32 | ~float64](ox, oy, fx, fy Float) (Float, Float, Float) {
 	a, b, c := fy-oy, -(fx - ox), (fx-ox)*oy-(fy-oy)*ox
 	return a, b, c
 }
@@ -84,7 +84,7 @@ func toLinearFormABC(ox, oy, fx, fy float64) (float64, float64, float64) {
 // >> x = (b2*c1 - b1*c2)/(b2*a1 - b1*a2)
 // This function solves this system, but assuming c1 and c2 have
 // a negative sign (ax + by + c = 0).
-func shortCramer(a1, b1, c1, a2, b2, c2 float64) (float64, float64) {
+func shortCramer[Float ~float32 | ~float64](a1, b1, c1, a2, b2, c2 Float) (Float, Float) {
 	xdiv := b2*a1 - b1*a2
 	if xdiv == 0 {
 		panic("parallel lines")
@@ -101,8 +101,8 @@ func shortCramer(a1, b1, c1, a2, b2, c2 float64) (float64, float64) {
 // given a line equation in the form Ax + By + C = 0, it returns
 // C1 and C2 such that two new line equations can be created that
 // are parallel to the original line, but at distance 'dist' from it
-func parallelsAtDist(a, b, c float64, dist float64) (float64, float64) {
-	norm := math.Hypot(a, b)
+func parallelsAtDist[Float ~float32 | ~float64](a, b, c, dist Float) (Float, Float) {
+	norm := Float(math.Hypot(float64(a), float64(b)))
 	if norm == 0 {
 		return c, c // degenerate case
 	}

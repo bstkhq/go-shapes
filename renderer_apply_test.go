@@ -84,7 +84,11 @@ func TestApplyErosion(t *testing.T) {
 
 	circle := app.Renderer.NewCircle(float64(radius))
 	triangle := ebiten.NewImage(256, 164)
-	app.Renderer.StrokeTriangle(triangle, 16, 16, 256-16, 16, 16, 164-16, float64(erosion)*2, 0)
+	var points [3]PointF32
+	points[0] = PointF32{X: 16, Y: 16}
+	points[1] = points[0].AddXY(224, 0)
+	points[2] = points[0].AddXY(0, 132)
+	app.Renderer.StrokeTriangle(triangle, points, erosion*2, 0)
 	app.Images = append(app.Images, circle, triangle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -328,7 +332,8 @@ func TestApplyGlowK(t *testing.T) {
 	const s, m = 96, 16
 	tri := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
-	app.Renderer.DrawTriangle(tri, m, s-m, s/2, m, s-m, s-m, 0)
+	var points = [3]PointF32{{X: m, Y: s - m}, {X: s / 2, Y: m}, {X: s - m, Y: s - m}}
+	app.Renderer.DrawTriangle(tri, points, 0)
 	app.Images = append(app.Images, tri)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
