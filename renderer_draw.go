@@ -108,15 +108,22 @@ func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
 }
 
+// StrokeCircle draws a circle outline. If thickness > 0, the outline expands [-thickness/2, thickness/2]
+// around the radius. If thickness < 0, the outline goes from [-thickness, 0].
 func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
-	if thickness <= 0 {
+	if thickness == 0 {
 		return // nothing to draw
 	}
-	if radius <= thickness/2.0 {
-		rem := thickness/2.0 - radius
-		if rem > 0 {
-			r.DrawCircle(target, cx, cy, rem)
+	if thickness < 0 {
+		thickness = -thickness
+		radius -= thickness / 2.0
+	}
+	if thickness/2.0 >= radius {
+		radius := radius + thickness/2.0
+		if radius < 0 {
+			return
 		}
+		r.DrawCircle(target, cx, cy, radius)
 		return
 	}
 

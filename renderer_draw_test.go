@@ -363,18 +363,30 @@ func TestStrokeArea(t *testing.T) {
 // go test -run ^TestStrokeCircle$ . -count 1
 func TestStrokeCircle(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		const Radius = 72
+
 		lx, ly := ctx.LeftClickF32()
+		rx, ry := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ri, ro := float32(64.0), float32(128.0)
-		ctx.Renderer.ScaleAlphaBy(0.25)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, ri)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, ro)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, lx, ly, Radius)
+		ctx.Renderer.DrawCircle(canvas, rx, ry, Radius)
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		thick := float32(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.StrokeCircle(canvas, lx, ly, ri, thick)
-		ctx.Renderer.StrokeCircle(canvas, lx, ly, ro, thick)
+		const MaxThickness = 16
+		thick := float32(ctx.DistAnim(MaxThickness, 1.0))
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.DrawCircle(canvas, lx, ly, Radius-MaxThickness)
+		ctx.Renderer.DrawCircle(canvas, rx, ry, Radius-MaxThickness)
+
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.StrokeCircle(canvas, lx, ly, Radius, thick)
+		ctx.Renderer.StrokeCircle(canvas, rx, ry, Radius, -thick)
+
+		thick2 := float32(ctx.DistAnim(32.0, 1.0))
+		ctx.Renderer.StrokeCircle(canvas, lx, ry, 16, -thick2)
+		ctx.Renderer.StrokeCircle(canvas, rx, ly, thick2-8.0, 16.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
