@@ -51,13 +51,28 @@ func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32
 		return // ignore
 	}
 
+	hmargin, vmargin := float32(0.0), float32(0.0)
+	if rounding > 0 {
+		hmargin = float32(math.Ceil(float64(rounding)))
+		vmargin = hmargin
+	} else if rounding < 0 {
+		// NOTE: collapse values are conservative bounds found empirically,
+		// the actual behavior is not linear and harder to narrowly match.
+		// actual collapse is closer to [0.5, 1.707]
+		const CollapseStart, CollapseEnd = 0.76, 1.86
+		if hCS := h * CollapseStart; -rounding > hCS {
+			ht := (-rounding - hCS) / (h * (CollapseEnd - CollapseStart))
+			hmargin = -w / 2 * min(ht*(h/w), 1.0)
+		}
+		if wCS := w * CollapseStart; -rounding > wCS {
+			wt := (-rounding - wCS) / (w * (CollapseEnd - CollapseStart))
+			vmargin = -h / 2 * min(wt*(w/h), 1.0)
+		}
+	}
+
 	r.setFlatCustomVAs(ox, oy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
-	margin := float32(0.0)
-	if rounding > 0 {
-		margin = float32(math.Ceil(float64(rounding)))
-	}
-	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRect.Load())
+	r.DrawRectShader(target, ox, oy, w, h, hmargin, vmargin, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
 
