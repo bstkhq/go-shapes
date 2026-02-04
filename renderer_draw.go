@@ -509,8 +509,8 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 	r.vertices = r.vertices[:4]
 }
 
-// StrokeRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
-// When no rounding is required, prefer [Renderer.DrawIntArea]() instead.
+// StrokeRect is the image.Rectangle compatible equivalent of [Renderer.StrokeArea]().
+// When no rounding is required, prefer [Renderer.StrokeIntArea]() instead.
 func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness, rounding float32) {
 	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), inThickness, outThickness, rounding)
 }
@@ -563,8 +563,8 @@ func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickne
 // DrawTriangle draws a smooth triangle using the given vertices and an optional rounding factor.
 // Notice that, if provided, handling the rounding is relatively non-trivial (two dozen f64 products
 // and 3 square roots for CPU-side precomputations).
-func (r *Renderer) DrawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, rounding float64) {
-	r.drawTriangle(target, ox1, oy1, ox2, oy2, ox3, oy3, 0.0, rounding)
+func (r *Renderer) DrawTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
+	r.drawTriangle(target, points, 0.0, rounding)
 }
 
 // StrokeTriangle draws an unfilled triangle. The outline will expand [-thickness/2, +thickness/2] around
@@ -572,45 +572,50 @@ func (r *Renderer) DrawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, o
 // only, going from [-thickness, 0].
 //
 // For more details on rounding, see [Renderer.DrawTriangle]().
-func (r *Renderer) StrokeTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding float64) {
-	r.drawTriangle(target, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding)
+// TODO: check thickness 0, should cut earlier
+func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
+	r.drawTriangle(target, points, thickness, rounding)
 }
 
-func (r *Renderer) drawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding float64) {
-	area := math.Abs((ox1*(oy2-oy3) + ox2*(oy3-oy1) + ox3*(oy1-oy2)) / 2)
+// TODO: change rounding interpretation, allow [3]PointF32 probably, skip if inner rounding collapses the shape
+// (currently it degenerates), test all orientations, check if P0/P1/P2 can be written as [2]float32 and it makes
+// any difference
+func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
+	area := abs((points[0].X*(points[1].Y-points[2].Y) + points[1].X*(points[2].Y-points[0].Y) + points[2].X*(points[0].Y-points[1].Y)) / 2)
 	if area < 1e-6 {
 		return // empty triangle
 	}
 
-	var iox1, ioy1, iox2, ioy2, iox3, ioy3 float64 = ox1, oy1, ox2, oy2, ox3, oy3
-	if rounding != 0 {
-		a12, b12, c12 := toLinearFormABC(ox1, oy1, ox2, oy2)
-		a23, b23, c23 := toLinearFormABC(ox2, oy2, ox3, oy3)
-		a31, b31, c31 := toLinearFormABC(ox3, oy3, ox1, oy1)
-		c1_12, c2_12 := parallelsAtDist(a12, b12, c12, rounding)
-		c1_23, c2_23 := parallelsAtDist(a23, b23, c23, rounding)
-		c1_31, c2_31 := parallelsAtDist(a31, b31, c31, rounding)
-		if a12*ox3+b12*oy3+c12 > 0 { // fancy winding order test
+	var p0, p1, p2 PointF32 = points[0], points[1], points[2]
+	if rounding < 0 {
+		a12, b12, c12 := toLinearFormABC(points[0].X, points[0].Y, points[1].X, points[1].Y)
+		a23, b23, c23 := toLinearFormABC(points[1].X, points[1].Y, points[2].X, points[2].Y)
+		a31, b31, c31 := toLinearFormABC(points[2].X, points[2].Y, points[0].X, points[0].Y)
+		c1_12, c2_12 := parallelsAtDist(a12, b12, c12, -rounding)
+		c1_23, c2_23 := parallelsAtDist(a23, b23, c23, -rounding)
+		c1_31, c2_31 := parallelsAtDist(a31, b31, c31, -rounding)
+		if a12*points[2].X+b12*points[2].Y+c12 > 0 { // fancy winding order test
 			c12, c23, c31 = c1_12, c1_23, c1_31
 		} else {
 			c12, c23, c31 = c2_12, c2_23, c2_31
 		}
-		iox1, ioy1 = shortCramer(a31, b31, c31, a12, b12, c12)
-		iox2, ioy2 = shortCramer(a12, b12, c12, a23, b23, c23)
-		iox3, ioy3 = shortCramer(a23, b23, c23, a31, b31, c31)
+		p0.X, p0.Y = shortCramer(a31, b31, c31, a12, b12, c12)
+		p1.X, p1.Y = shortCramer(a12, b12, c12, a23, b23, c23)
+		p2.X, p2.Y = shortCramer(a23, b23, c23, a31, b31, c31)
 	}
 
-	minX, maxX := min(ox1, ox2, ox3), max(ox1, ox2, ox3)
-	minY, maxY := min(oy1, oy2, oy3), max(oy1, oy2, oy3)
+	minX, maxX := min(points[0].X, points[1].X, points[2].X), max(points[0].X, points[1].X, points[2].X)
+	minY, maxY := min(points[0].Y, points[1].Y, points[2].Y), max(points[0].Y, points[1].Y, points[2].Y)
 	hthick := max(thickness/2.0, 0)
-	r.setDstRectCoords(float32(minX-hthick), float32(minY-hthick), float32(maxX+hthick), float32(maxY+hthick))
+	outRounding := max(rounding, 0)
+	r.setDstRectCoords(minX-hthick-outRounding, minY-hthick-outRounding, maxX+hthick+outRounding, maxY+hthick+outRounding)
 
 	// draw shader
-	r.opts.Uniforms["P0"] = []float32{float32(iox1), float32(ioy1)}
-	r.opts.Uniforms["P1"] = []float32{float32(iox2), float32(ioy2)}
-	r.opts.Uniforms["P2"] = []float32{float32(iox3), float32(ioy3)}
-	r.opts.Uniforms["Rounding"] = float32(rounding)
-	r.opts.Uniforms["Thickness"] = float32(thickness)
+	r.opts.Uniforms["P0"] = [2]float32{p0.X, p0.Y}
+	r.opts.Uniforms["P1"] = [2]float32{p1.X, p1.Y}
+	r.opts.Uniforms["P2"] = [2]float32{p2.X, p2.Y}
+	r.opts.Uniforms["Rounding"] = rounding
+	r.opts.Uniforms["Thickness"] = thickness
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
 }
 

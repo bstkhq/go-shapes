@@ -2,8 +2,8 @@ package shapes
 
 import "math"
 
-// PointF32 is a helper type for operations with quads like [Renderer.DrawQuad](),
-// [Renderer.MapQuad4]() and [Renderer.MapProjective]().
+// PointF32 is a helper type for operations with triangles and quads like
+// [Renderer.DrawTriangle](), [Renderer.DrawQuad](), [Renderer.MapQuad4]()...
 type PointF32 struct {
 	X, Y float32
 }
@@ -14,6 +14,10 @@ func (p PointF32) Sub(o PointF32) PointF32 {
 
 func (p PointF32) Add(o PointF32) PointF32 {
 	return PointF32{p.X + o.X, p.Y + o.Y}
+}
+
+func (p PointF32) AddXY(x, y float32) PointF32 {
+	return PointF32{p.X + x, p.Y + y}
 }
 
 func (p PointF32) Scale(s float32) PointF32 {

@@ -14,15 +14,15 @@ func Fragment(targetCoords vec4, _ vec2, color vec4) vec4 {
 	var alpha float
 	if Thickness > 0 {
 		hthick := Thickness / 2.0
-		inAlpha := smoothstep(-hthick, -hthick+AAMargin, dist-Rounding)
-		outAlpha := 1.0 - smoothstep(hthick-AAMargin, hthick, dist-Rounding)
+		inAlpha := smoothstep(-hthick, -hthick+AAMargin, dist+Rounding)
+		outAlpha := 1.0 - smoothstep(hthick-AAMargin, hthick, dist+Rounding)
 		alpha = inAlpha * outAlpha
 	} else if Thickness < 0 {
-		inAlpha := smoothstep(Thickness, Thickness+AAMargin, dist-Rounding)
-		outAlpha := 1.0 - smoothstep(-AAMargin, 0, dist-Rounding)
+		inAlpha := smoothstep(Thickness, Thickness+AAMargin, dist+Rounding)
+		outAlpha := 1.0 - smoothstep(-AAMargin, 0, dist+Rounding)
 		alpha = inAlpha * outAlpha
 	} else {
-		alpha = 1.0 - smoothstep(-AAMargin, 0, dist-Rounding)
+		alpha = 1.0 - smoothstep(-AAMargin, 0, dist+Rounding)
 	}
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
