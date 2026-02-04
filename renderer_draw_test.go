@@ -64,26 +64,67 @@ func TestDrawTriangles(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		cw, _ := rectSizeF32(canvas.Bounds())
-		rounding := float32(ctx.DistAnim(24.0, 1.0))
-		var points [3]PointF32
-		points[0] = PointF32{X: 24, Y: 24}
-		points[1] = points[0].AddXY(108, 12)
-		points[2] = points[0].AddXY(23, 48)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.DrawTriangle(canvas, points, rounding)
-		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
-		ctx.Renderer.DrawCircle(canvas, points[0].X, points[0].Y, rounding)
-		ctx.Renderer.DrawCircle(canvas, points[1].X, points[1].Y, rounding)
-		ctx.Renderer.DrawCircle(canvas, points[2].X, points[2].Y, rounding)
+		cw, ch := rectSizeF32(canvas.Bounds())
+		outRounding := float32(ctx.DistAnim(16.0, 1.0))
+		inRounding := -float32(ctx.DistAnim(48.0, 1.0))
 
-		points[0] = PointF32{X: cw / 2, Y: 24}
-		points[1] = points[0].AddXY(64, 24)
-		points[2] = points[0].AddXY(-32, 56)
+		var pointsL [3]PointF32
+		pointsL[0] = PointF32{X: 24, Y: 24}
+		pointsL[1] = pointsL[0].AddXY(108, 12)
+		pointsL[2] = pointsL[0].AddXY(23, 48)
+		var pointsM [3]PointF32
+		pointsM[0] = PointF32{X: cw / 2, Y: 24}
+		pointsM[1] = pointsM[0].AddXY(64, 24)
+		pointsM[2] = pointsM[0].AddXY(-32, 56)
+
+		// first row, filled
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.StrokeTriangle(canvas, points, 4.0, -rounding)
-		ctx.Renderer.SetColorF32(0.5, 0, 0, 0.5)
-		ctx.Renderer.StrokeTriangle(canvas, points, -2.0, -rounding)
+		ctx.Renderer.DrawTriangle(canvas, pointsL, outRounding)
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.DrawTriangle(canvas, pointsM, inRounding)
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, -3.0, inRounding)
+
+		// second row, balanced stroke
+		const CVOffset = -24
+		for i, p := range pointsL {
+			pointsL[i] = p.AddXY(0, -24+ch/2+CVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.StrokeTriangle(canvas, pointsL, 8.0, outRounding)
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		for i, p := range pointsM {
+			pointsM[i] = p.AddXY(0, -24+ch/2+CVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, 8.0, inRounding)
+
+		// third row, inner stroke
+		const LVOffset = -60
+		for i, p := range pointsL {
+			pointsL[i] = p.AddXY(0, ch/2+LVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.StrokeTriangle(canvas, pointsL, -8.0, outRounding)
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		for i, p := range pointsM {
+			pointsM[i] = p.AddXY(0, ch/2+LVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, -8.0, inRounding)
 	})
 
 	if err := ebiten.RunGame(app); err != nil {

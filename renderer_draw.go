@@ -593,9 +593,34 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 		a12, b12, c12 := toLinearFormABC(points[0].X, points[0].Y, points[1].X, points[1].Y)
 		a23, b23, c23 := toLinearFormABC(points[1].X, points[1].Y, points[2].X, points[2].Y)
 		a31, b31, c31 := toLinearFormABC(points[2].X, points[2].Y, points[0].X, points[0].Y)
-		c1_12, c2_12 := parallelsAtDist(a12, b12, c12, -rounding)
-		c1_23, c2_23 := parallelsAtDist(a23, b23, c23, -rounding)
-		c1_31, c2_31 := parallelsAtDist(a31, b31, c31, -rounding)
+		c1_12, c2_12, l12 := parallelsAtDist(a12, b12, c12, -rounding)
+		c1_23, c2_23, l23 := parallelsAtDist(a23, b23, c23, -rounding)
+		c1_31, c2_31, l31 := parallelsAtDist(a31, b31, c31, -rounding)
+
+		// handle collapse into circle
+		area := 0.5 * abs((p0.X*(p1.Y-p2.Y) + p1.X*(p2.Y-p0.Y) + p2.X*(p0.Y-p1.Y)))
+		perimeter := l12 + l23 + l31
+		maxRounding := area / (0.5 * perimeter)
+		if -rounding >= maxRounding {
+			cx := (l23*p0.X + l31*p1.X + l12*p2.X) / perimeter
+			cy := (l23*p0.Y + l31*p1.Y + l12*p2.Y) / perimeter
+			radius := maxRounding + (maxRounding + rounding)
+			if thickness == 0 {
+				if radius <= 0 {
+					return
+				}
+				r.DrawCircle(target, cx, cy, radius)
+			} else {
+				if thickness < 0 {
+					thickness = -thickness
+					radius -= thickness / 2.0
+				}
+				r.StrokeCircle(target, cx, cy, radius, thickness)
+			}
+			return
+		}
+
+		// no collapse, finish calculations
 		if a12*points[2].X+b12*points[2].Y+c12 > 0 { // fancy winding order test
 			c12, c23, c31 = c1_12, c1_23, c1_31
 		} else {

@@ -100,14 +100,16 @@ func shortCramer[Float ~float32 | ~float64](a1, b1, c1, a2, b2, c2 Float) (Float
 
 // given a line equation in the form Ax + By + C = 0, it returns
 // C1 and C2 such that two new line equations can be created that
-// are parallel to the original line, but at distance 'dist' from it
-func parallelsAtDist[Float ~float32 | ~float64](a, b, c, dist Float) (Float, Float) {
+// are parallel to the original line, but at distance 'dist' from it.
+// It also returns hypot(a, b), which is the length of the line and
+// can be useful in some contexts.
+func parallelsAtDist[Float ~float32 | ~float64](a, b, c, dist Float) (Float, Float, Float) {
 	norm := Float(math.Hypot(float64(a), float64(b)))
 	if norm == 0 {
-		return c, c // degenerate case
+		return c, c, norm // degenerate case
 	}
 	shift := dist * norm
-	return c - shift, c + shift
+	return c - shift, c + shift, norm
 }
 
 func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Float {
