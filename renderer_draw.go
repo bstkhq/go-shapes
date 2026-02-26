@@ -7,12 +7,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// NewRect returns a new image filled with the renderer's current color.
 func (r *Renderer) NewRect(width, height int) *ebiten.Image {
 	img := ebiten.NewImage(width, height)
 	r.DrawIntArea(img, 0, 0, width, height)
 	return img
 }
 
+// NewRect returns a new image with circle of the given radius, drawn
+// with the renderer's current color.
 func (r *Renderer) NewCircle(radius float64) *ebiten.Image {
 	side := float32(math.Ceil(radius * 2))
 	img := ebiten.NewImage(int(side), int(side))
@@ -20,6 +23,8 @@ func (r *Renderer) NewCircle(radius float64) *ebiten.Image {
 	return img
 }
 
+// NewRing returns a new image with a ring of the given dimensions, drawn
+// with the renderer's current color.
 func (r *Renderer) NewRing(inRadius, outRadius float64) *ebiten.Image {
 	side := float32(math.Ceil(outRadius * 2))
 	img := ebiten.NewImage(int(side), int(side))
@@ -28,9 +33,12 @@ func (r *Renderer) NewRing(inRadius, outRadius float64) *ebiten.Image {
 }
 
 // DrawRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
-// When no rounding is required, prefer [Renderer.DrawIntArea]() instead.
 func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
-	r.DrawArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
+	if rounding == 0 {
+		r.DrawIntArea(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
+	} else {
+		r.DrawArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
+	}
 }
 
 // DrawArea draws a rectangle with the given properties. Rounding can be zero,
@@ -379,6 +387,18 @@ func (r *Renderer) internalStrokePieRate(target *ebiten.Image, cx, cy, radius, t
 // Notice: ellipses don't have a perfect SDF, so approximations can be very slightly
 // bigger or smaller than the requested radiuses.
 func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRadius float32, rads float64) {
+	if horzRadius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, horzRadius)
+		horzRadius = 0
+	}
+	if vertRadius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, vertRadius)
+		vertRadius = 0
+	}
+	if horzRadius == 0 || vertRadius == 0 {
+		return
+	}
+
 	if rads == 0 {
 		r.setDstRectCoords(cx-horzRadius, cy-vertRadius, cx+horzRadius, cy+vertRadius)
 		r.opts.Uniforms["Radians"] = 0
@@ -394,12 +414,13 @@ func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRad
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderEllipse.Load(), &r.opts)
 }
 
-// DrawIntRect is the image.Rectangle compatible equivalent of [Renderer.DrawIntArea]().
-func (r *Renderer) DrawIntRect(target *ebiten.Image, rect image.Rectangle) {
-	r.DrawIntArea(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
-}
-
+// DrawIntArea is a simpler version of [Renderer.DrawArea]() that uses integer coordinates.
+//
+// See also [Renderer.DrawRect]() when working with image.Rectangle.
 func (r *Renderer) DrawIntArea(target *ebiten.Image, ox, oy, w, h int) {
+	if w == 0 || h == 0 {
+		return
+	}
 	if w < 0 {
 		w = -w
 		ox -= w

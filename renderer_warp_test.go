@@ -48,9 +48,9 @@ func TestWarpArc(t *testing.T) {
 	mask := app.Renderer.NewSimpleGradient(W, H, from, to, DirRadsRTL)
 	app.Renderer.DitherMat4(img, mask, 0, 0, 0, 0, DitherBW, DitherGlitch, 0.0, 0.0)
 	app.Renderer.SetColorF32(0, 0.5, 0, 0.5)
-	app.Renderer.DrawIntRect(img, img.Bounds())
+	app.Renderer.DrawRect(img, img.Bounds(), 0)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
-	app.Renderer.DrawIntRect(img, image.Rect(0, 0, W/8, H/16))
+	app.Renderer.DrawRect(img, image.Rect(0, 0, W/8, H/16), 0)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, img)
 
