@@ -16,13 +16,7 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if thickness > 16 {
-		r.Warnings.report(WarnThicknessClamped, thickness)
-		thickness = 16
-	} else if thickness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, thickness)
-		thickness = 0
-	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -58,13 +52,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if thickness > 16 {
-		r.Warnings.report(WarnThicknessClamped, thickness)
-		thickness = 16
-	} else if thickness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, thickness)
-		thickness = 0
-	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	// first pass (vert)
 	thickCeil := float32(math.Ceil(float64(thickness)))
@@ -101,14 +89,7 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if thickness > 16 {
-		r.Warnings.report(WarnThicknessClamped, thickness)
-		thickness = 16
-	} else if thickness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, thickness)
-		thickness = 0
-		return
-	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -138,15 +119,7 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if thickness > 32 {
-		r.Warnings.report(WarnThicknessClamped, thickness)
-		thickness = 32
-	} else if thickness <= 0 {
-		if thickness < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
-		}
-		return
-	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -190,14 +163,8 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
 	}
-	if horzRadius > 32 {
-		r.Warnings.report(WarnRadiusClamped, horzRadius)
-		horzRadius = 32
-	}
-	if vertRadius > 32 {
-		r.Warnings.report(WarnRadiusClamped, vertRadius)
-		vertRadius = 32
-	}
+	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
+	vertRadius = r.warnClampNonNegArgF32(vertRadius, 32, WarnRadiusClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -238,10 +205,7 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
 	}
-	if horzRadius > 32 {
-		r.Warnings.report(WarnRadiusClamped, horzRadius)
-		horzRadius = 32
-	}
+	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -275,10 +239,7 @@ func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
 	}
-	if horzRadius > 32 {
-		r.Warnings.report(WarnRadiusClamped, horzRadius)
-		horzRadius = 32
-	}
+	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())

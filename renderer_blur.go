@@ -27,11 +27,9 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 	if radius > 16 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 16
-	} else if radius <= 0 {
-		if radius < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		}
-		return
+	} else if radius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, radius)
+		radius = 0
 	}
 
 	srcBounds := mask.Bounds()
@@ -63,8 +61,6 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 // internal atlas.
 //
 // See [Renderer.ApplyBlurK]() if downscaling or fixed kernels are desired.
-//
-// TODO: handle Blur and Blur2 radius = 0 properly, it should still perform the color mixing
 func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -74,8 +70,8 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 32
 	} else if radius < 0 {
-		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		return
+		r.Warnings.report(WarnNegativeValueZeroed, radius)
+		radius = 0
 	}
 
 	ceilRadius := ceilF32(radius)
@@ -103,11 +99,9 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	if radius > 32 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 32
-	} else if radius <= 0 {
-		if radius < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		}
-		return
+	} else if radius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, radius)
+		radius = 0
 	}
 
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
@@ -134,11 +128,9 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	if radius > 32 {
 		r.Warnings.report(WarnRadiusClamped, radius)
 		radius = 32
-	} else if radius <= 0 {
-		if radius < 0 {
-			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		}
-		return
+	} else if radius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, radius)
+		radius = 0
 	}
 
 	srcBounds := mask.Bounds()
@@ -201,10 +193,6 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius flo
 	if !downscaling.valid() {
 		panic("invalid downscaling value")
 	}
-	if radius < 0 {
-		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
-		return
-	}
 	if numSamples < 1 {
 		r.Warnings.report(WarnNotEnoughSamplesOpSkipped, numSamples)
 		return
@@ -212,6 +200,10 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius flo
 	if numSamples > 64 {
 		r.Warnings.report(WarnNumSamplesClamped, numSamples)
 		numSamples = 64
+	}
+	if radius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, radius)
+		radius = 0
 	}
 	if seed < 0 || seed > 1 {
 		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)

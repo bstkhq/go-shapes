@@ -77,7 +77,7 @@ func TestApplyBlur2(t *testing.T) {
 // go test -run ^TestApplyDirBlur$ . -count 1
 func TestApplyDirBlur(t *testing.T) {
 	radius := float32(64.0)
-	fxRadius := float32(16.0)
+	fxRadius := float32(24.0)
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
@@ -92,7 +92,8 @@ func TestApplyDirBlur(t *testing.T) {
 		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 
-		canvas.SubImage(image.Rect(480-8, 96-16, 480+80-8, 96+16)).(*ebiten.Image).Fill(color.RGBA{0, 255, 0, 255})
+		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16).Add(canvas.Bounds().Min)
+		Paint(canvas, rect, [4]float32{0, 1, 0, 1}, ebiten.BlendSourceOver)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			// see notes on TestApplyBlur2
