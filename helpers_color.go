@@ -26,7 +26,7 @@ var (
 	}
 )
 
-func ColorToF32(clr color.Color) [4]float32 {
+func RGBAF32(clr color.Color) [4]float32 {
 	r, g, b, a := clr.RGBA()
 	return [4]float32{float32(r) / 65535.0, float32(g) / 65535.0, float32(b) / 65535.0, float32(a) / 65535.0}
 }

@@ -78,17 +78,8 @@ func (off *offscreen) WithSize(w, h int, clear bool) (*ebiten.Image, bool) {
 }
 
 func (off *offscreen) clearParentFor(w, h int) {
-	bounds := off.parent.Bounds()
-	currWidth, currHeight := bounds.Dx(), bounds.Dy()
-	if currWidth > w && currHeight > h {
-		off.parent.SubImage(image.Rect(0, 0, w+1, h+1)).(*ebiten.Image).Clear()
-	} else if currWidth > w {
-		off.parent.SubImage(image.Rect(0, 0, w+1, h)).(*ebiten.Image).Clear()
-	} else if currHeight > h {
-		off.parent.SubImage(image.Rect(0, 0, w, h+1)).(*ebiten.Image).Clear()
-	} else {
-		off.parent.Clear()
-	}
+	clearRect := off.parent.Bounds().Intersect(image.Rect(0, 0, w+1, h+1))
+	Clear(off.parent, clearRect)
 }
 
 func newUnmanagedImage(w, h int) *ebiten.Image {

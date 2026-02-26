@@ -63,7 +63,7 @@ func (r *Renderer) GetColorF32() [4]float32 {
 // vertex 1 as top-right, vertex 2 as bottom-right, vertex 3 as bottom-left, but this is shader
 // dependent (or even variable in some cases).
 func (r *Renderer) SetColor(clr color.Color, vertexIndices ...int) {
-	clrF32 := ColorToF32(clr)
+	clrF32 := RGBAF32(clr)
 	r.SetColorF32(clrF32[0], clrF32[1], clrF32[2], clrF32[3], vertexIndices...)
 }
 
@@ -276,25 +276,11 @@ func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padd
 }
 
 func (r *Renderer) setDstRectCoords(minX, minY, maxX, maxY float32) {
-	r.vertices[0].DstX = minX
-	r.vertices[0].DstY = minY
-	r.vertices[1].DstX = maxX
-	r.vertices[1].DstY = minY
-	r.vertices[2].DstX = maxX
-	r.vertices[2].DstY = maxY
-	r.vertices[3].DstX = minX
-	r.vertices[3].DstY = maxY
+	setVertDstCoords(r.vertices, minX, minY, maxX, maxY)
 }
 
 func (r *Renderer) setSrcRectCoords(minX, minY, maxX, maxY float32) {
-	r.vertices[0].SrcX = minX
-	r.vertices[0].SrcY = minY
-	r.vertices[1].SrcX = maxX
-	r.vertices[1].SrcY = minY
-	r.vertices[2].SrcX = maxX
-	r.vertices[2].SrcY = maxY
-	r.vertices[3].SrcX = minX
-	r.vertices[3].SrcY = maxY
+	setVertSrcCoords(r.vertices, minX, minY, maxX, maxY)
 }
 
 func (r *Renderer) setFlatCustomVAs(cva0, cva1, cva2, cva3 float32) {
