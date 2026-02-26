@@ -581,7 +581,7 @@ func TestDrawAreaSoft(t *testing.T) {
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
 			ctx.Renderer.DrawArea(tmp, 96/2, 96/2, brW, brH, rounding)
-			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft, 0.0)
+			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
 		} else {
 			ctx.Renderer.DrawAreaBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
 		}

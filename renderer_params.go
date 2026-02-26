@@ -1,14 +1,12 @@
 package shapes
 
 // Downscaling is a common technique used in graphics where an effect is not applied at full
-// resolution, but rather a smaller offscreen. The main upside is that less pixels to process
-// typically mean less GPU load.
-//
-// Downscaling also has important weaknesses and downsides:
+// resolution, but a smaller offscreen. This is done to reduce the amount of pixels to process,
+// but it has some downsides:
 //   - Non-trivial overhead due to the extra steps (downscale + effect + upscale back), which
 //     can be worse than paying for a full resolution operation if processing many small images.
-//   - The upscaled effects can look blocky. This depends on the effect type and the downscaling
-//     level; downscaling is not a silver bullet.
+//   - The upscaled effects can look blocky. Different effects respond differently to downscaling,
+//     so each case needs to be assessed independently.
 type Downscaling uint8
 
 const (
@@ -23,6 +21,7 @@ func (d Downscaling) valid() bool {
 	return d >= DownscaleNone && d <= DownscaleX16
 }
 
+// Factor returns 1 for [DownscaleNone], 2 for [DownscaleX2], 4 for [DownscaleX4], etc.
 func (d Downscaling) Factor() int {
 	return int(1 << d)
 }
@@ -68,10 +67,14 @@ const (
 	GaussK31
 )
 
+// Radius returns the kernel radius. For example, GaussK3 has radius 1,
+// Gauss15 has radius 7, etc.
 func (k GaussKernel) Radius() int {
 	return (k.Size() - 1) >> 1
 }
 
+// Size returns the size of the kernel. For example, GaussK3 has size 3,
+// GaussK15 has size 15, etc.
 func (k GaussKernel) Size() int {
 	ik := int(k)
 	return 3 + ik + ik
@@ -115,11 +118,15 @@ type KernelOptions struct {
 	HorzKernel  GaussKernel
 	VertKernel  GaussKernel
 
-	// ColorMix determines how the renderer and source image colors are mixed during
-	// operation. It can smoothly go from 0.0 (use only renderer colors) to 1.0 (use
-	// only source image colors)
-	ColorMix float32
-
 	// Scaling options can be provided if defaults need to be overridden.
 	Scaling *ScaleOptions
+}
+
+// KernelOpts creates KernelOptions with the same kernel for both axes.
+func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
+	return KernelOptions{
+		Downscaling: downscaling,
+		HorzKernel:  kernel,
+		VertKernel:  kernel,
+	}
 }

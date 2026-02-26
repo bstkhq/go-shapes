@@ -175,7 +175,7 @@ func TestApplyShadow(t *testing.T) {
 
 		mx, my = max(lx, rx), min(ly, ry)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[1], mx-32, my, r, 1.0)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[1], mx-32, my, r)
 		ctx.Renderer.ApplyShadow(canvas, ctx.Images[1], mx+32, my, 0, 0, r, ClampNone)
 	})
 	circle := app.Renderer.NewCircle(64.0)
@@ -219,13 +219,15 @@ func TestApplyGlow2(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], lx, ly, 16, 16, 0.4, 0.7, 1.0)
+		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], lx, ly, 16, 16, 0.4, 0.7)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
+		ctx.Renderer.SetTint(1)
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 16, 0.5, 0.6, 0.0)
+		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 16, 0.5, 0.6)
+		ctx.Renderer.SetTint(0)
 	})
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
@@ -245,13 +247,15 @@ func TestApplyHorzGlow(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.4, 0.5, 1.0)
+		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.4, 0.5)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
+		ctx.Renderer.SetTint(1)
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6, 0.0)
+		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6)
+		ctx.Renderer.SetTint(0)
 	})
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
@@ -271,16 +275,18 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.5, 0.01, 1.0)
+		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.5, 0.01)
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly+120)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry)
 		dynRadius := float32(ctx.DistAnim(16, 4.0))
 		ctx.Renderer.SetColor(color.RGBA{64, 0, 0, 255})
-		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5, 0.0)
+		ctx.Renderer.SetTint(1)
+		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5)
+		ctx.Renderer.SetTint(0)
 		_, h := rectSizeF32(ctx.Images[1].Bounds())
-		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius, 1)
+		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius)
 		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry-h-h/16)
 	})
 	const s, m = 96, 16
@@ -312,9 +318,9 @@ func TestApplyGlowK(t *testing.T) {
 			return min(radius, 16.0)
 		}
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], lx, ly, gRad(hkern), gRad(vkern), 0.2, 0.8, 1.0)
+			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], lx, ly, gRad(hkern), gRad(vkern), 0.2, 0.8)
 		} else {
-			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
 			ctx.Renderer.ApplyGlowK(canvas, ctx.Images[0], lx, ly, 0.2, 0.8, kOpts)
 		}
 
@@ -322,12 +328,14 @@ func TestApplyGlowK(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		hkern, vkern = GaussK5, GaussK15
+		ctx.Renderer.SetTint(1.0)
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, gRad(hkern), gRad(vkern), 0.5, 0.6, 0.0)
+			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, gRad(hkern), gRad(vkern), 0.5, 0.6)
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
 			ctx.Renderer.ApplyGlowK(canvas, ctx.Images[0], rx, ry, 0.5, 0.6, kOpts)
 		}
+		ctx.Renderer.SetTint(0)
 	})
 	const s, m = 96, 16
 	tri := ebiten.NewImage(s, s)
@@ -353,18 +361,13 @@ func TestApplyGlowKBleed(t *testing.T) {
 			i1, i2, i3 = i2, i3, i1
 		}
 		const st, et = 0.0, 0.5
-		kOpts := KernelOptions{Downscaling: DownscaleX4, ColorMix: 1.0}
-		withKernel := func(opts KernelOptions, kernel GaussKernel) KernelOptions {
-			opts.HorzKernel = kernel
-			opts.VertKernel = kernel
-			return opts
-		}
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i1], 16, 16, st, et, withKernel(kOpts, GaussK9))
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i2], 16+96*1, 16, st, et, withKernel(kOpts, GaussK17))
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i3], 16+96*2, 16, st, et, withKernel(kOpts, GaussK11))
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i3], 16, 16+96*1, st, et, withKernel(kOpts, GaussK5))
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i2], 16+96*1, 16+96*1, st, et, withKernel(kOpts, GaussK13))
-		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i1], 16+96*2, 16+96*1, st, et, withKernel(kOpts, GaussK9))
+		const down = DownscaleX4
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i1], 16, 16, st, et, KernelOpts(down, GaussK9))
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i2], 16+96*1, 16, st, et, KernelOpts(down, GaussK17))
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i3], 16+96*2, 16, st, et, KernelOpts(down, GaussK11))
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i3], 16, 16+96*1, st, et, KernelOpts(down, GaussK5))
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i2], 16+96*1, 16+96*1, st, et, KernelOpts(down, GaussK13))
+		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i1], 16+96*2, 16+96*1, st, et, KernelOpts(down, GaussK9))
 	})
 	app.Renderer.SetColorF32(1, 0, 1, 1)
 	img1 := app.Renderer.NewRect(33, 33)
@@ -388,7 +391,7 @@ func TestApplyColorGlowK(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
 		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
 			loThresh := 0.1 + ctx.DistAnim(0.4, 1.0)
-			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: GaussK7, VertKernel: GaussK7, ColorMix: 1.0}
+			kOpts := KernelOpts(DownscaleX4, GaussK7)
 			ctx.Renderer.ApplyColorGlowK(canvas, ctx.Images[0], lx, ly, RGBF32(color.RGBA{255, 255, 0, 255}), float32(loThresh), 1.0, kOpts)
 		}
 	})

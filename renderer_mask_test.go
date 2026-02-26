@@ -119,9 +119,9 @@ func TestAlphaMaskCirc(t *testing.T) {
 			switch {
 			case inpututil.IsKeyJustPressed(ebiten.KeySpace):
 				lx, ly := ctx.LeftClickF32()
-				ctx.Renderer.SetBlend(ebiten.BlendCopy)
+				ctx.Renderer.Options().Blend = ebiten.BlendCopy
 				ctx.Renderer.DrawAlphaMaskCirc(ctx.Images[1], lx-ox, ly-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
-				ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
+				ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 			case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
 				randomness = min(randomness+0.1, 1.0)
 			case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):

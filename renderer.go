@@ -12,10 +12,6 @@ import (
 //go:embed assets
 var assets embed.FS
 
-// AAMargin is the standard antialias margin or soft edge value
-// recommended for operations that accept it explicitly.
-const AAMargin = 1.333
-
 // Renderer is a helper type for basic shape rendering which
 // reuses vertices and options for slightly reduced memory usage.
 type Renderer struct {
@@ -23,6 +19,7 @@ type Renderer struct {
 	indices  []uint16
 	opts     ebiten.DrawTrianglesShaderOptions
 
+	tint          float32
 	singleClr     bool
 	strokeIndices []uint16
 
@@ -94,8 +91,33 @@ func (r *Renderer) ScaleAlphaBy(alphaFactor float32) {
 	}
 }
 
-func (r *Renderer) SetBlend(blend ebiten.Blend) {
-	r.opts.Blend = blend
+// SetTint sets the renderer's tint value, which controls the weight
+// of the renderer vertex colors on documented operations:
+//   - A value of 0 means only source image colors are used. This is the default.
+//   - A value of 1 means only renderer colors are used.
+//   - Other values between 0..1 can be used to control the mix.
+//
+// Operations that can use tint are documented with "This operation is
+// affected by [Renderer.Tint]".
+//
+// Most workflows should only set tint locally during a sequence of operations and
+// restore it to zero afterwards.
+func (r *Renderer) SetTint(rendererColorWeight float32) {
+	if rendererColorWeight != r.tint {
+		if rendererColorWeight < 0 || rendererColorWeight > 1 {
+			r.Warnings.report(WarnInvalidTintClamped, rendererColorWeight)
+			rendererColorWeight = clamp(rendererColorWeight, 0, 1)
+		}
+		r.tint = rendererColorWeight
+	}
+}
+
+// Tint returns the renderer's current tint value, which controls
+// the weight of the renderer vertex colors on documented operations.
+//
+// See [Renderer.SetTint]() for more details.
+func (r *Renderer) Tint() float32 {
+	return r.tint
 }
 
 func (r *Renderer) Options() *ebiten.DrawTrianglesShaderOptions {

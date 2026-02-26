@@ -57,10 +57,13 @@ func TestGradient(t *testing.T) {
 
 	rectA := app.Renderer.NewRect(120, 80)
 	circ := app.Renderer.NewCircle(64.0)
-	rectB := ebiten.NewImageWithOptions(circ.Bounds(), nil)
 	app.Renderer.Gradient(rectA, nil, 0, 0, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, 4, math.Pi/7, 1.0)
-	app.Renderer.Gradient(rectB, circ, 0, 0, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, -1, math.Pi, 0.2)
-	app.Images = append(app.Images, rectA, rectB)
+
+	app.Renderer.Options().Blend = ebiten.BlendSourceIn
+	app.Renderer.Gradient(circ, nil, 0, 0, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, -1, DirRadsRTL, 0.2)
+	app.Renderer.Options().Blend = ebiten.BlendSourceOver
+	app.Images = append(app.Images, rectA, circ)
+
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -110,9 +113,9 @@ func TestGradientRadial(t *testing.T) {
 	circ := app.Renderer.NewCircle(64.0)
 	circ2 := app.Renderer.NewCircle(48.0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceIn)
+	app.Renderer.Options().Blend = ebiten.BlendSourceIn
 	app.Renderer.GradientRadial(circ2, 48, 48, color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, 0.0, 48.0, Float32Inf(), -1, 2.5)
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 
 	app.Images = append(app.Images, circ, circ2)
 	if err := ebiten.RunGame(app); err != nil {

@@ -8,7 +8,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	const Pi = 3.14159265359
 
 	radius := customVAs[0]
-	clrMix := customVAs[1]
+	tint := customVAs[1]
 	seed := customVAs[2]
 	shift := customVAs[3]
 
@@ -29,7 +29,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	}
 
 	alpha := accColor.a / float(NumSamples)
-	out := mix(color*alpha, accColor/float(NumSamples), clrMix)
+	out := mix(accColor/float(NumSamples), color*alpha, tint)
 	return out
 }
 

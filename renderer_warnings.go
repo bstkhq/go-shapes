@@ -28,8 +28,8 @@ const (
 	WarnNegativeValueZeroed
 	WarnNegativeValueOpSkipped // vague but uncommon in practice
 	WarnInvalidAlphaClamped    // out of [0, 1] range
+	WarnInvalidTintClamped     // out of [0, 1] range
 	WarnInvalidRateClamped     // out of [0, 1] range
-	WarnInvalidColorMixClamped // out of [0, 1] range
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
 
@@ -67,8 +67,8 @@ func (w Warning) Message() string {
 		return "alpha value out of range, clamped"
 	case WarnInvalidRateClamped:
 		return "rate value out of range, clamped"
-	case WarnInvalidColorMixClamped:
-		return "colorMix value out of range, clamped"
+	case WarnInvalidTintClamped:
+		return "tint value out of [0, 1] range, clamped"
 	case WarnInconsistentRangeOpSkipped:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation skipped"
 	case WarnInconsistentRangeInvalidated:

@@ -2,17 +2,17 @@
 package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxRadius = 16.0
+	const MaxRadius = 32.0
 
 	srcCoords := floor(sourceCoords) + vec2(0.5)
 	radius := customVAs[0]
-	clrMix := customVAs[1]
+	tint := customVAs[1]
 
 	sigma := radius / 3.0
 	sigma2 := 2.0 * sigma * sigma
 	if sigma2 <= 0.001 {
 		sample := imageSrc0At(sourceCoords)
-		return mix(color*sample.a, sample, clrMix)
+		return mix(sample, color*sample.a, tint)
 	}
 
 	accColor := vec4(0.0)
@@ -33,5 +33,5 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	}
 
 	alpha := accColor.a / accWeight
-	return mix(color*alpha, accColor/accWeight, clrMix)
+	return mix(accColor/accWeight, color*alpha, tint)
 }

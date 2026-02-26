@@ -49,14 +49,14 @@ func TestMap(t *testing.T) {
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	app.Renderer.DrawArea(img, 1, 1, CardWidth, CardHeight, -6.0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 	app.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
 	app.Renderer.StrokeArea(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
-	app.Renderer.SetBlend(ebiten.BlendClear)
+	app.Renderer.opts.Blend = ebiten.BlendClear
 	app.Renderer.DrawArea(img, 8, 0, 32, 64, 0)
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 
 	app.Images = append(app.Images, img)
@@ -119,14 +119,14 @@ func TestMapProjectiveTilt(t *testing.T) {
 	img := ebiten.NewImage(CardWidth, CardHeight)
 	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.GradientDither(img, 0, 0, CardWidth, CardHeight, color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, DirRadsTTB, 1.0)
 	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
 	app.Renderer.DrawPieRate(img, CardWidth/2, CardHeight/2-32, 64, DirRadsTTB, 0.15, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 
 	app.Images = append(app.Images, img)
@@ -177,13 +177,13 @@ func TestMapProjectiveStress(t *testing.T) {
 	app.Renderer.SetColorF32(1, 0.3, 1, 1)
 	app.Renderer.DrawRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, CardWidth/18, CardWidth/8, 0, 0)
 	app.Renderer.SetColorF32(1, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img2, CardWidth/18, CardWidth/8, 0, 0)
 
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 
 	app.Images = append(app.Images, img, img2)

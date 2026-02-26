@@ -7,7 +7,7 @@ var Kernel [16]float // 1D kernel, center and one side, since gaussian kernels a
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	srcCoords := floor(sourceCoords) + vec2(0.5)
 	loThresh, hiThresh := customVAs[0], customVAs[1]
-	clrMix := customVAs[2]
+	tint := customVAs[2]
 
 	accColor := multByLum(imageSrc0At(srcCoords), loThresh, hiThresh) * Kernel[0]
 	for offset := 1; offset < 16; offset += 1 {
@@ -21,7 +21,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 		accColor += multByLum(clrRight, loThresh, hiThresh) * Kernel[offset]
 	}
 
-	return mix(color*accColor.a, accColor, clrMix)
+	return mix(accColor, color*accColor.a, tint)
 }
 
 func multByLum(clr vec4, loThresh, hiThresh float) vec4 {

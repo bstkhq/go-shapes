@@ -24,12 +24,13 @@ func TestApplyBlur(t *testing.T) {
 		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius, 1.0)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		clrMix := float32(ctx.DistAnim(1.0, 1.0))
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, clrMix)
+		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.SetTint(0)
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
@@ -47,8 +48,8 @@ func TestApplyBlur2(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, r, 1.0)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx+radius, ly-radius, r, 1.0)
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			// NOTE: there are still differences between blur and blur2, as can be
 			// seen here, though they are fairly small. I tested many things, but
@@ -56,15 +57,16 @@ func TestApplyBlur2(t *testing.T) {
 			// most likely candidate, alongside gamma/linearization, but even individual
 			// horz/vert blurs have differences, which is the suspicious part. short on
 			// both directions, slightly offset on vertical (see TestApplyDirBlur)
-			ctx.Renderer.SetBlend(ebiten.BlendXor)
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx+radius, ly-radius, r, 1.0)
-			ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
+			ctx.Renderer.Options().Blend = ebiten.BlendXor
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx+radius, ly-radius, r)
+			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		clrMix := float32(ctx.DistAnim(1.0, 1.0))
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, clrMix)
+		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.SetTint(0)
 	})
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
@@ -82,22 +84,24 @@ func TestApplyDirBlur(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r, 1.0)
+		ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, 0.0)
+		ctx.Renderer.SetTint(1)
+		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.SetTint(0)
 
 		canvas.SubImage(image.Rect(480-8, 96-16, 480+80-8, 96+16)).(*ebiten.Image).Fill(color.RGBA{0, 255, 0, 255})
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			// see notes on TestApplyBlur2
-			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5, 1.0)
-			ctx.Renderer.SetBlend(ebiten.BlendXor)
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[2], 480, 96, 15.5, 1.0)
-			ctx.Renderer.SetBlend(ebiten.BlendSourceOver)
+			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
+			ctx.Renderer.Options().Blend = ebiten.BlendXor
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[2], 480, 96, 15.5)
+			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		} else {
-			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5, 1.0)
+			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
 		}
 	})
 
@@ -137,9 +141,9 @@ func TestApplyBlurK(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0, 1.0)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0)
 		} else {
-			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 		}
@@ -149,9 +153,9 @@ func TestApplyBlurK(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		k := GaussK9
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0, 1.0)
+			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0)
 		} else {
-			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
 		}
@@ -159,9 +163,9 @@ func TestApplyBlurK(t *testing.T) {
 		_, ch := rectSizeF32(canvas.Bounds())
 		k = GaussK29
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()), 1.0)
+			ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()))
 		} else {
-			kOpts := KernelOptions{Downscaling: DownscaleNone, HorzKernel: k, VertKernel: k, ColorMix: 1.0}
+			kOpts := KernelOptions{Downscaling: DownscaleNone, HorzKernel: k, VertKernel: k}
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], 16, ch-16-radius*2, kOpts)
 		}
 	})
@@ -186,11 +190,11 @@ func TestApplyBlurKernLoop(t *testing.T) {
 		t := float64(ctx.Ticks%loop) / float64(loop)
 		kern := GaussKernel(math.Round(lerp(float64(mink), float64(maxk), t)))
 
-		kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: kern, VertKernel: kern, ColorMix: 1.0}
+		kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: kern, VertKernel: kern}
 		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, min(float32(kern.Radius())*4.0, 16.0), 1.0)
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, min(float32(kern.Radius())*4.0, 16.0))
 
 		ebiten.SetWindowTitle(fmt.Sprintf("kern size: %d, radius: %d", kern.Size(), kern.Radius()))
 	})
@@ -209,7 +213,7 @@ func TestApplyBlurKernBleed(t *testing.T) {
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			i1, i2, i3 = i2, i3, i1
 		}
-		kOpts := KernelOptions{Downscaling: DownscaleX4, ColorMix: 1.0}
+		kOpts := KernelOptions{Downscaling: DownscaleX4}
 		withKernel := func(opts KernelOptions, kernel GaussKernel) KernelOptions {
 			opts.HorzKernel = kernel
 			opts.VertKernel = kernel
@@ -265,24 +269,26 @@ func TestApplyBlurVogel(t *testing.T) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [sampling = %d, downscaling x%d]", sampling, downscale.Factor()))
 
 		cw, ch := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius, 1.0)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius, 1.0)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius, 0.0, sampling, downscale, seed)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius, 0.0)
+		ctx.Renderer.SetTint(1)
+		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
+		ctx.Renderer.SetTint(0)
 
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[1], cw-float32(ctx.Images[1].Bounds().Dx())-16, 16, FxRadius, 1.0, sampling, downscale, seed)
-
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		clrMix := float32(ctx.DistAnim(1.0, 1.0))
+		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[1], cw-float32(ctx.Images[1].Bounds().Dx())-16, 16, FxRadius, sampling, downscale, seed)
 
 		lx, ly := ctx.LeftClickF32()
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, FxRadius, clrMix)
-
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], rx-radius, ry-radius, FxRadius, clrMix, sampling, downscale, seed)
 
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
+		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, FxRadius)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], rx-radius, ry-radius, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.SetTint(0)
 	})
 
 	circle := app.Renderer.NewCircle(float64(radius))
@@ -308,7 +314,7 @@ func TestApplyBlurVogelFull(t *testing.T) {
 		}
 
 		radius := ctx.DistAnim(64, 0.5)
-		ctx.Renderer.ApplyBlurVogel(canvas, full, 0, 0, float32(radius), 1.0, Sampling, Downscale, seed)
+		ctx.Renderer.ApplyBlurVogel(canvas, full, 0, 0, float32(radius), Sampling, Downscale, seed)
 	})
 
 	app.Renderer.GradientRadialDither(full, 1920/2, 960, color.RGBA{0, 64, 196, 255}, color.RGBA{0, 128, 255, 255}, 320, 960, Float32Inf(), 1.0)

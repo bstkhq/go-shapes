@@ -3,7 +3,7 @@ package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const Multiply = true // if false, subtractive blending is assumed
-	const MaxRadius = 16.0
+	const MaxRadius = 32.0
 
 	radius := customVAs[0]
 	startThreshold := customVAs[1]

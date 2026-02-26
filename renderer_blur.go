@@ -14,10 +14,12 @@ import (
 // colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
 // colors.
 //
+// This operation is affected by [Renderer.Tint].
+//
 // Notice that this method is designed mostly as a comparison baseline due to its high cost
 // (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most applications should use
 // [Renderer.ApplyBlur2]() and [Renderer.ApplyBlurVogel]() instead.
-func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -43,7 +45,7 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
 	r.setSrcRectCoords(srcMinX-radius-1, srcMinY-radius-1, srcMaxX+radius+1.0, srcMaxY+radius+1.0)
-	r.setFlatCustomVAs01(radius, colorMix)
+	r.setFlatCustomVAs01(radius, r.tint)
 
 	// draw shader
 	r.opts.Images[0] = mask
@@ -53,7 +55,9 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 // ApplyBlur2 is similar to [Renderer.ApplyBlur](), but uses two 1D passes instead of a single
 // 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
-// batching tends to be much more efficient than [Renderer.ApplyBlur]().
+// batching tends to be much more efficient than [Renderer.ApplyBlur](). Radius can't exceed 32.
+//
+// This operation is affected by [Renderer.Tint].
 //
 // This function uses one internal offscreen (#0), and target and mask can be on the same
 // internal atlas.
@@ -61,14 +65,14 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 // See [Renderer.ApplyBlurK]() if downscaling or fixed kernels are desired.
 //
 // TODO: handle Blur and Blur2 radius = 0 properly, it should still perform the color mixing
-func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 16 {
+	if radius > 32 {
 		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 16
+		radius = 32
 	} else if radius < 0 {
 		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
 		return
@@ -80,19 +84,25 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	tmp, _ := r.getTemp(0, int(w32), int(h32), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius, 1.0)
+	memo := r.tint
+	r.tint = 0.0
+	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius)
 	r.opts.Blend = preBlend
-	r.ApplyHorzBlur(target, tmp, ox, oy-ceilRadius, radius, colorMix)
+	r.tint = memo
+	r.ApplyHorzBlur(target, tmp, ox, oy-ceilRadius, radius)
 }
 
-func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+// ApplyVertBlur applies a 1D vertical blur pass of the given radius, which can't exceed 32.
+//
+// This operation is affected by [Renderer.Tint].
+func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 16 {
+	if radius > 32 {
 		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 16
+		radius = 32
 	} else if radius <= 0 {
 		if radius < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
@@ -105,7 +115,7 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	ceilRadius := ceilF32(radius)
 	r.setDstRectCoords(dox+ox, doy+oy-ceilRadius, dox+ox+sw, doy+oy+sh+ceilRadius)
 	r.setSrcRectCoords(sox, soy-ceilRadius, sox+sw, soy+sh+ceilRadius)
-	r.setFlatCustomVAs01(radius, colorMix)
+	r.setFlatCustomVAs01(radius, r.tint)
 
 	// draw shader
 	r.opts.Images[0] = mask
@@ -113,14 +123,17 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.opts.Images[0] = nil
 }
 
-func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius, colorMix float32) {
+// ApplyHorzBlur applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
+//
+// This operation is affected by [Renderer.Tint].
+func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 16 {
+	if radius > 32 {
 		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 16
+		radius = 32
 	} else if radius <= 0 {
 		if radius < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, radius)
@@ -139,7 +152,7 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
 	r.setSrcRectCoords(srcMinX-radius, srcMinY, srcMaxX+radius, srcMaxY)
-	r.setFlatCustomVAs01(radius, colorMix)
+	r.setFlatCustomVAs01(radius, r.tint)
 
 	// draw shader
 	r.opts.Images[0] = mask
@@ -154,7 +167,7 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 // Target and mask can be on the same internal atlas.
 func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
-		r.setFlatCustomVA0(opts.ColorMix)
+		r.setFlatCustomVA0(r.tint)
 		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
 	}
 	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
@@ -172,9 +185,7 @@ func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 //   - 32: medium quality and useful for a wide variety of blur effects.
 //   - 64: maximum allowed value.
 //
-// Use colorMix = 0 to use the renderer colors, 1 for mask colors, or anything in between
-// to perform interpolation. seed controls the jitter noise, which can be static or animated
-// between [0, 1].
+// This operation is affected by [Renderer.Tint].
 //
 // If downscaling is != DownscaleNone, notice that:
 //   - The function will use internal offscreens (#0, #1), and target and mask can be on the
@@ -182,7 +193,7 @@ func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 //   - radius will be applied 'as is' to a downscaled version of mask before upscaling back to
 //     draw on target. This means that if radius 16 and DownscaleX4 are used, the actual radius
 //     effect will be closer to 16*4 = 64.
-func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius, colorMix float32, numSamples int, downscaling Downscaling, seed float32) {
+func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -202,10 +213,6 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius, co
 		r.Warnings.report(WarnNumSamplesClamped, numSamples)
 		numSamples = 64
 	}
-	if colorMix < 0 || colorMix > 1 {
-		r.Warnings.report(WarnInvalidColorMixClamped, colorMix)
-		colorMix = clamp(colorMix, 0, 1)
-	}
 	if seed < 0 || seed > 1 {
 		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)
 		seed = clamp(seed, 0, 1)
@@ -214,14 +221,16 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius, co
 	r.refreshVogelPoints(numSamples, 1.0)
 	df := downscaling.Factor()
 	if df == 1 {
-		r.applyBlurVogelDirect(target, mask, ox, oy, radius, colorMix, numSamples, seed, 0.0)
+		r.applyBlurVogelDirect(target, mask, ox, oy, radius, numSamples, seed, 0.0)
 	} else {
-		r.applyBlurVogelDownscaled(target, mask, ox, oy, radius, colorMix, numSamples, df, seed)
+		r.applyBlurVogelDownscaled(target, mask, ox, oy, radius, numSamples, df, seed)
 	}
 }
 
 // helper function for ApplyBlurVogel. precondition: all input parameters have already been validated
-func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radius, colorMix float32, numSamples int, seed, padOffset float32) {
+//
+// This operation is affected by [Renderer.Tint].
+func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, seed, padOffset float32) {
 	dox, doy := rectOriginF32(target.Bounds())
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	radiusF32 := float32(radius)
@@ -230,7 +239,7 @@ func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radi
 	maxX, maxY := dox+ox+sw+radiusF32, doy+oy+sh+radiusF32
 	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
 	r.setSrcRectCoords(sox-radiusF32-1, soy-radiusF32-1, sox+sw+radiusF32+1.0, soy+sh+radiusF32+1.0)
-	r.setFlatCustomVAs(radiusF32, colorMix, seed, padOffset)
+	r.setFlatCustomVAs(radiusF32, r.tint, seed, padOffset)
 
 	// draw shader
 	r.opts.Images[0] = mask
@@ -243,7 +252,9 @@ func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radi
 
 // helper function for ApplyBlurVogel. precondition: all input parameters have already been validated,
 // and downscale is an strictly positive even number
-func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius, colorMix float32, numSamples int, downscale int, seed float32) {
+//
+// This operation is affected by [Renderer.Tint].
+func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscale int, seed float32) {
 	_, _, sw, sh := rectOriginSize(mask.Bounds())
 	ds := 1.0 / float64(downscale)
 	tw := float64(sw) * ds
@@ -254,8 +265,8 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 		b := tmp.Bounds()
 		preBlend := r.opts.Blend
 		r.opts.Blend = ebiten.BlendClear
-		r.DrawIntRect(tmp, clockwiseRightBorder(b, 1))
-		r.DrawIntRect(tmp, bottomBorder(b, 1))
+		r.DrawRect(tmp, clockwiseRightBorder(b, 1), 0)
+		r.DrawRect(tmp, bottomBorder(b, 1), 0)
 		r.opts.Blend = preBlend
 	}
 
@@ -271,7 +282,7 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 	effectBounds := tmp.Bounds().Inset(-radiusInt - 1)
 	mid, _ := r.getTemp(1, effectBounds.Dx(), effectBounds.Dy(), true) // TODO: maybe I should optimize clears here, consider r.brClear(n) and r.borderClear(n)
 	shift := float32(radiusInt + 1)
-	r.applyBlurVogelDirect(mid, tmp, shift, shift, radius, colorMix, numSamples, seed, shift)
+	r.applyBlurVogelDirect(mid, tmp, shift, shift, radius, numSamples, seed, shift)
 	scaledShift := shift * float32(downscale)
 	ox -= scaledShift
 	oy -= scaledShift

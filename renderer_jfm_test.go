@@ -192,9 +192,9 @@ func TestJFMExpand(t *testing.T) {
 
 	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
 	app.Renderer.GradientRadial(circle, BaseRadius, BaseRadius, color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, BaseRadius*0.25, BaseRadius*0.75, BaseRadius, -1, 3.0)
-	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.Gradient(circle, nil, 0, 0, color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, -1.0, DirRadsBLTR, 0.75)
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
 	xSign := ebiten.NewImage(XW, XH)
 	app.Renderer.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
@@ -225,9 +225,9 @@ func TestJFMErode(t *testing.T) {
 	const BaseRadius = 128
 	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
 	app.Renderer.GradientRadial(circle, BaseRadius, BaseRadius, color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, BaseRadius*0.25, BaseRadius*0.75, BaseRadius, -1, 3.0)
-	app.Renderer.SetBlend(ebiten.BlendSourceAtop)
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.Gradient(circle, nil, 0, 0, color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, -1.0, DirRadsBLTR, 0.75)
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, circle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
