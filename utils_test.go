@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -80,6 +81,9 @@ type TestApp struct {
 	BaseTestApp
 	TestAppCtx
 	drawer func(canvas *ebiten.Image, ctx TestAppCtx)
+
+	origin    image.Point
+	offscreen *ebiten.Image
 }
 
 func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*ebiten.Image) *TestApp {
@@ -106,14 +110,39 @@ func (app *TestApp) Update() error {
 			app.RightClick = image.Pt(x, y)
 		}
 	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyO) {
+		if app.origin.Eq(image.Pt(0, 0)) {
+			offset := 32
+			if rand.Float64() < 0.5 {
+				offset = -offset
+			}
+
+			app.origin = image.Pt(offset, offset)
+		} else {
+			app.origin = image.Pt(0, 0)
+		}
+	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyV) {
 		ebiten.SetVsyncEnabled(!ebiten.IsVsyncEnabled())
 	}
+
 	ebiten.SetWindowTitle(app.Title())
 	return app.BaseTestApp.Update()
 }
 
 func (app *TestApp) Draw(canvas *ebiten.Image) {
-	app.drawer(canvas, app.TestAppCtx)
+	if !app.origin.Eq(image.Pt(0, 0)) {
+		shiftedBounds := canvas.Bounds().Add(app.origin)
+		if app.offscreen == nil || !app.offscreen.Bounds().Eq(shiftedBounds) {
+			app.offscreen = ebiten.NewImageWithOptions(shiftedBounds, nil)
+		}
+		app.offscreen.Clear()
+		app.drawer(app.offscreen, app.TestAppCtx)
+		canvas.DrawImage(app.offscreen, nil)
+	} else {
+		app.drawer(canvas, app.TestAppCtx)
+	}
 	app.NewInput = false // input will be stale if calling draw again (e.g. high refresh rate displays)
 }
