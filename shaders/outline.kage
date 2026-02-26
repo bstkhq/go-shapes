@@ -2,7 +2,7 @@
 package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxThickness = 32.0
+	const MaxThickness = 16.0
 	const Edge = 0.777
 	const SafetyMargin = 2.0
 
@@ -20,12 +20,12 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	expansionAlpha := 0.0
 	erosionAlpha := imageSrc0At(srcCoords).a
 	scanOffset := vec2(halfThick)
-	for y := -SafetyMargin; y < MaxThickness+SafetyMargin; y += 1.0 {
-		if y > thickness+SafetyMargin {
+	for y := -SafetyMargin; y < MaxThickness*2.0+SafetyMargin; y += 1.0 {
+		if y > thickness*2.0+SafetyMargin {
 			break
 		}
-		for x := -SafetyMargin; x < MaxThickness+SafetyMargin; x += 1.0 {
-			if x > thickness+SafetyMargin {
+		for x := -SafetyMargin; x < MaxThickness*2.0+SafetyMargin; x += 1.0 {
+			if x > thickness*2.0+SafetyMargin {
 				break
 			}
 			offset := vec2(x, y) - scanOffset

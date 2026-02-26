@@ -6,11 +6,12 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Precondition: thickness can't exceed 16.
+// ApplyExpansion performs morphological dilation of the given mask and
+// draws it onto the given target. Notice that this is a quadratic algorithm.
+// For large erosion operations, consider [Renderer.ApplyExpansionRect]() and
+// [Renderer.JFMExpansion]().
 //
-// WARNING: this is a quadratic algorithm on GPU. For large expansions,
-// consider [Renderer.ApplyExpansionRect]() or [Renderer.JFMExpansion]()
-// instead, but both of those are only useful in specific situations.
+// thickness can't exceed 16.
 func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -41,7 +42,7 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 // ApplyExpansionRect performs double pass expansion with a square kernel.
 // This is less general but more efficient than [Renderer.ApplyExpansion]().
 //
-// Precondition: thickness can't exceed 16.
+// thickness can't exceed 16.
 //
 // This function uses one internal offscreen (#0), and target and mask
 // can be on the same internal atlas.
@@ -80,10 +81,11 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.opts.Images[0] = nil
 }
 
-// Precondition: thickness can't exceed 16.
+// ApplyErosion performs morphological erosion of the given mask and draws it
+// onto the given target. Notice that this is a quadratic algorithm. For large
+// erosion operations, consider [Renderer.JFMErosion]().
 //
-// WARNING: this is a quadratic algorithm on GPU. For large erosions,
-// consider [Renderer.JFMErosion]() instead.
+// thickness can't exceed 16.
 func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -110,10 +112,11 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	r.opts.Images[0] = nil
 }
 
-// Precondition: thickness can't exceed 32.
+// ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
+// This operation is imlemented as the difference between morphological dilation and erosion.
+// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMOutline]().
 //
-// WARNING: this is a quadratic algorithm on GPU. For large outlines,
-// consider [Renderer.JFMOutline]() instead.
+// thickness can't exceed 16.
 func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
