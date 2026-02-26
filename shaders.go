@@ -2,24 +2,28 @@ package shapes
 
 import (
 	_ "embed"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type shaderRef struct {
 	shader *ebiten.Shader
+	once   sync.Once
 	src    []byte
 }
 
 func (s *shaderRef) Load() *ebiten.Shader {
-	if s.shader == nil {
-		var err error
-		s.shader, err = ebiten.NewShader(s.src)
-		if err != nil {
-			panic(err)
-		}
-	}
+	s.once.Do(s.loadOnce)
 	return s.shader
+}
+
+func (s *shaderRef) loadOnce() {
+	var err error
+	s.shader, err = ebiten.NewShader(s.src)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //go:embed shaders/default.kage
