@@ -1,10 +1,21 @@
 //kage:unit pixels
 package main
 
-func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+var Dither int
+
+func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	srcColorA := imageSrc0UnsafeAt(sourceCoords)
 	srcColorB := imageSrc1UnsafeAt(sourceCoords)
 	alpha := customVAs[0]
 	mixLevel := customVAs[1]
-	return mix(srcColorA, srcColorB, mixLevel) * alpha
+	out := mix(srcColorA, srcColorB, mixLevel) * alpha
+
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc2UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, 0.0, 1.0)
+	}
+
+	return out
 }

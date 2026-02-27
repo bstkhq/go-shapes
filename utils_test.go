@@ -146,3 +146,19 @@ func (app *TestApp) Draw(canvas *ebiten.Image) {
 	}
 	app.NewInput = false // input will be stale if calling draw again (e.g. high refresh rate displays)
 }
+
+type flagList []Flag
+
+func newFlagList() flagList {
+	return make(flagList, numFlags)
+}
+
+func (l flagList) Has(f Flag) bool {
+	return l[f] == f
+}
+func (l flagList) Flip(f Flag) {
+	l[f] = -(l[f] - f)
+}
+func (l flagList) All() []Flag {
+	return l
+}

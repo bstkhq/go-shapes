@@ -50,22 +50,6 @@ func TestScale(t *testing.T) {
 	}
 }
 
-type flagList []Flag
-
-func newFlagList() flagList {
-	return make(flagList, numFlags)
-}
-
-func (l flagList) Has(f Flag) bool {
-	return l[f] == f
-}
-func (l flagList) Flip(f Flag) {
-	l[f] = -(l[f] - f)
-}
-func (l flagList) All() []Flag {
-	return l
-}
-
 // go test -run ^TestDrawAt$ . -count 1
 func TestDrawAt(t *testing.T) {
 	flags := newFlagList()

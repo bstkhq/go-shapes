@@ -234,6 +234,10 @@ var shaderOklabShift = shaderRef{src: shaderOklabShiftSrc}
 var shaderColorMixSrc []byte
 var shaderColorMix = shaderRef{src: shaderColorMixSrc}
 
+//go:embed shaders/color_mix_bilinear.kage
+var shaderColorMixBilinearSrc []byte
+var shaderColorMixBilinear = shaderRef{src: shaderColorMixBilinearSrc}
+
 //go:embed shaders/dither_matrix4.kage
 var shaderDitherMat4Src []byte
 var shaderDitherMat4 = shaderRef{src: shaderDitherMat4Src}

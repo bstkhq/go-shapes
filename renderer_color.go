@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -278,36 +279,57 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float3
 	clear(r.opts.Uniforms)
 }
 
-// ColorMix draws 'base' and 'over' to 'target' using the mix() function
-// for color mixing instead of BlendSourceOver or other standard composition
-// operations. This is useful to interpolate color transitions or other image
-// changes when the images have translucent areas.
+// ColorMix draws 'base' and 'over' to 'target' using the mix() function for color
+// mixing instead of standard composition operations.
 //
-// The bounds of 'base' and 'over' must match.
-func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y int, alpha, mixLevel float32) {
-	srcBounds := base.Bounds()
-	// TODO: relax so only sizes need to match?
-	// TODO: shader is wrong, should apply origin too
-	if !srcBounds.Eq(over.Bounds()) {
-		panic("'base' and 'over' bounds must match")
+// This is the cleanest way to interpolate a transition between two images (morphing)
+// while there's also an alpha transition, or the two images have different alphas at
+// different pixel positions.
+//
+// The sizes of 'base' and 'over' must match.
+func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alpha, mixLevel float32, flags ...Flag) {
+	baseBounds, overBounds := base.Bounds(), over.Bounds()
+	if baseBounds.Dx() != overBounds.Dx() || baseBounds.Dy() != overBounds.Dy() {
+		panic(fmt.Sprintf(
+			"'base' and 'over' sizes must match (found %dx%d vs %dx%d)",
+			baseBounds.Dx(), baseBounds.Dy(), overBounds.Dx(), overBounds.Dy(),
+		))
 	}
 
-	srcWidth, srcHeight := srcBounds.Dx(), srcBounds.Dy()
-	srcWidthF32, srcHeightF32 := float32(srcWidth), float32(srcHeight)
-	dstBounds := target.Bounds()
-	minX := float32(dstBounds.Min.X) + float32(x)
-	minY := float32(dstBounds.Min.Y) + float32(y)
-	r.setDstRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
-	minX = float32(srcBounds.Min.X)
-	minY = float32(srcBounds.Min.Y)
-	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
+	var dither, bilinear bool
+	for _, flag := range flags {
+		switch flag {
+		case noFlag:
+			// ignore
+		case Dithered:
+			dither = true
+		case Bilinear:
+			bilinear = true
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
 
-	r.setFlatCustomVAs01(alpha, mixLevel)
-	r.opts.Images[0] = base
 	r.opts.Images[1] = over
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderColorMix.Load(), &r.opts)
-	r.opts.Images[0] = nil
+	if dither {
+		r.ensureBlueNoiseLoaded()
+		r.opts.Uniforms["Dither"] = 1
+		r.opts.Images[2] = r.blueNoise64RGB
+	}
+
+	if bilinear {
+		r.setFlatCustomVAs01(alpha, mixLevel)
+		r.DrawShaderAt(target, base, x, y, 0, 0, shaderColorMixBilinear.Load())
+	} else {
+		r.setFlatCustomVAs01(alpha, mixLevel)
+		r.DrawShaderAt(target, base, x, y, 0, 0, shaderColorMix.Load())
+	}
+
 	r.opts.Images[1] = nil
+	if dither {
+		clear(r.opts.Uniforms)
+		r.opts.Images[2] = nil
+	}
 }
 
 var DitherBayes [16]float32 = [16]float32{

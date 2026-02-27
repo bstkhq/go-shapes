@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -265,15 +266,36 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 
 // go test -run ^TestColorMix$ . -count 1
 func TestColorMix(t *testing.T) {
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [bilinear: %t, dithered: %t]", ctx.Title(), flags[Bilinear] == Bilinear, flags[Dithered] == Dithered))
+		if ctx.NewInput {
+			if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+				flags.Flip(Bilinear)
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+				flags.Flip(Dithered)
+			}
+		}
+
 		canvas.Fill(color.Black)
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
-		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], ctx.LeftClick.X, ctx.LeftClick.Y, 0.5, lvl)
+		lx, ly := ctx.LeftClickF32()
+		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lx, ly, 0.5, lvl, flags.All()...)
+
+		rx, ry := ctx.RightClickF32()
+		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
+		alpha := float32(ctx.DistAnim(1.0, 0.333))
+		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
+		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rx+offX, ry, alpha, lvl, flags.All()...)
 	})
 
 	circ := app.Renderer.NewCircle(64.0)
 	app.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
-	circ2 := app.Renderer.NewCircle(64.0)
+	circ2 := ebiten.NewImage(128+16, 128+16)
+	app.Renderer.DrawCircle(circ2, 64+16, 64+16, 64)
+	circ2 = circ2.SubImage(image.Rect(16, 16, 16+128, 16+128)).(*ebiten.Image)
 	app.Images = append(app.Images, circ, circ2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
