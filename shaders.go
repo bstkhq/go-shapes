@@ -206,10 +206,6 @@ var shaderScanlinesSharp = shaderRef{src: shaderScanlinesSharpSrc}
 var shaderWaveLinesSrc []byte
 var shaderWaveLines = shaderRef{src: shaderWaveLinesSrc}
 
-//go:embed shaders/flat_paint.kage
-var shaderFlatPaintSrc []byte
-var shaderFlatPaint = shaderRef{src: shaderFlatPaintSrc}
-
 //go:embed shaders/gradient.kage
 var shaderGradientSrc []byte
 var shaderGradient = shaderRef{src: shaderGradientSrc}

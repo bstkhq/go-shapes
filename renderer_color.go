@@ -19,12 +19,6 @@ func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians f
 	return img
 }
 
-// FlatPaint draws the mask onto the given target using the renderer vertex colors.
-// The result is the renderer's color multiplied by the mask's alpha.
-func (r *Renderer) FlatPaint(target, mask *ebiten.Image, ox, oy float32) {
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderFlatPaint.Load())
-}
-
 // SimpleGradient paints a gradient over the given target, interpolating in Oklab space.
 //
 // For common dirRadians values, consider [DirRadsLTR] and related constants.
