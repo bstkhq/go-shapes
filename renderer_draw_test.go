@@ -195,7 +195,7 @@ func TestDrawHexagons(t *testing.T) {
 		ctx.Renderer.DrawHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
 
 		// manual control
-		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem = %.02f]", ctx.Title(), manRounding, MinApothem))
+		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem: %.02f]", ctx.Title(), manRounding, MinApothem))
 		if ctx.NewInput {
 			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
 				manRounding += 1.0

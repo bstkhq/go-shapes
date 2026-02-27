@@ -126,7 +126,7 @@ func TestApplyBlurK(t *testing.T) {
 	bicubic := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [downscaling: x%d (D), bicubic = %t (B)]", ctx.Title(), dscale.Factor(), bicubic))
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [downscaling: x%d (D), bicubic: %t (B)]", ctx.Title(), dscale.Factor(), bicubic))
 
 		if ctx.NewInput {
 			if inpututil.IsKeyJustPressed(ebiten.KeyD) {

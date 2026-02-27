@@ -5,8 +5,6 @@ import (
 	"math"
 )
 
-const MaxFloat16 = 65504
-
 var roFloat32Inf = float32(math.Inf(1))
 
 func Float32Inf() float32 {

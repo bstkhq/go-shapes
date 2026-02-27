@@ -35,7 +35,7 @@ func TestStudyRadians(t *testing.T) {
 		sin, cos := math.Sincos(normURads(rads))
 		ctx.Renderer.DrawCircle(canvas, cx+float32(Dist*cos), cy+float32(Dist*sin), PointRadius)
 		rads += 0.01
-		ebiten.SetWindowTitle(fmt.Sprintf("%s - rads = %02f", ctx.Title(), rads))
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [rads: %02f]", ctx.Title(), rads))
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
