@@ -10,6 +10,9 @@ import (
 
 const MinGradientCurveFactor = 0.001
 
+// NewSimpleGradient returns a new image filled with the given gradient.
+//
+// For common dirRadians values, consider [DirRadsLTR] and related constants.
 func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians float32) *ebiten.Image {
 	img := ebiten.NewImage(w, h)
 	r.SimpleGradient(img, from, to, dirRadians)
@@ -17,24 +20,26 @@ func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians f
 }
 
 // FlatPaint draws the mask onto the given target using the renderer vertex colors.
+// The result is the renderer's color multiplied by the mask's alpha.
 func (r *Renderer) FlatPaint(target, mask *ebiten.Image, ox, oy float32) {
 	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderFlatPaint.Load())
 }
 
-// SimpleGradient paints a high quality gradient over the given target.
-// See [DirRadsLTR] and similar constants for common gradient directions.
+// SimpleGradient paints a gradient over the given target, interpolating in Oklab space.
+//
+// For common dirRadians values, consider [DirRadsLTR] and related constants.
+//
+// See [Renderer.Gradient]() for additional controls.
 func (r *Renderer) SimpleGradient(target *ebiten.Image, from, to color.RGBA, dirRadians float32) {
 	r.Gradient(target, nil, 0, 0, from, to, -1, dirRadians, 1.0)
 }
 
-// Gradient paints a high quality gradient over the given target. If mask is nil,
-// the target will have the gradient applied starting from (ox, oy) throughout
-// the entire image. See [DirRadsLTR] and similar constants for common gradient
-// directions.
-//
-// CurveFactor allows making the gradient linear (1.0), or ease it towards an
-// early start (e.g. 0.5) or late start (e.g. 2.0). Reasonable CurveFactor values
-// typically fall in the ~[0.2...4.0] range.
+// Gradient paints a gradient over the given target, interpolating in Oklab space.
+// If mask is nil, the target will have the gradient applied starting from (ox, oy)
+// throughout the entire image.
+//   - numSteps: use -1 for continuous gradient, > 0 for discrete color steps.
+//   - curveFactor: use 1.0 for linear, or see [MinGradientCurveFactor] for more details.
+//   - dirRadians: gradient direction. For common values, consider [DirRadsLTR] and related constants.
 //
 // See also [Renderer.SimpleGradient](), [Renderer.GradientDither]() and [Renderer.GradientRadial]().
 func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to color.RGBA, numSteps int, dirRadians, curveFactor float32) {
@@ -85,11 +90,10 @@ func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
 
-// Gradient paints a high quality gradient over the given target, using dithering to
-// avoid color banding on subtle gradients. Function arguments behave the same as
-// [Renderer.Gradient]().
+// Gradient paints a gradient over the given target, interpolating in Oklab space and
+// using blue noise dithering to avoid color banding on subtle gradients.
 //
-// See also [Renderer.SimpleGradient]().
+// Function arguments behave the same as [Renderer.Gradient]().
 func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, from, to color.RGBA, dirRadians, curveFactor float32) {
 	if curveFactor < MinGradientCurveFactor {
 		r.Warnings.report(WarnGradientCurveFactorLifted, curveFactor)
@@ -119,11 +123,8 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
 }
 
-// GradientRadial paints a high quality radial gradient over the given target.
-//
-// CurveFactor allows making the gradient linear (1.0), or ease it towards an
-// early start (e.g. 0.5) or late start (e.g. 2.0). Reasonable CurveFactor values
-// typically fall in the ~[0.2...4.0] range.
+// GradientRadial paints a radial gradient over the given target, interpolating
+// in Oklab space.
 //
 // Three radiuses are necessary:
 //   - fromRadius: distances below this threshold take 'from' color. Use 0.0 if
@@ -134,6 +135,10 @@ func (r *Renderer) GradientDither(target *ebiten.Image, ox, oy, w, h float32, fr
 //     Distances above this threshold are not painted. Use toRadius = transRadius for
 //     a gradient that ends at the given radius, or Float32Inf() if you want 'to'
 //     color to extend beyond the gradient radius.
+//
+// Other parameters:
+//   - numSteps: use -1 for continuous gradient, > 0 for discrete color steps.
+//   - curveFactor: use 1.0 for linear, or see [MinGradientCurveFactor] for more details.
 //
 // To mask the gradient over an existing image, consider [Renderer.SetBlend](ebiten.BlendSourceIn)
 // and similar tricks.
@@ -257,23 +262,6 @@ func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift
 	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift.Load())
 }
 
-// TODO: absolute shifts are not particularly useful in perceptual spaces. A better tool
-// would apply relative transformations based on the length of the axes (e.g. apply
-// lightness transform, then scale chroma relative to maximum chroma at that hue and
-// lightness, or operate relative to highest chroma/lightness point per hue curve).
-//
-// OklabTransform applies a relative, perceptual color transformation to the given source
-// image based on the given hue, lightness and chromaMult.
-//
-// More precisely, given a pixel with value 'hue' in source, where 'hue' has L1, C1 and H1
-// components in Oklch space, it will be mapped to L1*lightnessMult, C1*chromaMult, H1 (with
-// clipping where appropriate). Other colors will be mapped
-// func (r *Renderer) OklabTransform(target, source *ebiten.Image, hue color.RGBA, lightnessMult, chromaMult float64) {
-// 	// ...
-//  // hueAttraction could be optional (positive attracts, negative repels). or hueExpansion [0...2], with some
-//  // curve factor
-// }
-
 // ColorizeByLightness draws source into target at the given (x, y), taking the
 // lightness of each source pixel and remapping it to a color between 'from' and 'to'.
 //
@@ -304,6 +292,8 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float3
 // The bounds of 'base' and 'over' must match.
 func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y int, alpha, mixLevel float32) {
 	srcBounds := base.Bounds()
+	// TODO: relax so only sizes need to match?
+	// TODO: shader is wrong, should apply origin too
 	if !srcBounds.Eq(over.Bounds()) {
 		panic("'base' and 'over' bounds must match")
 	}

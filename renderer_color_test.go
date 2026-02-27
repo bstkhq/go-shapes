@@ -12,18 +12,23 @@ import (
 
 // go test -run ^TestFlatPaint$ . -count 1
 func TestFlatPaint(t *testing.T) {
+	// NOTICE: FlatPaint was removed in favor of DrawAt
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetTint(1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
-		ctx.Renderer.FlatPaint(canvas, ctx.Images[0], lx, ly)
+		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[0], lx, ly, 1.0)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
 		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
-		ctx.Renderer.FlatPaint(canvas, ctx.Images[1], rx, ry)
+		rx, ry = CTR.Adjust(ctx.Images[1], rx, ry)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rx, ry, 1.0)
+		ctx.Renderer.SetTint(0)
 	})
 
 	rect := app.Renderer.NewRect(120, 80)
