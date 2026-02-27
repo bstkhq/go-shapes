@@ -190,18 +190,6 @@ var shaderHorzGlowKern = shaderRef{src: shaderHorzGlowKernSrc}
 var shaderHorzColorGlowSrc []byte
 var shaderHorzColorGlow = shaderRef{src: shaderHorzColorGlowSrc}
 
-//go:embed shaders/shadow.kage
-var shaderShadowSrc []byte
-var shaderShadow = shaderRef{src: shaderShadowSrc}
-
-//go:embed shaders/hard_shadow.kage
-var shaderHardShadowSrc []byte
-var shaderHardShadow = shaderRef{src: shaderHardShadowSrc}
-
-//go:embed shaders/zoom_shadow.kage
-var shaderZoomShadowSrc []byte
-var shaderZoomShadow = shaderRef{src: shaderZoomShadowSrc}
-
 //go:embed shaders/scanlines_sharp.kage
 var shaderScanlinesSharpSrc []byte
 var shaderScanlinesSharp = shaderRef{src: shaderScanlinesSharpSrc}
