@@ -1,5 +1,12 @@
 package shapes
 
+import (
+	"image/color"
+	"strconv"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
+
 // Downscaling is a common technique used in graphics where an effect is not applied at full
 // resolution, but a smaller offscreen. This is done to reduce the amount of pixels to process,
 // but it has some downsides:
@@ -26,22 +33,68 @@ func (d Downscaling) Factor() int {
 	return int(1 << d)
 }
 
-// Clamping is a bitset used to express which borders to clamp in some operations
-// and effects (e.g. [Renderer.ApplyHardShadow]()).
-type Clamping uint8
+// Origin is a helper type for adjusting draw coordinates based on a
+// source image origin anchor. See [Origin.Adjust] for more details.
+type Origin PointF32
 
-const (
-	ClampNone   Clamping = 0b0000
-	ClampTop    Clamping = 0b1000
-	ClampBottom Clamping = 0b0100
-	ClampLeft   Clamping = 0b0010
-	ClampRight  Clamping = 0b0001
-
-	ClampTopLeft     Clamping = ClampTop | ClampLeft
-	ClampTopRight    Clamping = ClampTop | ClampRight
-	ClampBottomLeft  Clamping = ClampBottom | ClampLeft
-	ClampBottomRight Clamping = ClampBottom | ClampRight
+// Predefined origin variables. See [Origin.Adjust]() for usage examples.
+var (
+	TL  = Origin{X: 0, Y: 0}     // top-left
+	TC  = Origin{X: 0.5, Y: 0}   // top-center
+	TR  = Origin{X: 1, Y: 0}     // top-right
+	CL  = Origin{X: 0, Y: 0.5}   // center-left
+	CTR = Origin{X: 0.5, Y: 0.5} // center
+	CR  = Origin{X: 1, Y: 0.5}   // center-right
+	BL  = Origin{X: 0, Y: 1}     // bottom-left
+	BC  = Origin{X: 0.5, Y: 1}   // bottom-center
+	BR  = Origin{X: 1, Y: 1}     // bottom-right
 )
+
+// Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered], etc.
+type Flag int
+
+// Operation flags, read the descriptions for details.
+const (
+	// noFlag is ignored by any function accepting flags.
+	noFlag Flag = iota
+
+	// Use bilinear instead of nearest filtering.
+	Bilinear
+
+	// Apply dithering.
+	Dithered
+
+	// sentinel
+	numFlags
+)
+
+func (f Flag) String() string {
+	switch f {
+	case Bilinear:
+		return "Bilinear"
+	case Dithered:
+		return "Dithered"
+	default:
+		return "Flag#" + strconv.Itoa(int(f))
+	}
+}
+
+// Adjust translates the given reference position from TL (top-left)
+// origin to o.
+//
+// For example, if we want to draw the bottom-right corner of an image
+// at X=60, Y=40, we adjust the coordinates like this:
+//
+//	x, y := shapes.BR.Adjust(src, 60, 40)
+//
+// See [TC], [TR], [CTR] and company for predefined constants.
+func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
+	if source == nil {
+		return 0, 0
+	}
+	w, h := rectSizeF32(source.Bounds())
+	return x - w*o.X, y - h*o.Y
+}
 
 // GaussKernel is a precomputed gaussian kernel used in certain blur and glow operations.
 // Kernels are unidimensional and always used in two passes. Multi-pass shaders are often
@@ -129,4 +182,61 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 		HorzKernel:  kernel,
 		VertKernel:  kernel,
 	}
+}
+
+type GradientOptions struct {
+	// Starting gradient color.
+	From [4]float64
+
+	// End gradient color.
+	To [4]float64
+
+	// Steps controls the number of colors in the gradient.
+	//  - Steps <= 0 specifies a continuous gradient (no color limit).
+	//  - Steps > 0 specifies a stepped gradient.
+	Steps int
+
+	// Dither determines whether the gradient will have dithering applied.
+	//
+	// Dithering is only required on subtle gradients or alpha transitions,
+	// where very similar colors can cause banding or flickering.
+	Dither bool
+
+	// Balance controls the color interpolation curve:
+	//  - Zero generates a linear gradient (both colors have the same presence).
+	//  - Negative values give the start color more presence.
+	//  - Positive values give the end color more presence.
+	//
+	// Reasonable balance values fall in the +/-4.0 range.
+	Balance float32
+
+	// Rect defines an optional area for the gradient.
+	// When empty, the clipping area is ignored.
+	// Rect RectF32
+}
+
+// GradientOpts creates GradientOptions for a continuous gradient.
+func GradientOpts(from, to color.Color, dither bool) GradientOptions {
+	return GradientOptions{
+		From:   colorToF64(from),
+		To:     colorToF64(to),
+		Dither: dither,
+	}
+}
+
+// StepGradientOpts creates GradientOptions for a stepped gradient.
+func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
+	return GradientOptions{
+		From:  colorToF64(from),
+		To:    colorToF64(to),
+		Steps: steps,
+	}
+}
+
+func normalizeBalance(balance float32) float32 {
+	balance = clamp(balance, -1000.0, +1000.0)
+	if balance > 0 {
+		return balance
+	}
+	return 1.0 / -balance
 }

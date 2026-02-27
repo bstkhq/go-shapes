@@ -30,6 +30,7 @@ const (
 	WarnInvalidAlphaClamped    // out of [0, 1] range
 	WarnInvalidTintClamped     // out of [0, 1] range
 	WarnInvalidRateClamped     // out of [0, 1] range
+	WarnInvalidFlag
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
 
@@ -69,6 +70,8 @@ func (w Warning) Message() string {
 		return "rate value out of range, clamped"
 	case WarnInvalidTintClamped:
 		return "tint value out of [0, 1] range, clamped"
+	case WarnInvalidFlag:
+		return "invalid Flag in context"
 	case WarnInconsistentRangeOpSkipped:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation skipped"
 	case WarnInconsistentRangeInvalidated:

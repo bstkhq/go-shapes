@@ -38,6 +38,14 @@ var shaderBilinear = shaderRef{src: shaderBilinearSrc}
 var shaderBicubicSrc []byte
 var shaderBicubic = shaderRef{src: shaderBicubicSrc}
 
+//go:embed shaders/draw_tint_nearest.kage
+var shaderDrawTintNearestSrc []byte
+var shaderDrawTintNearest = shaderRef{src: shaderDrawTintNearestSrc}
+
+//go:embed shaders/draw_tint_bilinear.kage
+var shaderDrawTintBilinearSrc []byte
+var shaderDrawTintBilinear = shaderRef{src: shaderDrawTintBilinearSrc}
+
 //go:embed shaders/rect.kage
 var shaderRectSrc []byte
 var shaderRect = shaderRef{src: shaderRectSrc}

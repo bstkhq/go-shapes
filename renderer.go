@@ -149,7 +149,68 @@ func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float
 	r.DrawRectShader(target, 0, 0, float32(bounds.Dx()), float32(bounds.Dy()), horzMargin, vertMargin, shader)
 }
 
-// ScaleOptions are used in [Renderer.Scale]() and optionally in some other operations.
+// DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
+//
+// This operation is affected by [Renderer.Tint].
+//
+// At first glance DrawAt and ebiten.Image.DrawImage overlap heavily, but DrawAt exposes
+// two features that DrawImageOptions doesn't have:
+//   - Applying dithering during composition, which can be especially critical at low alphas
+//     and visibility transitions when image and background colors are similar.
+//   - Painting or interpolating an image with the renderer colors, which can be set per vertex.
+//     This is color mixing, as opposed to ebiten.ColorScale's multiplication.
+//
+// Usage example:
+//
+//	r.SetTint(1.0) // use only renderer colors
+//	r.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1) // make top vertices red
+//	r.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3) // make bottom vertices magenta
+//	x, y = shapes.CTR.Adjust(src, x, y) // adjust coordinates to CTR (center)
+//	r.DrawAt(target, source, x, y, alpha, shapes.Dithered) // draw with dithering
+func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float32, alpha float32, flags ...Flag) {
+	if alpha < 0.0 || alpha > 1.0 {
+		r.Warnings.report(WarnInvalidAlphaClamped, alpha)
+		alpha = clamp(alpha, 0, 1)
+	}
+	if alpha == 0 && r.hasSkippableBlend() {
+		return
+	}
+
+	var dither, bilinear bool
+	for _, flag := range flags {
+		switch flag {
+		case noFlag:
+			// ignore
+		case Dithered:
+			dither = true
+		case Bilinear:
+			bilinear = true
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
+
+	if dither {
+		r.ensureBlueNoiseLoaded()
+		r.opts.Uniforms["Dither"] = 1
+		r.opts.Images[1] = r.blueNoise64RGB
+	}
+
+	if bilinear {
+		r.setFlatCustomVAs01(r.tint, alpha)
+		r.DrawShaderAt(target, source, x, y, 0, 0, shaderDrawTintBilinear.Load())
+	} else {
+		r.setFlatCustomVAs01(r.tint, alpha)
+		r.DrawShaderAt(target, source, x, y, 0, 0, shaderDrawTintNearest.Load())
+	}
+
+	if dither {
+		clear(r.opts.Uniforms)
+		r.opts.Images[1] = nil
+	}
+}
+
+// ScaleOptions are used in [Renderer.Scale]().
 type ScaleOptions struct {
 	// When true, samples outside bounds will be clamped to the image limits.
 	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
@@ -335,4 +396,10 @@ func (r *Renderer) getTemp(offscreenIndex int, w, h int, clear bool) (*ebiten.Im
 		r.temps[offscreenIndex] = newOffscreen(0, 0, 64)
 	}
 	return r.temps[offscreenIndex].WithSize(w, h, clear)
+}
+
+func (r *Renderer) hasSkippableBlend() bool {
+	// ebiten.BlendLighter should also be skippable, but it's so rare
+	// it's probably not be worth it. maybe also shapes.BlendSubtract
+	return r.opts.Blend == ebiten.BlendSourceOver
 }

@@ -11,7 +11,7 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	inAreaCoords := targetCoords.xy - imageDstOrigin() - areaOrigin
 
 	noiseSampleCoords := mod(inAreaCoords, vec2(64))
-	noise := imageSrc0At(noiseSampleCoords + imageSrc0Origin()).r
+	noise := imageSrc0UnsafeAt(noiseSampleCoords + imageSrc0Origin()).r
 
 	ptProj := dot(inAreaCoords, DirCosSin)
 	tlProj := 0.0
