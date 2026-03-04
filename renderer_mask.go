@@ -10,9 +10,7 @@ import (
 // [Renderer.MaskAt]() instead.
 func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX, dstOY, dstOX+srcWidthF32, dstOY+srcHeightF32)
+	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
 
 	maskWidthF32, maskHeightF32 := rectSizeF32(mask.Bounds())
@@ -28,9 +26,7 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32) {
 // If you want the mask to be fit to the source instead, see [Renderer.Mask]().
 func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX, dstOY, dstOX+srcWidthF32, dstOY+srcHeightF32)
+	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
 
 	r.setFlatCustomVAs01(ox-oxMask, oy-oyMask)
@@ -50,9 +46,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 // If source and mask sizes differ, the mask is adjusted like in [Renderer.Mask]().
 func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox, oy float32) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX, dstOY, dstOX+srcWidthF32, dstOY+srcHeightF32)
+	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
 
 	maskWidthF32, maskHeightF32 := rectSizeF32(mask.Bounds())
@@ -67,7 +61,8 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 // MaskHorz draws 'source' over 'target' but with an horizontal alpha fade between
 // the given points.
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, x, y, inX, outX float32) {
-	r.setFlatCustomVAs01(inX, outX)
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs01(inX-tox, outX-toy)
 	r.DrawShaderAt(target, source, x, y, 0, 0, shaderMaskHorz.Load())
 }
 
@@ -87,13 +82,12 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, 
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
 	ox, oy := cx-srcWidthF32/2.0+srcOffsetX, cy-srcHeightF32/2.0+srcOffsetY
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX, dstOY, dstOX+srcWidthF32, dstOY+srcHeightF32)
+	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
 
 	r.opts.Images[0] = source
-	r.setFlatCustomVAs(cx, cy, hardRadius, softEdge)
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs(cx-tox, cy-toy, hardRadius, softEdge)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
@@ -115,7 +109,8 @@ const (
 // masks for [Renderer.Mask]() or [Renderer.MaskThreshold]() operations.
 func (r *Renderer) DrawAlphaMaskCirc(target *ebiten.Image, ox, oy, dist, distRand float32, pattern AlphaMaskPattern) {
 	r.opts.Uniforms["RngPattern"] = int(pattern)
-	r.setFlatCustomVAs(ox, oy, dist, distRand)
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs(ox-tox, oy-toy, dist, distRand)
 	r.DrawShader(target, 0, 0, shaderAlphaMaskCirc.Load())
 	clear(r.opts.Uniforms)
 }
