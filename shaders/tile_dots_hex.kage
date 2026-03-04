@@ -1,7 +1,7 @@
 //kage:unit pixels
 package main
 
-func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
 	const HexRatio = 0.86602540378
 
@@ -10,7 +10,7 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	shift := customVAs.zw
 	spacing := vec2(horzSpacing, horzSpacing*HexRatio)
 
-	position := (targetCoords.xy - imageDstOrigin()) - shift
+	position := (sourceCoords.xy - imageSrc0Origin()) - shift
 	scaledPosition := position / spacing
 	offset := mod(floor(scaledPosition.y), 2.0) * 0.5
 	adjustedX := scaledPosition.x - offset

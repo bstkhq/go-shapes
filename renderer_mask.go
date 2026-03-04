@@ -63,7 +63,7 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, x, y, inX, outX float32) {
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs01(inX-tox, outX-toy)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderMaskHorz.Load())
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderMaskHorz.Load())
 }
 
 // MaskCircle draws 'source' into 'target', centered at (cx + srcOffsetX, cy + srcOffset),
@@ -109,8 +109,8 @@ const (
 // masks for [Renderer.Mask]() or [Renderer.MaskThreshold]() operations.
 func (r *Renderer) DrawAlphaMaskCirc(target *ebiten.Image, ox, oy, dist, distRand float32, pattern AlphaMaskPattern) {
 	r.opts.Uniforms["RngPattern"] = int(pattern)
-	tox, toy := rectOriginF32(target.Bounds())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
 	r.setFlatCustomVAs(ox-tox, oy-toy, dist, distRand)
-	r.DrawShader(target, 0, 0, shaderAlphaMaskCirc.Load())
+	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderAlphaMaskCirc.Load())
 	clear(r.opts.Uniforms)
 }

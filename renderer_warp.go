@@ -38,7 +38,7 @@ func (r *Renderer) WarpBarrel(target, source *ebiten.Image, ox, oy float32, horz
 		r.warpPincushionQuad(target, source, ox, oy, -horzWarp, -vertWarp)
 	default:
 		r.setFlatCustomVAs01(horzWarp, vertWarp)
-		r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel.Load())
+		r.DrawImgShader(target, source, ox, oy, NoMargins, shaderWarpBarrel.Load())
 	}
 }
 
@@ -52,7 +52,7 @@ func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float
 	vertWarp *= 0.2
 
 	r.setFlatCustomVAs01(horzWarp, vertWarp)
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpPincushionQuad.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderWarpPincushionQuad.Load())
 }
 
 // WarpArc projects the given source image onto a curved arc on target.

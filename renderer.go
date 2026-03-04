@@ -124,26 +124,41 @@ func (r *Renderer) Options() *ebiten.DrawTrianglesShaderOptions {
 	return &r.opts
 }
 
-func (r *Renderer) DrawShaderAt(target, source *ebiten.Image, ox, oy, horzMargin, vertMargin float32, shader *ebiten.Shader) {
+// DrawImgShader calls DrawTrianglesShader using the renderer's option and
+// passing the given source image as imageSrc0.
+//
+// Notice that the target origin matters; to align the shader to the top left
+// corner, (ox, oy) must match target.Bounds().Min.
+//
+// This is a low level method mostly used by other higher level renderer calls.
+func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, shader *ebiten.Shader) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(ox-horzMargin, oy-vertMargin, ox+srcWidthF32+horzMargin, oy+srcHeightF32+vertMargin)
-	r.setSrcRectCoords(srcOX-horzMargin, srcOY-vertMargin, srcOX+srcWidthF32+horzMargin, srcOY+srcHeightF32+vertMargin)
+	r.setDstRectCoords(ox-margins.Left, oy-margins.Top, ox+srcWidthF32+margins.Right, oy+srcHeightF32+margins.Bottom)
+	r.setSrcRectCoords(srcOX-margins.Left, srcOY-margins.Top, srcOX+srcWidthF32+margins.Right, srcOY+srcHeightF32+margins.Bottom)
 
 	r.opts.Images[0] = source
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }
 
-func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h, horzMargin, vertMargin float32, shader *ebiten.Shader) {
-	r.setDstRectCoords(ox-horzMargin, oy-vertMargin, ox+w+horzMargin, oy+h+vertMargin)
-	r.setSrcRectCoords(-horzMargin, -vertMargin, w+horzMargin, h+vertMargin)
+// DrawRectShader calls target.DrawTrianglesShader using the renderer's options.
+//
+// Notice that the target origin matters; to align the shader to the top left
+// corner, (ox, oy) must match target.Bounds().Min.
+//
+// This is a low level method mostly used by other higher level renderer calls.
+func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, shader *ebiten.Shader) {
+	r.setDstRectCoords(ox-margins.Left, oy-margins.Top, ox+w+margins.Right, oy+h+margins.Bottom)
+	r.setSrcRectCoords(-margins.Left, -margins.Top, w+margins.Right, h+margins.Bottom)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 }
 
-func (r *Renderer) DrawShader(target *ebiten.Image, horzMargin, vertMargin float32, shader *ebiten.Shader) {
-	bounds := target.Bounds()
-	r.DrawRectShader(target, 0, 0, float32(bounds.Dx()), float32(bounds.Dy()), horzMargin, vertMargin, shader)
-}
+// Shader draws a shader over the given target. The shader area is aligned
+// to the target regardless of its origin position.
+// func (r *Renderer) Shader(target *ebiten.Image, margins Margins, shader *ebiten.Shader) {
+// 	bounds := target.Bounds()
+// 	r.ShaderRect(target, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), margins, shader)
+// }
 
 // DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
 //
@@ -194,10 +209,10 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 
 	if bilinear {
 		r.setFlatCustomVAs01(r.tint, alpha)
-		r.DrawShaderAt(target, source, x, y, 0, 0, shaderDrawTintBilinear.Load())
+		r.DrawImgShader(target, source, x, y, NoMargins, shaderDrawTintBilinear.Load())
 	} else {
 		r.setFlatCustomVAs01(r.tint, alpha)
-		r.DrawShaderAt(target, source, x, y, 0, 0, shaderDrawTintNearest.Load())
+		r.DrawImgShader(target, source, x, y, NoMargins, shaderDrawTintNearest.Load())
 	}
 
 	if dither {

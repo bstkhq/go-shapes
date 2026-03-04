@@ -254,7 +254,7 @@ func linearize(colorChan float64) float64 {
 // values to tweak. Other more effective tools might be exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift.Load())
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderOklabShift.Load())
 }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the
@@ -275,7 +275,7 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float3
 	r.opts.Uniforms["From"] = [4]float32{float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3])}
 	r.opts.Uniforms["To"] = [4]float32{float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3])}
 	r.setFlatCustomVAs(fromLightness, toLightness, float32(steps), curveFactor)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderColorizeByLightness.Load())
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -319,10 +319,10 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alph
 
 	if bilinear {
 		r.setFlatCustomVAs01(alpha, mixLevel)
-		r.DrawShaderAt(target, base, x, y, 0, 0, shaderColorMixBilinear.Load())
+		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMixBilinear.Load())
 	} else {
 		r.setFlatCustomVAs01(alpha, mixLevel)
-		r.DrawShaderAt(target, base, x, y, 0, 0, shaderColorMix.Load())
+		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMix.Load())
 	}
 
 	r.opts.Images[1] = nil
@@ -415,6 +415,6 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	r.opts.Uniforms["Matrix"] = ditherMatrix
 	r.opts.Uniforms["NumColors"] = numColors
 	r.opts.Uniforms["Colors"] = palette
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderDitherMat4.Load())
+	r.DrawImgShader(target, mask, ox, oy, NoMargins, shaderDitherMat4.Load())
 	clear(r.opts.Uniforms)
 }

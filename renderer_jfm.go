@@ -9,6 +9,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// TODO: mention that jfmaps only works with / assumes solid shapes with crisp anti-aliasing (at most one translucent pixel on the shape boundary transition)
+
 // JFMapCompute computes a jumping flood map from the given seeds and
 // stores it in jfmap.
 //
@@ -202,7 +204,7 @@ func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initSha
 // jfmap can be visualized by setting maxDistance to a positive value below 1 (e.g. 0.1).
 func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance float32) {
 	r.setFlatCustomVA0(maxDistance)
-	r.DrawShaderAt(target, jfmap, ox, oy, 0, 0, shaderJFMHeat.Load())
+	r.DrawImgShader(target, jfmap, ox, oy, NoMargins, shaderJFMHeat.Load())
 }
 
 // JFMExpand performs morphological expansion. distance must be in [0, 32k].
@@ -231,7 +233,7 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
-	r.DrawShaderAt(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), 0, 0, shaderJFMExpansion.Load())
+	r.DrawImgShader(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), NoMargins, shaderJFMExpansion.Load())
 	r.opts.Images[1] = nil
 }
 
@@ -256,7 +258,7 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderJFMErosion.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMErosion.Load())
 	r.opts.Images[1] = nil
 }
 

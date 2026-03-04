@@ -10,7 +10,7 @@ func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, outTriBaseS
 		r.opts.Uniforms["Offsets"] = [2]float32{xOffset, yOffset}
 	}
 	r.setFlatCustomVAs(outTriBaseSize, minInTriBaseSize, maxInTriBaseSize, 0)
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderHalftoneTri.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderHalftoneTri.Load())
 	if hasOffsets {
 		clear(r.opts.Uniforms)
 	}

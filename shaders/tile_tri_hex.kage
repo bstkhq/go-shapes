@@ -3,14 +3,14 @@ package main
 
 const Sqrt3 = 1.73205080757
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
 	const EqTriBaseToHeight = 0.86602540378 // sqrt(3)/2
 
 	offset := customVAs.xy
 	outTriBase, inTriBase := customVAs.z, customVAs.w
 	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
-	relCoords := targetCoords.xy - imageDstOrigin() - offset
+	relCoords := sourceCoords.xy - imageSrc0Origin() - offset
 	cellSize := vec2(outTriSize.x*0.5, outTriSize.y)
 	cell := floor(relCoords / cellSize)
 	triCenter := cell * cellSize // adjusted later

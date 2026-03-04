@@ -81,7 +81,8 @@ func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, hmargin, vmargin, shaderRect.Load())
+	margins := NewMargins(hmargin, vmargin)
+	r.DrawRectShader(target, ox, oy, w, h, margins, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -584,7 +585,7 @@ func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickne
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["InnerThickness"] = inThickness
 	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, 0, 0, shaderStrokeRect.Load())
+	r.DrawRectShader(target, ox, oy, w, h, NoMargins, shaderStrokeRect.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -801,7 +802,7 @@ func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	r.opts.Uniforms["Rounding"] = -rounding
 	r.opts.Uniforms["SoftRadius"] = softRadius
 	margin := max(softRadius, 0)
-	r.DrawRectShader(target, ox, oy, w, h, margin, margin, shaderRectSoft.Load())
+	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shaderRectSoft.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -838,6 +839,7 @@ func (r *Renderer) DrawAreaBlur(target *ebiten.Image, ox, oy, w, h, rounding, bl
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["Rounding"] = -rounding
 	r.opts.Uniforms["BlurRadius"] = blurRadius
-	r.DrawRectShader(target, ox, oy, w, h, blurRadius, blurRadius, shaderRectBlur.Load())
+	margins := NewMargins(blurRadius, blurRadius)
+	r.DrawRectShader(target, ox, oy, w, h, margins, shaderRectBlur.Load())
 	clear(r.opts.Uniforms)
 }

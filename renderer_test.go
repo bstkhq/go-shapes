@@ -102,3 +102,51 @@ func TestDrawAt(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// go test -run ^TestDrawImgShader$ . -count 1
+func TestDrawImgShader(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		for i := range 2 {
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 8+float32(ctx.DistAnim(16, 0.5))
+			if ebiten.IsKeyPressed(ebiten.KeySpace) {
+				var opts ebiten.DrawImageOptions
+				opts.GeoM.Translate(float64(ox), float64(oy))
+				canvas.DrawImage(ctx.Images[i], &opts)
+				opts.GeoM.Translate(16, 72)
+				canvas.DrawImage(ctx.Images[i], &opts)
+			} else {
+				ctx.Renderer.setFlatCustomVAs01(1, 1)
+				ctx.Renderer.DrawImgShader(canvas, ctx.Images[i], ox, oy, NoMargins, shaderBilinear.Load())
+				ctx.Renderer.DrawAt(canvas, ctx.Images[i], ox+16, oy+72, 1.0)
+			}
+		}
+
+		for i := range 2 {
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 300+float32(ctx.DistAnim(16, 0.5))
+			bounds := ctx.Images[i].Bounds()
+			subox, suboy := int(ox)+16, int(oy)+72
+			subRect := image.Rect(subox, suboy, subox+32, suboy+24)
+			sub := canvas.SubImage(subRect).(*ebiten.Image)
+			if ebiten.IsKeyPressed(ebiten.KeySpace) {
+				var opts ebiten.DrawRectShaderOptions
+				opts.GeoM.Translate(float64(ox), float64(oy))
+				canvas.DrawRectShader(bounds.Dx(), bounds.Dy(), shaderDefault.Load(), &opts)
+				sub.Fill(color.White)
+			} else {
+				ctx.Renderer.setFlatCustomVAs01(1, 1)
+				ctx.Renderer.DrawRectShader(canvas, ox, oy, float32(bounds.Dx()), float32(bounds.Dy()), NoMargins, shaderDefault.Load())
+				sox, soy, sw, sh := rectOriginSizeF32(subRect)
+				ctx.Renderer.DrawRectShader(sub, sox, soy, sw, sh, NoMargins, shaderDefault.Load())
+			}
+		}
+	})
+	rect := app.Renderer.NewRect(64, 48)
+	rectO := ebiten.NewImageWithOptions(image.Rect(16, 16, 16+64, 16+48), nil)
+	rectO.Fill(color.White)
+	app.Images = append(app.Images, rect, rectO)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}

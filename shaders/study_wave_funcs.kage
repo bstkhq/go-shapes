@@ -3,11 +3,11 @@ package main
 
 const Pi = 3.14159265359
 
-func Fragment(targetCoords vec4, _ vec2, _ vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	waveWidthFactor := customVAs[0]
 	waveHalfAmplitude := customVAs[1]
 
-	relTargetCoords := targetCoords.xy - imageDstOrigin()
+	relTargetCoords := sourceCoords - imageSrc0Origin()
 	blockHeight := imageDstSize().y / 5.0
 	block := floor(relTargetCoords.y / blockHeight)
 	blockY := mod(relTargetCoords, blockHeight)

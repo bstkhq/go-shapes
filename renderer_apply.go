@@ -436,7 +436,8 @@ func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64,
 
 func (r *Renderer) ApplyScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
 	r.setFlatCustomVAs(float32(darkThick), float32(clearThick), intensity, offset)
-	r.DrawShader(target, 0, 0, shaderScanlinesSharp.Load())
+	tw, th := rectSizeF32(target.Bounds())
+	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderScanlinesSharp.Load())
 }
 
 func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dirRadians float64) {
@@ -465,6 +466,7 @@ func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, 
 	r.opts.Uniforms["DirRadsSin"] = float32(drs)
 	r.opts.Uniforms["DirRadsCos"] = float32(drc)
 	r.setFlatCustomVAs(lineThick, minFillThick, maxFillThick, waveLen)
-	r.DrawShader(target, 0, 0, shaderWaveLines.Load())
+	tw, th := rectSizeF32(target.Bounds())
+	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderWaveLines.Load())
 	clear(r.opts.Uniforms)
 }

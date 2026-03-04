@@ -12,7 +12,7 @@ import (
 // go test -run ^TestStudyWaveFuncs$ . -count 1
 func TestStudyWaveFuncs(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(color.RGBA{128, 0, 0, 255})
 		ctx.Renderer.studyWaveFuncs(canvas, 1.0, 8.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {

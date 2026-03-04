@@ -7,6 +7,26 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// Margins are used in basic shader operations like [Renderer.DrawShader](), [Renderer.DrawRectShader],
+// [Renderer.DrawImgShader]().
+type Margins struct {
+	Left   float32
+	Right  float32
+	Top    float32
+	Bottom float32
+}
+
+var NoMargins = Margins{}
+
+func NewMargins(horz, vert float32) Margins {
+	return Margins{
+		Left:   horz,
+		Right:  horz,
+		Top:    vert,
+		Bottom: vert,
+	}
+}
+
 // Downscaling is a common technique used in graphics where an effect is not applied at full
 // resolution, but a smaller offscreen. This is done to reduce the amount of pixels to process,
 // but it has some downsides:
