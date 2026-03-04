@@ -126,9 +126,7 @@ func (r *Renderer) Options() *ebiten.DrawTrianglesShaderOptions {
 
 func (r *Renderer) DrawShaderAt(target, source *ebiten.Image, ox, oy, horzMargin, vertMargin float32, shader *ebiten.Shader) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX-horzMargin, dstOY-vertMargin, dstOX+srcWidthF32+horzMargin, dstOY+srcHeightF32+vertMargin)
+	r.setDstRectCoords(ox-horzMargin, oy-vertMargin, ox+srcWidthF32+horzMargin, oy+srcHeightF32+vertMargin)
 	r.setSrcRectCoords(srcOX-horzMargin, srcOY-vertMargin, srcOX+srcWidthF32+horzMargin, srcOY+srcHeightF32+vertMargin)
 
 	r.opts.Images[0] = source
@@ -137,9 +135,7 @@ func (r *Renderer) DrawShaderAt(target, source *ebiten.Image, ox, oy, horzMargin
 }
 
 func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h, horzMargin, vertMargin float32, shader *ebiten.Shader) {
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	dstOX, dstOY = dstOX+ox, dstOY+oy
-	r.setDstRectCoords(dstOX-horzMargin, dstOY-vertMargin, dstOX+w+horzMargin, dstOY+h+vertMargin)
+	r.setDstRectCoords(ox-horzMargin, oy-vertMargin, ox+w+horzMargin, oy+h+vertMargin)
 	r.setSrcRectCoords(-horzMargin, -vertMargin, w+horzMargin, h+vertMargin)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 }

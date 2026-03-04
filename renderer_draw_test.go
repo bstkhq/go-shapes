@@ -292,7 +292,7 @@ func TestDrawAreaPrecise(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawIntArea$ . -count 1
+// go test -run ^TestStrokeIntArea$ . -count 1
 func TestStrokeIntArea(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClick.X, ctx.LeftClick.Y
