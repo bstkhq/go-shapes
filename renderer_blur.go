@@ -34,10 +34,8 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-radius, dstMinY+oy-radius
-	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight+radius
+	minX, minY := ox-radius, oy-radius
+	maxX, maxY := ox+srcWidth+radius, oy+srcHeight+radius
 	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
@@ -105,9 +103,8 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	}
 
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
-	dox, doy := rectOriginF32(target.Bounds())
 	ceilRadius := ceilF32(radius)
-	r.setDstRectCoords(dox+ox, doy+oy-ceilRadius, dox+ox+sw, doy+oy+sh+ceilRadius)
+	r.setDstRectCoords(ox, oy-ceilRadius, ox+sw, oy+sh+ceilRadius)
 	r.setSrcRectCoords(sox, soy-ceilRadius, sox+sw, soy+sh+ceilRadius)
 	r.setFlatCustomVAs01(radius, r.tint)
 
@@ -135,10 +132,8 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-radius, dstMinY+oy
-	maxX, maxY := dstMinX+ox+srcWidth+radius, dstMinY+oy+srcHeight
+	minX, minY := ox-radius, oy
+	maxX, maxY := ox+srcWidth+radius, oy+srcHeight
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
@@ -223,12 +218,11 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius flo
 //
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, seed, padOffset float32) {
-	dox, doy := rectOriginF32(target.Bounds())
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	radiusF32 := float32(radius)
 
-	minX, minY := dox+ox-radiusF32, doy+oy-radiusF32
-	maxX, maxY := dox+ox+sw+radiusF32, doy+oy+sh+radiusF32
+	minX, minY := ox-radiusF32, oy-radiusF32
+	maxX, maxY := ox+sw+radiusF32, oy+sh+radiusF32
 	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
 	r.setSrcRectCoords(sox-radiusF32-1, soy-radiusF32-1, sox+sw+radiusF32+1.0, soy+sh+radiusF32+1.0)
 	r.setFlatCustomVAs(radiusF32, r.tint, seed, padOffset)

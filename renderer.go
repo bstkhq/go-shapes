@@ -236,12 +236,8 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, op
 	srcWidth, srcHeight := srcBounds.Dx(), srcBounds.Dy()
 	srcWidthF32, srcHeightF32 := float32(srcWidth), float32(srcHeight)
 
-	dstBounds := target.Bounds()
-	minX := float32(dstBounds.Min.X) + ox
-	minY := float32(dstBounds.Min.Y) + oy
-	r.setDstRectCoords(minX, minY, minX+srcWidthF32*scale, minY+srcHeightF32*scale)
-
-	minX, minY = float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
+	r.setDstRectCoords(ox, oy, ox+srcWidthF32*scale, oy+srcHeightF32*scale)
+	minX, minY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
 	r.opts.Images[0] = source
 

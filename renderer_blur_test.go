@@ -92,7 +92,7 @@ func TestApplyDirBlur(t *testing.T) {
 		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 
-		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16).Add(canvas.Bounds().Min)
+		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16)
 		Paint(canvas, rect, [4]float32{0, 1, 0, 1}, ebiten.BlendSourceOver)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
@@ -195,7 +195,7 @@ func TestApplyBlurKernLoop(t *testing.T) {
 		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, min(float32(kern.Radius())*4.0, 16.0))
+		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, min(float32(kern.Radius())*4.0, 32.0))
 
 		ebiten.SetWindowTitle(fmt.Sprintf("kern size: %d, radius: %d", kern.Size(), kern.Radius()))
 	})
@@ -250,7 +250,7 @@ func TestApplyBlurVogel(t *testing.T) {
 		canvas.Fill(color.RGBA{0, 0, 255, 255})
 
 		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			if inpututil.IsKeyJustPressed(ebiten.KeyS) {
 				sampling *= 2
 				if sampling > 64 {
 					sampling = 8
@@ -267,7 +267,7 @@ func TestApplyBlurVogel(t *testing.T) {
 		if ebiten.IsKeyPressed(ebiten.KeyN) {
 			seed = rand.Float32()
 		}
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [sampling = %d, downscaling x%d]", sampling, downscale.Factor()))
+		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]ampling = %d, [D]ownscaling x%d]", sampling, downscale.Factor()))
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius)
