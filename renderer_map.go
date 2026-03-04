@@ -6,9 +6,10 @@ import (
 
 // quad must be given in clockwise order starting from top-left.
 func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
+	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
-		r.vertices[i].DstX = pt.X
-		r.vertices[i].DstY = pt.Y
+		r.vertices[i].DstX = tox + pt.X
+		r.vertices[i].DstY = toy + pt.Y
 	}
 
 	minX, minY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
@@ -29,14 +30,15 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 // The renderer's color is applied multiplicatively as a color scale;
 // set it to white for neutral operation.
 func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
+	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
-		r.vertices[i].DstX = pt.X
-		r.vertices[i].DstY = pt.Y
+		r.vertices[i].DstX = pt.X + tox
+		r.vertices[i].DstY = pt.Y + toy
 	}
 	ctr := quadCenter(quad)
 	ctrVert := r.vertices[0]
-	ctrVert.DstX = ctr.X
-	ctrVert.DstY = ctr.Y
+	ctrVert.DstX = ctr.X + tox
+	ctrVert.DstY = ctr.Y + toy
 
 	minX, minY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
 	ctrVert.SrcX = minX + srcWidth/2.0
@@ -83,10 +85,10 @@ func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32,
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)
 
-	minX, minY, _, _ := rectOriginSizeF32(target.Bounds())
+	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
-		r.vertices[i].DstX = minX + pt.X
-		r.vertices[i].DstY = minY + pt.Y
+		r.vertices[i].DstX = tox + pt.X
+		r.vertices[i].DstY = toy + pt.Y
 	}
 
 	minX, minY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())

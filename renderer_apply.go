@@ -393,10 +393,9 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.HorzKernel]
 	invokeShader(tmp) // set VAs, more uniforms, invoke shader and clear(r.opts.Uniforms) if needed
 
-	dox, doy := rectOriginF32(target.Bounds())
 	ceilVRadius := float32(opts.VertKernel.Radius())
-	dx := dox + ox - ceilHRadius
-	r.setDstRectCoords(dx, doy+oy-ceilVRadius, dx+w32, doy+oy+h32+ceilVRadius)
+	dx := ox - ceilHRadius
+	r.setDstRectCoords(dx, oy-ceilVRadius, dx+w32, oy+h32+ceilVRadius)
 	r.setSrcRectCoords(0, -ceilVRadius, w32, h32+ceilVRadius)
 
 	r.opts.Blend = preBlend
