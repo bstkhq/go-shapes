@@ -239,10 +239,10 @@ func TestDitherMat4(t *testing.T) {
 		anim := float32(ctx.DistAnim(1.0, 1.0))
 		yOffset := int(ctx.ModAnim(4.0, 1.0))
 		xOffset := 8 - int(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lx, ly, xOffset, yOffset, DitherBW4, mat, anim, 0.0)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lx, ly, xOffset, yOffset, PaletteBW4, mat, anim, 0.0)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, DitherAlpha8, mat, 0, anim)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, PaletteAlpha8, mat, 0, anim)
 	})
 
 	from, to := color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}

@@ -332,69 +332,76 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alph
 	}
 }
 
-var DitherBayes [16]float32 = [16]float32{
-	0.0 / 16.0, 12.0 / 16.0, 3.0 / 16.0, 15.0 / 16.0,
-	8.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 7.0 / 16.0,
-	2.0 / 16.0, 14.0 / 16.0, 1.0 / 16.0, 13.0 / 16.0,
-	10.0 / 16.0, 6.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
-}
-var DitherDots [16]float32 = [16]float32{
-	12.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 15.0 / 16.0,
-	5.0 / 16.0, 0.0 / 16.0, 3.0 / 16.0, 10.0 / 16.0,
-	6.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 9.0 / 16.0,
-	13.0 / 16.0, 7.0 / 16.0, 8.0 / 16.0, 14.0 / 16.0,
-}
-var DitherSerp [16]float32 = [16]float32{
-	0.0 / 16.0, 12.0 / 16.0, 13.0 / 16.0, 1.0 / 16.0,
-	3.0 / 16.0, 7.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
-	4.0 / 16.0, 8.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
-	11.0 / 16.0, 15.0 / 16.0, 14.0 / 16.0, 10.0 / 16.0,
-}
-var DitherGlitch [16]float32 = [16]float32{
-	0.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 3.0 / 16.0,
-	4.0 / 16.0, 5.0 / 16.0, 6.0 / 16.0, 7.0 / 16.0,
-	8.0 / 16.0, 9.0 / 16.0, 10.0 / 16.0, 11.0 / 16.0,
-	12.0 / 16.0, 13.0 / 16.0, 14.0 / 16.0, 15.0 / 16.0,
-}
+// Predefined color palettes for use with [Renderer.DitherMat4].
+var (
+	PaletteBW []float32 = []float32{
+		0.0, 0.0, 0.0, 1.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteBW4 []float32 = []float32{
+		0.0, 0.0, 0.0, 1.0,
+		0.333, 0.333, 0.333, 1.0,
+		0.666, 0.666, 0.666, 1.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteAlpha8 []float32 = []float32{
+		0.0, 0.0, 0.0, 0.0,
+		1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0,
+		2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0,
+		3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0,
+		4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0,
+		5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0,
+		6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteBRG []float32 = []float32{
+		0.0, 0.0, 1.0, 1.0,
+		1.0, 0.0, 0.0, 1.0,
+		0.0, 1.0, 0.0, 1.0,
+	}
+)
 
-var DitherCrumbs [16]float32 = [16]float32{
-	0.0 / 16.0, 4.0 / 16.0, 8.0 / 16.0, 1.0 / 16.0,
-	11.0 / 16.0, 14.0 / 16.0, 12.0 / 16.0, 5.0 / 16.0,
-	7.0 / 16.0, 13.0 / 16.0, 15.0 / 16.0, 9.0 / 16.0,
-	3.0 / 16.0, 10.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
-}
-
-var DitherBW []float32 = []float32{
-	0.0, 0.0, 0.0, 1.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-var DitherBW4 []float32 = []float32{
-	0.0, 0.0, 0.0, 1.0,
-	0.333, 0.333, 0.333, 1.0,
-	0.666, 0.666, 0.666, 1.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-
-var DitherAlpha8 []float32 = []float32{
-	0.0, 0.0, 0.0, 0.0,
-	1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0,
-	2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0,
-	3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0,
-	4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0,
-	5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0,
-	6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-var DitherBRG []float32 = []float32{
-	0.0, 0.0, 1.0, 1.0,
-	1.0, 0.0, 0.0, 1.0,
-	0.0, 1.0, 0.0, 1.0,
-}
+// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4].
+var (
+	DitherBayes [16]float32 = [16]float32{
+		0.0 / 16.0, 12.0 / 16.0, 3.0 / 16.0, 15.0 / 16.0,
+		8.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 7.0 / 16.0,
+		2.0 / 16.0, 14.0 / 16.0, 1.0 / 16.0, 13.0 / 16.0,
+		10.0 / 16.0, 6.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
+	}
+	DitherDots [16]float32 = [16]float32{
+		12.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 15.0 / 16.0,
+		5.0 / 16.0, 0.0 / 16.0, 3.0 / 16.0, 10.0 / 16.0,
+		6.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 9.0 / 16.0,
+		13.0 / 16.0, 7.0 / 16.0, 8.0 / 16.0, 14.0 / 16.0,
+	}
+	DitherSerp [16]float32 = [16]float32{
+		0.0 / 16.0, 12.0 / 16.0, 13.0 / 16.0, 1.0 / 16.0,
+		3.0 / 16.0, 7.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
+		4.0 / 16.0, 8.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
+		11.0 / 16.0, 15.0 / 16.0, 14.0 / 16.0, 10.0 / 16.0,
+	}
+	DitherGlitch [16]float32 = [16]float32{
+		0.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 3.0 / 16.0,
+		4.0 / 16.0, 5.0 / 16.0, 6.0 / 16.0, 7.0 / 16.0,
+		8.0 / 16.0, 9.0 / 16.0, 10.0 / 16.0, 11.0 / 16.0,
+		12.0 / 16.0, 13.0 / 16.0, 14.0 / 16.0, 15.0 / 16.0,
+	}
+	DitherCrumbs [16]float32 = [16]float32{
+		0.0 / 16.0, 4.0 / 16.0, 8.0 / 16.0, 1.0 / 16.0,
+		11.0 / 16.0, 14.0 / 16.0, 12.0 / 16.0, 5.0 / 16.0,
+		7.0 / 16.0, 13.0 / 16.0, 15.0 / 16.0, 9.0 / 16.0,
+		3.0 / 16.0, 10.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
+	}
+)
 
 // DitherMat4 draws the given mask to the target applying a static 4x4 dithering pattern to select colors from
-// rgbaColors. The rgbaColors argument can contain up to 8 colors, flattened as RGBA quadruplets in [0...1] range.
-// You can test with DitherBW4. The ditherMatrix argument is a 4x4 dithering matrix in column major order (like
-// GLSL), where the values indicate the thresholds of the pattern in 0...1 range. You can test with [DitherBayes].
+// rgbaColors.
+//   - The rgbaColors argument can contain up to 8 colors, flattened as RGBA quadruplets in [0...1] range.
+//     See [PaletteBW4] and others for predefined palettes.
+//   - The ditherMatrix argument is a 4x4 dithering matrix in column major order (like GLSL), where the
+//     values indicate the thresholds of the pattern in 0...1 range. See [DitherBayes] and others for
+//     predefined matrices.
 func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffset, yOffset int, rgbaColors []float32, ditherMatrix [16]float32, rendererClrMix, maskColorMix float32) {
 	if len(rgbaColors)%4 != 0 {
 		panic("rgbaColors must have length multiple of 4")

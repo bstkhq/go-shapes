@@ -46,7 +46,7 @@ func TestWarpArc(t *testing.T) {
 	img := ebiten.NewImage(W, H)
 	from, to := color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
 	mask := app.Renderer.NewSimpleGradient(W, H, from, to, DirRadsRTL)
-	app.Renderer.DitherMat4(img, mask, 0, 0, 0, 0, DitherBW, DitherGlitch, 0.0, 0.0)
+	app.Renderer.DitherMat4(img, mask, 0, 0, 0, 0, PaletteBW, DitherGlitch, 0.0, 0.0)
 	app.Renderer.SetColorF32(0, 0.5, 0, 0.5)
 	app.Renderer.DrawRect(img, img.Bounds(), 0)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
