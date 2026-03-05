@@ -205,7 +205,10 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius flo
 		seed = clamp(seed, 0, 1)
 	}
 
-	r.refreshVogelPoints(numSamples, 1.0)
+	if r.vogelMemo == nil {
+		r.vogelMemo = &vogelMemory{}
+	}
+	r.vogelMemo.Refresh(numSamples, 1.0)
 	df := downscaling.Factor()
 	if df == 1 {
 		r.applyBlurVogelDirect(target, mask, ox, oy, radius, numSamples, seed, 0.0)
@@ -230,7 +233,7 @@ func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radi
 	// draw shader
 	r.opts.Images[0] = mask
 	r.opts.Uniforms["NumSamples"] = numSamples
-	r.opts.Uniforms["Disk"] = r.vogelPoints
+	r.opts.Uniforms["Disk"] = r.vogelMemo.Points
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlurVogel.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
@@ -281,29 +284,39 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 	r.Scale(target, mid, ox, oy, float32(downscale), &scaleOpts)
 }
 
-func (r *Renderer) refreshVogelPoints(n int, radius float64) {
+// vogelMemory is a helper for vogel disks data
+type vogelMemory struct {
+	Points        [128]float32
+	SinCos        [][2]float64
+	LastRadius    float64
+	StickyPtCount int // highest point count for LastRadius
+}
+
+func (m *vogelMemory) Refresh(numPoints int, radius float64) {
 	const GoldenAngle = 2.39996322972865332223155550663361385312499901105811504293511275 // https://oeis.org/A131988
 
-	if n <= r.vogelStickyN && radius == r.vogelLastRadius {
+	if numPoints > 128 {
+		panic("vogel disk numPoints can't exceed 128")
+	}
+
+	if numPoints <= m.StickyPtCount && radius == m.LastRadius {
 		return // already cached
 	}
 
-	for i := float64(len(r.vogelSinCos)); i < float64(n); i += 1.0 {
+	for i := float64(len(m.SinCos)); i < float64(numPoints); i += 1.0 {
 		theta := i * GoldenAngle
 		sin, cos := math.Sincos(theta)
-		r.vogelSinCos = append(r.vogelSinCos, [2]float64{sin, cos})
+		m.SinCos = append(m.SinCos, [2]float64{sin, cos})
 	}
 
-	for i := range n {
-		dist := radius * math.Sqrt(float64(i)/float64(n))
-		r.vogelPoints[i<<1+0] = float32(dist * r.vogelSinCos[i][1]) // X
-		r.vogelPoints[i<<1+1] = float32(dist * r.vogelSinCos[i][0]) // Y
+	for i := range numPoints {
+		dist := radius * math.Sqrt(float64(i)/float64(numPoints))
+		m.Points[i<<1+0] = float32(dist * m.SinCos[i][1]) // X
+		m.Points[i<<1+1] = float32(dist * m.SinCos[i][0]) // Y
 	}
 
-	if r.vogelLastRadius != radius {
-		r.vogelStickyN = n
-	} else {
-		r.vogelStickyN = max(r.vogelStickyN)
+	if m.LastRadius != radius || numPoints > m.StickyPtCount {
+		m.StickyPtCount = numPoints
 	}
-	r.vogelLastRadius = radius
+	m.LastRadius = radius
 }
