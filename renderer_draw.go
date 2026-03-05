@@ -466,13 +466,13 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 	thickF32 := float32(thickness)
 	iox, ioy := oox+thickF32, ooy+thickF32
 	ifx, ify := ofx-thickF32, ofy-thickF32
+	r.vertices = append(r.vertices,
+		ebiten.Vertex{DstX: iox, DstY: ioy},
+		ebiten.Vertex{DstX: ifx, DstY: ioy},
+		ebiten.Vertex{DstX: ifx, DstY: ify},
+		ebiten.Vertex{DstX: iox, DstY: ify},
+	)
 	if r.singleClr || r.opts.Blend == ebiten.BlendClear {
-		r.vertices = append(r.vertices,
-			ebiten.Vertex{DstX: iox, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ify},
-			ebiten.Vertex{DstX: iox, DstY: ify},
-		)
 		for i := range 4 {
 			r.vertices[4+i].ColorR = r.vertices[i].ColorR
 			r.vertices[4+i].ColorG = r.vertices[i].ColorG
@@ -492,14 +492,7 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 		tR, tG, tB, tA := interpVertexColor(r.vertices[0], r.vertices[1], iou)
 		bR, bG, bB, bA := interpVertexColor(r.vertices[3], r.vertices[2], iou)
 
-		// append all vertices with left side colors set
-		r.vertices = append(r.vertices,
-			ebiten.Vertex{DstX: iox, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ify},
-			ebiten.Vertex{DstX: iox, DstY: ify},
-		)
-
+		// compute left side colors
 		tli, tri, bli, bri := 4, 5, 7, 6 // NOTE: use other orders for cool effects
 		r.vertices[tli].ColorR = lerp(tR, bR, iov)
 		r.vertices[tli].ColorG = lerp(tG, bG, iov)

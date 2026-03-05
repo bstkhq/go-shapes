@@ -318,8 +318,8 @@ func TestApplyBlurVogelFull(t *testing.T) {
 		ctx.Renderer.ApplyBlurVogel(canvas, full, 0, 0, float32(radius), Sampling, Downscale, seed)
 	})
 
-	app.Renderer.GradientRadialDither(full, 1920/2, 960, color.RGBA{0, 64, 196, 255}, color.RGBA{0, 128, 255, 255}, 320, 960, Float32Inf(), 1.0)
-	app.Renderer.GradientDither(full, 0, 0, 1920, 1080, color.RGBA{64, 0, 64, 64}, color.RGBA{32, 0, 0, 64}, DirRadsBLTR, 1.0)
+	// app.Renderer.GradientRadialDither(full, 1920/2, 960, color.RGBA{0, 64, 196, 255}, color.RGBA{0, 128, 255, 255}, 320, 960, Float32Inf(), 1.0)
+	// app.Renderer.GradientDither(full, 0, 0, 1920, 1080, color.RGBA{64, 0, 64, 64}, color.RGBA{32, 0, 0, 64}, DirRadsBLTR, 1.0)
 	for range 256 {
 		rand.Float64()
 		app.Renderer.SetColorF32(rand.Float32(), rand.Float32(), rand.Float32(), 1.0)

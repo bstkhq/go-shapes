@@ -30,6 +30,7 @@ const (
 	WarnInvalidAlphaClamped    // out of [0, 1] range
 	WarnInvalidTintClamped     // out of [0, 1] range
 	WarnInvalidRateClamped     // out of [0, 1] range
+	WarnInvalidBiasClamped     // out of [-1, 1] range
 	WarnInvalidFlag
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
@@ -38,7 +39,6 @@ const (
 	WarnInvalidZoomClamped
 	WarnInvalidNoiseSeedClamped
 	WarnTooManyVertexAttribs
-	WarnGradientCurveFactorLifted // gradients, see MinGradientCurveFactor
 	WarnTooManyColorsClamped
 
 	warnSentinel
@@ -68,6 +68,8 @@ func (w Warning) Message() string {
 		return "alpha value out of range, clamped"
 	case WarnInvalidRateClamped:
 		return "rate value out of range, clamped"
+	case WarnInvalidBiasClamped:
+		return "bias value out of [-1, 1] range, clamped"
 	case WarnInvalidTintClamped:
 		return "tint value out of [0, 1] range, clamped"
 	case WarnInvalidFlag:
@@ -78,8 +80,6 @@ func (w Warning) Message() string {
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation result invalidated"
 	case WarnTooManyVertexAttribs:
 		return "too many vertex attributes, ignored excess ones"
-	case WarnGradientCurveFactorLifted:
-		return "gradient curve factor below minimum value, clamped to min"
 	case WarnTooManyColorsClamped:
 		return "too many color values, clamped to max"
 	default:

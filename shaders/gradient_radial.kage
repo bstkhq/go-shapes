@@ -1,33 +1,60 @@
 //kage:unit pixels
 package main
 
-var Origin vec2       // cx, cy
-var Radius vec3       // fromRadius, transRadius, toRadius
-var CurveFactor float // 0.5 for early start, 2.0 for late start, etc.
-var NumSteps int      // <=1 for continuous
+var Origin vec2  // cx, cy
+var Radius vec3  // fromRadius, transRadius, toRadius
+var Dither int   // 0 == false, 1 == true
+var NumSteps int // <=0 for continuous
+var Bias float   // [0, 1] using schlick's bias, <0.5 from has more presence
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const Edge = 1.333
 
 	relCoords := targetCoords.xy - imageDstOrigin()
 	dist := distance(relCoords, Origin)
-	progress := (dist - Radius[0]) / (Radius[1] - Radius[0])
-	if NumSteps > 1 {
-		// apply step anti-aliasing
-		const AntiAliasBand = 0.05
+
+	transAreaLen := Radius[1] - Radius[0]
+	var progress float = (dist - Radius[0]) / transAreaLen
+	if Bias <= 0.001 {
+		progress = 0
+	} else if Bias >= 1.0-0.001 {
+		progress = 1
+	} else if NumSteps > 1 && progress > 0 && progress < 1 {
+		// notice that unlike most AAMargin values in other shaders,
+		// this code uses a linear mix, not a smoothstep
+		const AAMargin = 1.1666
+
 		step := progress * float(NumSteps)
 		stepFloor := floor(step)
-		normStepStart := stepFloor / float(NumSteps-1)
-		normStepEnd := (stepFloor + 1.0) / float(NumSteps-1)
-		t := smoothstep(1.0-AntiAliasBand, 1.0, step-stepFloor) // TODO: this is not centered
-		progress = mix(normStepStart, normStepEnd, t)
+		stepFract := step - stepFloor
+
+		nearestDir := sign(stepFract - 0.5) // direction to next nearest step
+		nearestStep := clamp(stepFloor+nearestDir, 0, float(NumSteps-1))
+
+		distToBoundary := min(stepFract, 1.0-stepFract)
+		nearestPxDist := distToBoundary * (transAreaLen / float(NumSteps))
+		nearCloseness := max(1.0-nearestPxDist/(AAMargin*0.5), 0)
+
+		stepProgress := stepFloor / float(NumSteps-1)
+		nearProgress := floor(nearestStep) / float(NumSteps-1)
+		progress = mix(stepProgress, nearProgress, nearCloseness*0.5)
 	}
-	progress = pow(progress, CurveFactor)
+
+	if progress > 0 && progress < 1 {
+		progress = schlick(progress, Bias)
+	}
 
 	from, to := customVAs, color
 	oklab := mix(from, to, clamp(progress, 0, 1))
 	alpha := 1.0 - smoothstep(Radius[2]-Edge, Radius[2], dist)
-	return vec4(OklabToRGB(oklab.xyz), oklab.a) * alpha
+	out := vec4(OklabToRGB(oklab.xyz), oklab.a) * alpha
+
+	if Dither == 1 {
+		noise := imageSrc0UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, 0.0, 1.0)
+	}
+	return out
 }
 
 func OklabToRGB(lab vec3) vec3 {
@@ -36,9 +63,13 @@ func OklabToRGB(lab vec3) vec3 {
 }
 
 func OklabToLinRGB(lab vec3) vec3 {
-	x := pow(lab[0]+0.3963377774*lab[1]+0.2158037573*lab[2], 3)
-	y := pow(lab[0]-0.1055613458*lab[1]-0.0638541728*lab[2], 3)
-	z := pow(lab[0]-0.0894841775*lab[1]-1.2914855480*lab[2], 3)
+	x := lab[0] + 0.3963377774*lab[1] + 0.2158037573*lab[2]
+	y := lab[0] - 0.1055613458*lab[1] - 0.0638541728*lab[2]
+	z := lab[0] - 0.0894841775*lab[1] - 1.2914855480*lab[2]
+
+	x = x * x * x
+	y = y * y * y
+	z = z * z * z
 
 	return vec3(
 		clamp(+4.0767416621*x-3.3077115913*y+0.2309699292*z, 0, 1),
@@ -53,4 +84,10 @@ func unlinearize(colorChan float) float {
 	} else {
 		return colorChan * 12.92
 	}
+}
+
+// schlick's bias function with t and bias in [0, 1]
+func schlick(t, bias float) float {
+	div := (1.0/bias-2)*(1.0-t) + 1
+	return clamp(t/max(div, 0.001), 0, 1)
 }

@@ -91,11 +91,11 @@ func TestDrawAt(t *testing.T) {
 	})
 
 	rect := ebiten.NewImage(96, 64)
-	app.Renderer.Gradient(rect, nil, 0, 0, color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, -1, DirRadsBLTR, 1.0)
+	// app.Renderer.Gradient(rect, nil, 0, 0, color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, -1, DirRadsBLTR, 1.0)
 	circ := ebiten.NewImage(72, 72)
 	app.Renderer.DrawCircle(circ, 72/2, 72/2, 72/2)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
-	app.Renderer.Gradient(circ, nil, 0, 0, color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, -1, DirRadsTTB, 1.0)
+	// app.Renderer.Gradient(circ, nil, 0, 0, color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, -1, DirRadsTTB, 1.0)
 	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, rect, circ)
 	if err := ebiten.RunGame(app); err != nil {

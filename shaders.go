@@ -210,17 +210,9 @@ var shaderWaveLines = shaderRef{src: shaderWaveLinesSrc}
 var shaderGradientSrc []byte
 var shaderGradient = shaderRef{src: shaderGradientSrc}
 
-//go:embed shaders/gradient_dither.kage
-var shaderGradientDitherSrc []byte
-var shaderGradientDither = shaderRef{src: shaderGradientDitherSrc}
-
 //go:embed shaders/gradient_radial.kage
 var shaderGradientRadialSrc []byte
 var shaderGradientRadial = shaderRef{src: shaderGradientRadialSrc}
-
-//go:embed shaders/gradient_radial_dither.kage
-var shaderGradientRadialDitherSrc []byte
-var shaderGradientRadialDither = shaderRef{src: shaderGradientRadialDitherSrc}
 
 //go:embed shaders/colorize_lightness.kage
 var shaderColorizeByLightnessSrc []byte

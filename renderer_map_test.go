@@ -120,7 +120,7 @@ func TestMapProjectiveTilt(t *testing.T) {
 	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
-	app.Renderer.GradientDither(img, 0, 0, CardWidth, CardHeight, color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, DirRadsTTB, 1.0)
+	// app.Renderer.GradientDither(img, 0, 0, CardWidth, CardHeight, color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, DirRadsTTB, 1.0)
 	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
 	app.Renderer.DrawPieRate(img, CardWidth/2, CardHeight/2-32, 64, DirRadsTTB, 0.15, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)

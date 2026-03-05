@@ -208,7 +208,8 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 	app.Renderer.DrawLine(cross, s-m, m, m, s-m, m/2)
 	img := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{0, 0, 0, 255})
-	app.Renderer.SimpleGradient(img, color.RGBA{255, 255, 255, 255}, color.RGBA{128, 0, 0, 255}, math.Pi/2)
+	gradientOpts := GradientOpts(color.RGBA{255, 255, 255, 255}, color.RGBA{128, 0, 0, 255}, false)
+	app.Renderer.Gradient(img, gradientOpts, math.Pi/2)
 	app.Images = append(app.Images, img, cross)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -309,9 +310,11 @@ func TestApplyColorGlowK(t *testing.T) {
 	})
 
 	circ := app.Renderer.NewCircle(96.0)
-	img := ebiten.NewImage(circ.Bounds().Dx(), circ.Bounds().Dy())
-	app.Renderer.Gradient(img, circ, 0, 0, color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, -1, 0, 1.0)
-	app.Images = append(app.Images, img)
+	gradientOpts := GradientOpts(color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, false)
+	app.Renderer.Options().Blend = ebiten.BlendSourceIn
+	app.Renderer.Gradient(circ, gradientOpts, DirRadsLTR)
+	app.Renderer.Options().Blend = ebiten.BlendSourceOver
+	app.Images = append(app.Images, circ)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

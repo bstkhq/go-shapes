@@ -218,21 +218,17 @@ type GradientOptions struct {
 
 	// Dither determines whether the gradient will have dithering applied.
 	//
-	// Dithering is only required on subtle gradients or alpha transitions,
+	// Dithering is only necessary on subtle gradients or alpha transitions,
 	// where very similar colors can cause banding or flickering.
 	Dither bool
 
-	// Balance controls the color interpolation curve:
+	// Bias is a value in [-1, 1] that controls the color interpolation:
 	//  - Zero generates a linear gradient (both colors have the same presence).
 	//  - Negative values give the start color more presence.
 	//  - Positive values give the end color more presence.
 	//
-	// Reasonable balance values fall in the +/-4.0 range.
-	Balance float32
-
-	// Rect defines an optional area for the gradient.
-	// When empty, the clipping area is ignored.
-	// Rect RectF32
+	// The interpolation is based on Schlick's bias function.
+	Bias float32
 }
 
 // GradientOpts creates GradientOptions for a continuous gradient.
@@ -251,12 +247,4 @@ func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
 		To:    colorToF64(to),
 		Steps: steps,
 	}
-}
-
-func normalizeBalance(balance float32) float32 {
-	balance = clamp(balance, -1000.0, +1000.0)
-	if balance > 0 {
-		return balance
-	}
-	return 1.0 / -balance
 }

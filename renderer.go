@@ -24,9 +24,8 @@ type Renderer struct {
 	strokeIndices []uint16
 
 	temps          []offscreen
-	blueNoise64RGB *ebiten.Image
-	vogelMemo      *vogelMemory
-	colorMemo      *[16]float32
+	blueNoise64RGB *ebiten.Image // used for dithering in some operations
+	vogelMemo      *vogelMemory  // helper used by vogel blur
 
 	// Warnings registers events like invalid parameters being sent to
 	// rendering operations and makes them easy to detect, log and fix.
@@ -52,8 +51,8 @@ func NewRenderer() *Renderer {
 	return &renderer
 }
 
-// GetColorF32 returns the current color of the requested vertex (0 = top-left,
-// 1 = top-right, 2 = bottom-right, 3 = bottom-left).
+// GetColorF32 returns the current color of the requested vertex
+// (0 = top-left, 1 = top-right, 2 = bottom-right, 3 = bottom-left).
 func (r *Renderer) GetColorF32(vertexIndex int) [4]float32 {
 	return [4]float32{r.vertices[vertexIndex].ColorR, r.vertices[vertexIndex].ColorG, r.vertices[vertexIndex].ColorB, r.vertices[vertexIndex].ColorA}
 }

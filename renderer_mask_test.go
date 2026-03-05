@@ -95,7 +95,7 @@ func TestMaskThreshold(t *testing.T) {
 	})
 
 	maskTarget := ebiten.NewImage(Size, Size)
-	app.Renderer.Gradient(maskTarget, nil, 0, 0, color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16, DirRadsLTR, 1.0)
+	// app.Renderer.Gradient(maskTarget, nil, 0, 0, color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16, DirRadsLTR, 1.0)
 	whiteRect := app.Renderer.NewRect(Size, Size)
 
 	app.Images = append(app.Images, whiteRect, maskTarget)

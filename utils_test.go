@@ -94,6 +94,7 @@ func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*eb
 	app.Renderer = NewRenderer()
 	app.Renderer.Warnings.SetHandler(NewWarningPanicHandler())
 	app.drawer = drawer
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	return &app
 }
 
@@ -161,4 +162,20 @@ func (l flagList) Flip(f Flag) {
 }
 func (l flagList) All() []Flag {
 	return l
+}
+
+func boolAs[T any](b bool, falseValue, trueValue T) T {
+	if b {
+		return trueValue
+	}
+	return falseValue
+}
+
+func wrap(x, lo, hi float64) float64 {
+	if x < lo {
+		return hi
+	} else if x > hi {
+		return lo
+	}
+	return x
 }
