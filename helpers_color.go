@@ -27,11 +27,13 @@ var (
 	}
 )
 
+// RGBAF32 converts a color to float32 format (R, G, B, A).
 func RGBAF32(clr color.Color) [4]float32 {
 	r, g, b, a := clr.RGBA()
 	return [4]float32{float32(r) / 65535.0, float32(g) / 65535.0, float32(b) / 65535.0, float32(a) / 65535.0}
 }
 
+// RGBF32 converts the color rgb values to float32 format (no alpha).
 func RGBF32(clr color.Color) [3]float32 {
 	r, g, b, _ := clr.RGBA()
 	return [3]float32{float32(r) / 65535.0, float32(g) / 65535.0, float32(b) / 65535.0}

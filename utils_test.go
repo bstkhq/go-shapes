@@ -160,16 +160,6 @@ func (l flagList) Has(f Flag) bool {
 func (l flagList) Flip(f Flag) {
 	l[f] = -(l[f] - f)
 }
-func (l flagList) All() []Flag {
-	return l
-}
-
-func boolAs[T any](b bool, falseValue, trueValue T) T {
-	if b {
-		return trueValue
-	}
-	return falseValue
-}
 
 func wrap(x, lo, hi float64) float64 {
 	if x < lo {

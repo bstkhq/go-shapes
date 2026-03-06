@@ -26,7 +26,7 @@ func TestGradient(t *testing.T) {
 				dither = !dither
 			}
 
-			sign := boolAs(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
+			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
 			switch {
 			case inpututil.IsKeyJustPressed(ebiten.KeyB):
 				bias = wrap(bias+0.05*sign, -1, 1)
@@ -91,7 +91,7 @@ func TestGradientRadial(t *testing.T) {
 				dither = !dither
 			}
 
-			sign := boolAs(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
+			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
 			switch {
 			case inpututil.IsKeyJustPressed(ebiten.KeyB):
 				bias = wrap(bias+0.05*sign, -1, 1)

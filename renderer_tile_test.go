@@ -55,8 +55,6 @@ func TestTileTriUpGrid(t *testing.T) {
 	const inSize = 24
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		// ctx.Renderer.SetColorF32(0, 0.4, 0, 0.4)
-		// ctx.Renderer.TileDotsGrid(canvas, inSize/2, 32, 0, 0)
 
 		ctx.Renderer.SetColorF32(0, 0.3, 0.3, 0.5)
 		ctx.Renderer.TileRectsGrid(canvas, 32, 32*0.86602540378, inSize, inSize, 0, 0)

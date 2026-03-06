@@ -56,3 +56,8 @@ func (r *Renderer) ensureBlueNoiseLoaded() {
 
 	r.blueNoise64RGB = ebiten.NewImageFromImage(img)
 }
+
+func (r *Renderer) loadBlueNoiseAt(imgIndex int) {
+	r.ensureBlueNoiseLoaded()
+	r.opts.Images[imgIndex] = r.blueNoise64RGB
+}

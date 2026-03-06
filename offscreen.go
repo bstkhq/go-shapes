@@ -31,9 +31,9 @@ func newOffscreen(maxWidth, maxHeight, extraMargin int) offscreen {
 	}
 }
 
-// the returned bool indicates whether the offscreen is clear or not.
-// if clear is requested, then this will always be true. if clear is not
-// requested, this sometimes can still be true.
+// the returned bool indicates whether the offscreen has to be cleared (including an
+// extra 1 px margin) or not. if clear is requested, then this will always be true. if
+// clear is not requested, this sometimes can still be true.
 func (off *offscreen) WithSize(w, h int, clear bool) (*ebiten.Image, bool) {
 	hasSizeLimits := (off.maxWidth > 0)
 	if hasSizeLimits && (w > off.maxWidth || h > off.maxHeight) {

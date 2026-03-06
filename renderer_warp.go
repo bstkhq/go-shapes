@@ -81,15 +81,15 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 	}
 
 	minX, minY, maxX, maxY = minX-1.0, minY-1.0, maxX+1.0, maxY+1.0
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.setDstRectCoords(dstOX+minX, dstOY+minY, dstOX+maxX, dstOY+maxY)
+	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	sox, soy, sfx, sfy := rectPointsF32(srcBounds)
 	r.setSrcRectCoords(sox, soy, sfx, sfy)
 
+	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))
 	r.opts.Images[0] = source
-	r.opts.Uniforms["Center"] = [2]float32{cx, cy}
+	r.opts.Uniforms["Center"] = [2]float32{cx - tox, cy - toy}
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)

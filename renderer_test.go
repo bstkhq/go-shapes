@@ -68,7 +68,7 @@ func TestDrawAt(t *testing.T) {
 		x, y := CTR.Adjust(ctx.Images[0], lx, ly)
 		y += -8.0 + float32(ctx.DistAnim(16, 1.0))
 		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.DrawAt(canvas, ctx.Images[0], x, y, 1.0, flags.All()...)
+			ctx.Renderer.DrawAt(canvas, ctx.Images[0], x, y, 1.0, flags...)
 		} else {
 			mark := image.Rectangle{Max: canvas.Bounds().Max}
 			mark.Min = mark.Max.Sub(image.Pt(16, 8))
@@ -86,16 +86,27 @@ func TestDrawAt(t *testing.T) {
 		x, y = CTR.Adjust(ctx.Images[1], rx, ry)
 		ctx.Renderer.SetTint(0.5 + float32(ctx.DistAnim(0.5, 1.0)))
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
-		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags.All()...)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags...)
+		ctx.Renderer.SetTint(0)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		alpha = float32(0.025 + ctx.DistAnim(0.025, 1.0))
+		ctx.Renderer.SetTint(1)
+		x, y = CTR.Adjust(ctx.Images[1], cw/2, ch/2)
+		y += float32(-4 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags...)
 		ctx.Renderer.SetTint(0)
 	})
 
-	rect := ebiten.NewImage(96, 64)
-	// app.Renderer.Gradient(rect, nil, 0, 0, color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, -1, DirRadsBLTR, 1.0)
-	circ := ebiten.NewImage(72, 72)
-	app.Renderer.DrawCircle(circ, 72/2, 72/2, 72/2)
+	const RW, RH = 96 * 2, 64 * 2
+	const CR = 72
+	rect := ebiten.NewImage(RW, RH)
+	gradientOpts := GradientOpts(color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, false)
+	app.Renderer.Gradient(rect, gradientOpts, DirRadsBLTR)
+	circ := app.Renderer.NewCircle(CR)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
-	// app.Renderer.Gradient(circ, nil, 0, 0, color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, -1, DirRadsTTB, 1.0)
+	gradientOpts = GradientOpts(color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, false)
+	app.Renderer.Gradient(circ, gradientOpts, DirRadsTTB)
 	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, rect, circ)
 	if err := ebiten.RunGame(app); err != nil {

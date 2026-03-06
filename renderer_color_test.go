@@ -179,13 +179,13 @@ func TestColorMix(t *testing.T) {
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
 		lx, ly := ctx.LeftClickF32()
 		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
-		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lx, ly, 0.5, lvl, flags.All()...)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lx, ly, 0.5, lvl, flags...)
 
 		rx, ry := ctx.RightClickF32()
 		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
 		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rx+offX, ry, alpha, lvl, flags.All()...)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rx+offX, ry, alpha, lvl, flags...)
 	})
 
 	circ := app.Renderer.NewCircle(64.0)

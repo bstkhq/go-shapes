@@ -37,16 +37,15 @@ func TestWarpArc(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[0], 0, 0)
 		outRadius := 64 + float32(ctx.DistAnim(172, 0.5))
 		rads := ctx.ModAnim(2*math.Pi, 0.5)
-		//rads = RadsBottomRight
 		cw, ch := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.WarpArc(canvas, ctx.Images[0], cw/2.0, ch/2.0, outRadius, rads)
 	})
 
 	const W, H = 512, 64
 	img := ebiten.NewImage(W, H)
-	// from, to := color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
-	// mask := app.Renderer.NewSimpleGradient(W, H, from, to, DirRadsRTL)
 	mask := ebiten.NewImage(W, H)
+	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
+	app.Renderer.Gradient(mask, gradientOpts, DirRadsRTL)
 	app.Renderer.DitherMat4(img, mask, 0, 0, 0, 0, PaletteBW, DitherGlitch, 0.0, 0.0)
 	app.Renderer.SetColorF32(0, 0.5, 0, 0.5)
 	app.Renderer.DrawRect(img, img.Bounds(), 0)
