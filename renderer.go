@@ -31,8 +31,11 @@ type Renderer struct {
 	indices  []uint16
 	opts     ebiten.DrawTrianglesShaderOptions
 
-	tint          float32 // mix rate for renderer colors in supported operations
+	lastBlend           ebiten.Blend
+	lastBlendSafeToCrop bool
+
 	singleClr     bool
+	tint          float32 // mix rate for renderer colors in supported operations
 	strokeIndices []uint16
 
 	temps          []offscreen
@@ -50,6 +53,9 @@ func NewRenderer() *Renderer {
 	renderer.vertices = make([]ebiten.Vertex, 4)
 	renderer.SetColor(color.RGBA{255, 255, 255, 255})
 	renderer.indices = []uint16{0, 1, 2, 0, 2, 3}
+	renderer.lastBlendSafeToCrop = true
+	renderer.lastBlend = ebiten.BlendSourceOver
+	renderer.opts.Blend = ebiten.BlendSourceOver
 	renderer.opts.Uniforms = make(map[string]any, 8)
 	renderer.strokeIndices = []uint16{
 		0, 1, 4,
@@ -196,7 +202,7 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 		r.Warnings.report(WarnInvalidAlphaClamped, alpha)
 		alpha = clamp(alpha, 0, 1)
 	}
-	if alpha == 0 && r.hasSkippableBlend() {
+	if alpha == 0 && r.blendSafeToCrop() {
 		return
 	}
 
@@ -414,10 +420,22 @@ func (r *Renderer) getTemp(offscreenIndex int, w, h int, clear bool) (*ebiten.Im
 	return r.temps[offscreenIndex].WithSize(w, h, clear)
 }
 
-func (r *Renderer) hasSkippableBlend() bool {
-	// ebiten.BlendLighter should also be skippable, but it's so rare
-	// it's probably not be worth it. maybe also shapes.BlendSubtract
-	return r.opts.Blend == ebiten.BlendSourceOver
+func (r *Renderer) blendSafeToCrop() bool {
+	if r.lastBlend != r.opts.Blend {
+		r.lastBlendSafeToCrop = blendOnlyAffectsNonZeroSourceArea(r.opts.Blend)
+		r.lastBlend = r.opts.Blend
+	}
+	return r.lastBlendSafeToCrop
+}
+
+func blendOnlyAffectsNonZeroSourceArea(blend ebiten.Blend) bool {
+	return blend == ebiten.BlendSourceOver ||
+		blend == ebiten.BlendDestinationOver ||
+		blend == ebiten.BlendLighter ||
+		blend == ebiten.BlendSourceAtop ||
+		blend == ebiten.BlendDestinationOut ||
+		blend == ebiten.BlendXor ||
+		blend == BlendSubtract
 }
 
 func (r *Renderer) readFlags(flags ...Flag) (bilinear, dither bool) {
