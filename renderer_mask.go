@@ -5,13 +5,29 @@ import (
 )
 
 // Mask draws 'source' over 'target' using 'mask' as an alpha mask. If the source
-// and mask sizes are different, the mask will be adjusted to fit the source
-// (sampling is always nearest, not bilinear). For manual mask placement, see
-// [Renderer.MaskAt]() instead.
-func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32) {
+// and mask sizes are different, the mask will be adjusted to fit the source.
+// For manual mask placement, see [Renderer.MaskAt]() instead.
+//
+// Supported flags: [Bilinear] (in destination space for mask), [Dithered].
+func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flags ...Flag) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
 	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+
+	for _, f := range flags {
+		switch f {
+		case noFlag:
+			// ignore
+		case Bilinear:
+			r.opts.Uniforms["Bilinear"] = 1
+		case Dithered:
+			r.opts.Uniforms["Dither"] = 1
+			r.ensureBlueNoiseLoaded()
+			r.opts.Images[2] = r.blueNoise64RGB
+		default:
+			r.Warnings.report(WarnInvalidFlag, f)
+		}
+	}
 
 	maskWidthF32, maskHeightF32 := rectSizeF32(mask.Bounds())
 	r.setFlatCustomVAs01(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32)
@@ -20,14 +36,33 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32) {
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMask.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
+	r.opts.Images[2] = nil
+	clear(r.opts.Uniforms)
 }
 
 // MaskAt draws 'source' over 'target' using 'mask' as an alpha mask at the given position.
 // If you want the mask to be fit to the source instead, see [Renderer.Mask]().
-func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32) {
+//
+// Supported flags: [Bilinear], [Dithered].
+func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32, flags ...Flag) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
 	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
 	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+
+	for _, f := range flags {
+		switch f {
+		case noFlag:
+			// ignore
+		case Bilinear:
+			r.opts.Uniforms["Bilinear"] = 1
+		case Dithered:
+			r.opts.Uniforms["Dither"] = 1
+			r.ensureBlueNoiseLoaded()
+			r.opts.Images[2] = r.blueNoise64RGB
+		default:
+			r.Warnings.report(WarnInvalidFlag, f)
+		}
+	}
 
 	r.setFlatCustomVAs01(ox-oxMask, oy-oyMask)
 	r.opts.Images[0] = source
@@ -35,6 +70,8 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskAt.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
+	r.opts.Images[2] = nil
+	clear(r.opts.Uniforms)
 }
 
 // MaskThreshold draws source into target, at the given position, using 'mask' to hide
@@ -58,7 +95,7 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 	r.opts.Images[1] = nil
 }
 
-// MaskHorz draws 'source' over 'target' but with an horizontal alpha fade between
+// MaskHorz draws 'source' over 'target' with an horizontal alpha fade between
 // the given points.
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, x, y, inX, outX float32) {
 	tox, toy := rectOriginF32(target.Bounds())
@@ -67,7 +104,7 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, x, y, inX, outX float3
 }
 
 // MaskCircle draws 'source' into 'target', centered at (cx + srcOffsetX, cy + srcOffset),
-// but filtering out pixels beyond a distance of hardRadius + softEdge from (cx, cy).
+// filtering out pixels beyond a distance of hardRadius + softEdge from (cx, cy).
 func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, srcOffsetY, hardRadius, softEdge float32) {
 	if softEdge < 0.0 {
 		hardRadius += softEdge
@@ -92,7 +129,7 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, 
 	r.opts.Images[0] = nil
 }
 
-// Related to DrawAlphaMaskCirc
+// Pattern type for [Renderer.DrawAlphaMaskCirc]().
 type AlphaMaskPattern int
 
 const (

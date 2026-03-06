@@ -11,19 +11,31 @@ import (
 
 // go test -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
+		if ctx.NewInput {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyB):
+				flags.Flip(Bilinear)
+			case inpututil.IsKeyJustPressed(ebiten.KeyD):
+				flags.Flip(Dithered)
+			}
+		}
+
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lx, ly)
+		ly += float32(-4 + ctx.DistAnim(8, 1.0))
+		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lx, ly, flags...)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rx, ry)
+		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rx, ry, flags...)
 	})
 
 	circ := app.Renderer.NewCircle(64.0)
-	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2)
+	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2) // right side to zero
 	bigRect := app.Renderer.NewRect(256, 128)
-	smallRect := app.Renderer.NewRect(16, 8)
+	smallRect := app.Renderer.NewRect(16, 8) // being small creates an step effect automatically
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, circ, bigRect, smallRect)
 	if err := ebiten.RunGame(app); err != nil {
@@ -33,11 +45,22 @@ func TestMask(t *testing.T) {
 
 // go test -run ^TestMaskAt$ . -count 1
 func TestMaskAt(t *testing.T) {
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
+		if ctx.NewInput {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyB):
+				flags.Flip(Bilinear)
+			case inpututil.IsKeyJustPressed(ebiten.KeyD):
+				flags.Flip(Dithered)
+			}
+		}
+
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		dist := float32(ctx.DistAnim(256.0, 1.0))
-		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly)
+		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly, flags.All()...)
 	})
 
 	circ := app.Renderer.NewCircle(32.0)
