@@ -32,6 +32,7 @@ const (
 	WarnInvalidRateClamped     // out of [0, 1] range
 	WarnInvalidBiasClamped     // out of [-1, 1] range
 	WarnInvalidFlag
+	WarnRepeatedFlag
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
 
@@ -74,6 +75,8 @@ func (w Warning) Message() string {
 		return "tint value out of [0, 1] range, clamped"
 	case WarnInvalidFlag:
 		return "invalid Flag in context"
+	case WarnRepeatedFlag:
+		return "redundant repeated Flag"
 	case WarnInconsistentRangeOpSkipped:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation skipped"
 	case WarnInconsistentRangeInvalidated:
@@ -117,7 +120,7 @@ func NewWarningPanicHandler() func(Warning, any, bool) {
 }
 
 // NewWarningLogOnceHandler returns a handler for [Warnings.SetHandler]()
-// that logs warning only the first time they are seen. Useful as a
+// that logs warnings only the first time they are seen. Useful as a
 // default handler on production/release builds.
 func NewWarningLogOnceHandler() func(Warning, any, bool) {
 	return func(warning Warning, value any, alreadySeen bool) {

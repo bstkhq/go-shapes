@@ -67,7 +67,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 //
 // If source and mask sizes differ, the mask is adjusted like in [Renderer.Mask]().
 //
-// Supported flags: [Bilinear].
+// Supported flags: [Bilinear] (in destination space for mask).
 func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox, oy float32, flags ...Flag) {
 	bilinear, dither := r.readFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
@@ -101,6 +101,7 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 		r.loadBlueNoiseAt(1)
 	}
 
+	// TODO: clip beyond outX, no reason to draw everything
 	tox, _ := rectOriginF32(target.Bounds())
 	lo, hi, ltr := inX, outX, float32(1.0)
 	if hi < lo {
@@ -117,13 +118,10 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 // MaskCircle is a specialized form of [Renderer.MaskAt]() that draws source over target
 // with a circular alpha fade between hardRadius and hardRadius + softEdge.
 //
-// The radial fade is centered at the given circOrigin relative to the source, typically
-// [CTR].
+// The source is drawn at (ox, oy), with the radial fade being centered at (circCX, circCY).
 //
 // Supported flags: [Bilinear], [Dithered].
-//
-// TODO: make arguments ox, oy, circOrigin Origin?
-func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, srcOffsetY, hardRadius, softEdge float32, flags ...Flag) {
+func (r *Renderer) MaskCircle(target, source *ebiten.Image, ox, oy, circCX, circCY, hardRadius, softEdge float32, flags ...Flag) {
 	if softEdge < 0.0 {
 		hardRadius += softEdge
 		softEdge = min(-softEdge, hardRadius-softEdge)
@@ -135,7 +133,7 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, 
 		r.Warnings.report(WarnNegativeValueZeroed, hardRadius)
 		hardRadius = 0.0
 	}
-	if hardRadius == 0 && softEdge == 0 && r.hasSkippableBlend() {
+	if hardRadius == 0 && softEdge == 0 && r.blendSafeToCrop() {
 		return
 	}
 
@@ -146,14 +144,19 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, cx, cy, srcOffsetX, 
 		r.loadBlueNoiseAt(1)
 	}
 
+	maxDist := hardRadius + softEdge + 1.0
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	ox, oy := cx-srcWidthF32/2.0+srcOffsetX, cy-srcHeightF32/2.0+srcOffsetY
-	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
-	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+	var clipLeft, clipRight, clipTop, clipBottom float32
+	if r.blendSafeToCrop() { // compute clipping
+		clipLeft, clipRight = max(0, circCX-maxDist-ox), max(0, (ox+srcWidthF32)-(circCX+maxDist))
+		clipTop, clipBottom = max(0, circCY-maxDist-oy), max(0, (oy+srcHeightF32)-(circCY+maxDist))
+	}
+	r.setDstRectCoords(ox+clipLeft, oy+clipTop, ox+srcWidthF32-clipRight, oy+srcHeightF32-clipBottom)
+	r.setSrcRectCoords(srcOX+clipLeft, srcOY+clipTop, srcOX+srcWidthF32-clipRight, srcOY+srcHeightF32-clipBottom)
 
 	r.opts.Images[0] = source
 	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, hardRadius, softEdge)
+	r.setFlatCustomVAs(circCX-tox, circCY-toy, hardRadius, softEdge)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }

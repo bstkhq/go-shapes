@@ -28,20 +28,34 @@ func TestMask(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
+
+		// dither check strip
+		_, ch := rectSizeF32(canvas.Bounds())
+		ctx.Renderer.Mask(canvas, ctx.Images[4], ctx.Images[3], 16, ch-16-float32(ctx.Images[3].Bounds().Dy()), flags...)
+
+		// circle with slightly movement for bilinear testing
 		lx, ly := ctx.LeftClickF32()
 		ly += float32(-4 + ctx.DistAnim(8, 1.0))
 		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lx, ly, flags...)
 
+		// small rect mask scaling and dst space bilinear test
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rx, ry, flags...)
 	})
 
-	circ := app.Renderer.NewCircle(64.0)
+	app.Renderer.SetColorF32(0.5, 0.5, 0.5, 1.0)
+	circ := app.Renderer.NewCircle(72.0)
+	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2) // right side to zero
 	bigRect := app.Renderer.NewRect(256, 128)
 	smallRect := app.Renderer.NewRect(16, 8) // being small creates an step effect automatically
+
+	longRect := app.Renderer.NewRect(640, 128)
+	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
+	longImg := app.Renderer.NewRect(640, 128)
+
 	app.Renderer.SetColorF32(1, 1, 1, 1)
-	app.Images = append(app.Images, circ, bigRect, smallRect)
+	app.Images = append(app.Images, circ, bigRect, smallRect, longRect, longImg)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +70,21 @@ func TestMaskAt(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		dist := float32(ctx.DistAnim(256.0, 1.0))
 		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly, flags...)
+
+		_, ch := rectSizeF32(canvas.Bounds())
+		x, y := float32(16.0), ch-16-float32(ctx.Images[3].Bounds().Dy())
+		maskSlide := float32(ctx.DistAnim(32.0, 1.0))
+		ctx.Renderer.MaskAt(canvas, ctx.Images[2], ctx.Images[3], x+32, y, x+maskSlide, y, flags...)
 	})
 
 	circ := app.Renderer.NewCircle(32.0)
 	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2)
 	trans := app.Renderer.NewRect(256, 64)
+	longRect := app.Renderer.NewRect(640, 128)
+	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
+	longImg := app.Renderer.NewRect(640-64, 128)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
-	app.Images = append(app.Images, circ, trans)
+	app.Images = append(app.Images, circ, trans, longImg, longRect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +98,20 @@ func TestMaskHorz(t *testing.T) {
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		x, _ := ebiten.CursorPosition()
-		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lx, ly, lx+256/2.0, float32(x))
+		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lx, ly+yShift, lx+256/2.0, float32(x), flags...)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		xm, ym := CTR.Adjust(ctx.Images[1], cw/2, ch*2/3)
+		i1w := float32(ctx.Images[1].Bounds().Dx())
+		ctx.Renderer.MaskHorz(canvas, ctx.Images[1], xm, ym, xm, xm+i1w, flags...)
 	})
 
 	rect := app.Renderer.NewRect(256, 64)
-	app.Images = append(app.Images, rect)
+	app.Renderer.SetColorF32(0.2, 0.2, 0.2, 1.0)
+	rectDither := app.Renderer.NewRect(640, 96)
+	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Images = append(app.Images, rect, rectDither)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +126,13 @@ func TestMaskCircle(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		hardRadius := 48.0 + float32(ctx.DistAnim(16.0, 0.25))
 		softEdge := float32(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.MaskCircle(canvas, ctx.Images[0], w/2, h/2, 0, 0, hardRadius, softEdge)
+		ox, oy := CTR.Adjust(ctx.Images[0], w/2, h/2)
+		ctx.Renderer.MaskCircle(canvas, ctx.Images[0], ox, oy, w/2, h/2, hardRadius, softEdge, flags...)
+
+		lx, ly := ctx.LeftClickF32()
+		ox, oy = CTR.Adjust(ctx.Images[0], lx, ly)
+		circleYShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.MaskCircle(canvas, ctx.Images[0], ox, oy, lx, ly+circleYShift, 32, 16, flags...)
 	})
 
 	rect := app.Renderer.NewRect(360, 360)
