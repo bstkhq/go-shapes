@@ -1,13 +1,41 @@
 //kage:unit pixels
 package main
 
+var Bilinear int
+var Dither int
+
 func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
-	srcColor := imageSrc0UnsafeAt(sourceCoords)
-	refX := targetCoords.x - imageDstOrigin().x
-	inX, outX := customVAs[0], customVAs[1]
-	if inX <= outX { // fade out towards the right
-		return srcColor * (1.0 - smoothstep(inX, outX, refX))
-	} else { // fade out towards the left
-		return srcColor * smoothstep(outX, inX, refX)
+	var srcColor vec4
+	if Bilinear == 1 {
+		srcColor = bilinearSampling0(sourceCoords)
+	} else {
+		srcColor = imageSrc0UnsafeAt(sourceCoords)
 	}
+
+	lo, hi, ltr := customVAs[0], customVAs[1], customVAs[2]
+	relCoords := targetCoords.xy - imageDstOrigin()
+	out := srcColor * abs(ltr-smoothstep(lo, hi, relCoords.x)) // ltr = +smoothstep, rtl = 1.0 - smoothstep
+
+	if Dither == 1 {
+		noise := imageSrc1UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, 0.0, 1.0)
+	}
+
+	return out
+}
+
+func bilinearSampling0(coords vec2) vec4 {
+	tl := imageSrc0At(coords - vec2(0.5))
+	tr := imageSrc0At(coords + vec2(+0.5, -0.5))
+	bl := imageSrc0At(coords + vec2(-0.5, +0.5))
+	br := imageSrc0At(coords + vec2(0.5))
+	delta := fract(coords + vec2(0.5))
+	return bilinearMix(tl, tr, bl, br, delta)
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
 }

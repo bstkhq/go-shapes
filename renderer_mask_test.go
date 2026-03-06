@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"testing"
 
@@ -9,20 +10,23 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+func setMaskFlagsAndTitle(ctx TestAppCtx, flags flagList) {
+	ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
+	if ctx.NewInput {
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyB):
+			flags.Flip(Bilinear)
+		case inpututil.IsKeyJustPressed(ebiten.KeyD):
+			flags.Flip(Dithered)
+		}
+	}
+}
+
 // go test -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
 	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
-		if ctx.NewInput {
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyB):
-				flags.Flip(Bilinear)
-			case inpututil.IsKeyJustPressed(ebiten.KeyD):
-				flags.Flip(Dithered)
-			}
-		}
-
+		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		ly += float32(-4 + ctx.DistAnim(8, 1.0))
@@ -47,20 +51,11 @@ func TestMask(t *testing.T) {
 func TestMaskAt(t *testing.T) {
 	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
-		if ctx.NewInput {
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyB):
-				flags.Flip(Bilinear)
-			case inpututil.IsKeyJustPressed(ebiten.KeyD):
-				flags.Flip(Dithered)
-			}
-		}
-
+		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		dist := float32(ctx.DistAnim(256.0, 1.0))
-		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly, flags.All()...)
+		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly, flags...)
 	})
 
 	circ := app.Renderer.NewCircle(32.0)
@@ -75,7 +70,9 @@ func TestMaskAt(t *testing.T) {
 
 // go test -run ^TestMaskHorz$ . -count 1
 func TestMaskHorz(t *testing.T) {
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		x, _ := ebiten.CursorPosition()
@@ -91,7 +88,9 @@ func TestMaskHorz(t *testing.T) {
 
 // go test -run ^TestMaskCircle$ . -count 1
 func TestMaskCircle(t *testing.T) {
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
 		hardRadius := 48.0 + float32(ctx.DistAnim(16.0, 0.25))
@@ -109,18 +108,28 @@ func TestMaskCircle(t *testing.T) {
 // go test -run ^TestMaskThreshold$ . -count 1
 func TestMaskThreshold(t *testing.T) {
 	const Size = 256
+
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
 		reveal := -0.1 + float32(ctx.ModAnim(1.2, 0.5))
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, reveal: %.02f]", ctx.Title(), flags.Has(Bilinear), reveal))
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyB) {
+			flags.Flip(Bilinear)
+		}
+
+		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, w/2-Size/2, h/2-Size/2)
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - reveal %.02f", reveal))
+		ox, oy := w/2-Size/2, h/2-Size/2
+		oxi, oyi := int(ox), int(oy)
+		Paint(canvas, image.Rect(oxi, oyi, oxi+Size, oyi+Size), [4]float32{0.5, 0, 0, 0.5}, ebiten.BlendSourceOver)
+		oy += float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy)
 	})
 
 	maskTarget := ebiten.NewImage(Size, Size)
-	// app.Renderer.Gradient(maskTarget, nil, 0, 0, color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16, DirRadsLTR, 1.0)
+	gradientOpts := StepGradientOpts(color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16)
+	app.Renderer.Gradient(maskTarget, gradientOpts, DirRadsLTR)
 	whiteRect := app.Renderer.NewRect(Size, Size)
-
 	app.Images = append(app.Images, whiteRect, maskTarget)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -132,7 +141,9 @@ func TestAlphaMaskCirc(t *testing.T) {
 	const Size = 256
 	randomness := float32(0.3)
 
+	flags := newFlagList()
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
 		canvas.Fill(color.Black)
 
 		w, h := rectSizeF32(canvas.Bounds())
@@ -154,7 +165,7 @@ func TestAlphaMaskCirc(t *testing.T) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - randomness %.02f", randomness))
 
 		reveal := -0.1 + float32(ctx.ModAnim(2.0, 0.2))
-		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy)
+		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy, flags...)
 	})
 
 	maskTarget := ebiten.NewImage(Size, Size)

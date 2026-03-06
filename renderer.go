@@ -12,14 +12,26 @@ import (
 //go:embed assets
 var assets embed.FS
 
-// Renderer is a helper type for basic shape rendering which
-// reuses vertices and options for slightly reduced memory usage.
+// Renderer is the heart of the go-shapes package and provides access to most of
+// its operations. It stores offscreens and reused data across rendering methods.
+//
+// Valid renderers must be created through [NewRenderer](). Once created, most
+// users should consider setting a logger for warnings, e.g.[NewWarningLogOnceHandler]().
+//
+// Unless stated otherwise, renderer state management should respect the following
+// conventions:
+//
+//   - Renderer color should not be assumed; set it explicitly before operation.
+//   - If [Renderer.Options]() and [Renderer.Tint]() are modified during operation,
+//     they must be restored afterwards. Tint is assumed to be zero, and the only
+//     common modification to the renderer options is setting the blend, which is
+//     expected to be [ebiten.BlendSourceOver].
 type Renderer struct {
 	vertices []ebiten.Vertex
 	indices  []uint16
 	opts     ebiten.DrawTrianglesShaderOptions
 
-	tint          float32
+	tint          float32 // mix rate for renderer colors in supported operations
 	singleClr     bool
 	strokeIndices []uint16
 
@@ -32,6 +44,7 @@ type Renderer struct {
 	Warnings Warnings
 }
 
+// NewRenderer initializes and returns a new [Renderer].
 func NewRenderer() *Renderer {
 	var renderer Renderer
 	renderer.vertices = make([]ebiten.Vertex, 4)
@@ -57,15 +70,21 @@ func (r *Renderer) GetColorF32(vertexIndex int) [4]float32 {
 	return [4]float32{r.vertices[vertexIndex].ColorR, r.vertices[vertexIndex].ColorG, r.vertices[vertexIndex].ColorB, r.vertices[vertexIndex].ColorA}
 }
 
-// SetColor sets the color of all vertices, unless vertexIndices are specifically provided, in
-// which case only the given indices will be set. In general, most shaders use vertex 0 as top-left,
-// vertex 1 as top-right, vertex 2 as bottom-right, vertex 3 as bottom-left, but this is shader
-// dependent (or even variable in some cases).
+// SetColor sets the color of the renderer vertices. If vertexIndices are not provided,
+// all 4 vertex colors are set; otherwise, only the specified vertices will have the
+// color applied.
+//
+// Vertex indices start at top-left and follow in clockwise order: 0 = top-left, 1 = top-right,
+// 2 = bottom-right, 3 = bottom-left.
+//
+// Colors are internally converted to float32. See also [Renderer.SetColorF32]().
 func (r *Renderer) SetColor(clr color.Color, vertexIndices ...int) {
 	clrF32 := RGBAF32(clr)
 	r.SetColorF32(clrF32[0], clrF32[1], clrF32[2], clrF32[3], vertexIndices...)
 }
 
+// SetColorF32 is the float32 version of [Renderer.SetColor](). Passing colors directly
+// as float32 values avoids conversions.
 func (r *Renderer) SetColorF32(red, green, blue, alpha float32, vertexIndices ...int) {
 	if len(vertexIndices) == 0 {
 		r.singleClr = true
@@ -81,6 +100,7 @@ func (r *Renderer) SetColorF32(red, green, blue, alpha float32, vertexIndices ..
 	}
 }
 
+// ScaleAlphaBy adjusts the vertex colors by multiplying them by alphaFactor.
 func (r *Renderer) ScaleAlphaBy(alphaFactor float32) {
 	for i := range r.vertices {
 		r.vertices[i].ColorR *= alphaFactor
@@ -119,6 +139,7 @@ func (r *Renderer) Tint() float32 {
 	return r.tint
 }
 
+// Options returns the underlying shader options.
 func (r *Renderer) Options() *ebiten.DrawTrianglesShaderOptions {
 	return &r.opts
 }
@@ -152,23 +173,16 @@ func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, ma
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 }
 
-// Shader draws a shader over the given target. The shader area is aligned
-// to the target regardless of its origin position.
-// func (r *Renderer) Shader(target *ebiten.Image, margins Margins, shader *ebiten.Shader) {
-// 	bounds := target.Bounds()
-// 	r.ShaderRect(target, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), margins, shader)
-// }
-
 // DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
 //
 // This operation is affected by [Renderer.Tint].
 //
-// At first glance DrawAt and ebiten.Image.DrawImage overlap heavily, but DrawAt exposes
-// two features that DrawImageOptions doesn't have:
+// At first glance DrawAt might seem redundant with [ebiten.DrawImageOptions], but there are two
+// differential features:
 //   - Applying dithering during composition, which can be especially critical at low alphas
 //     and visibility transitions when image and background colors are similar.
 //   - Painting or interpolating an image with the renderer colors, which can be set per vertex.
-//     This is color mixing, as opposed to ebiten.ColorScale's multiplication.
+//     This is color mixing, as opposed to [ebiten.ColorScale]'s multiplication.
 //
 // Usage example:
 //
@@ -186,33 +200,21 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 		return
 	}
 
-	var dither, bilinear bool
-	for _, flag := range flags {
-		switch flag {
-		case noFlag:
-			// ignore
-		case Dithered:
-			dither = true
-		case Bilinear:
-			bilinear = true
-		default:
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-
+	bilinear, dither := r.readFlags(flags...)
 	if dither {
-		r.ensureBlueNoiseLoaded()
 		r.opts.Uniforms["Dither"] = 1
-		r.opts.Images[1] = r.blueNoise64RGB
+		r.loadBlueNoiseAt(1)
 	}
 
+	var shader *ebiten.Shader
 	if bilinear {
-		r.setFlatCustomVAs01(r.tint, alpha)
-		r.DrawImgShader(target, source, x, y, NoMargins, shaderDrawTintBilinear.Load())
+		shader = shaderDrawTintBilinear.Load()
 	} else {
-		r.setFlatCustomVAs01(r.tint, alpha)
-		r.DrawImgShader(target, source, x, y, NoMargins, shaderDrawTintNearest.Load())
+		shader = shaderDrawTintNearest.Load()
 	}
+
+	r.setFlatCustomVAs01(r.tint, alpha)
+	r.DrawImgShader(target, source, x, y, NoMargins, shader)
 
 	if dither {
 		clear(r.opts.Uniforms)
@@ -236,8 +238,8 @@ type ScaleOptions struct {
 	Bicubic bool
 }
 
-// Scale draws the source into the given target with the given parameters. opts can be nil,
-// but notice that in that case Ebitengine default functions can already do the job fine.
+// Scale draws source into target with the specified parameters. opts can be nil,
+// but in that case there's no advantage over Ebitengine's default functions.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, opts *ScaleOptions) {
 	if scale <= 0 {
 		if scale < 0 {
@@ -281,6 +283,12 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, op
 // already been created while the renderer was doing complex operations, so reusing them
 // can prevent the creation of additional offscreens.
 //
+// The 'clear' argument allows specifying whether the image should be cleared or not
+// (this includes an extra 1px transparent margin if the returned offscreen is part of
+// a larger image).
+//
+// Returned offscreens always have origin (0, 0).
+//
 // The offscreens returned by this function should only be used for local operations, and
 // the offscreen must not be stored. Any renderer function documented to use an internal
 // offscreen can panic or fail in any other way if an offscreen returned by this function
@@ -293,6 +301,8 @@ func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.
 // UnsafeTempCopy calls [Renderer.UnsafeTemp]() and copies the contents of source into
 // the returned offscreen. See safety warnings and docs for UnsafeTemp. The 'clear'
 // argument allows specifying whether a 1 pixel clear margin is required or not.
+//
+// Returned offscreens always have origin (0, 0).
 func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clear bool) *ebiten.Image {
 	bounds := source.Bounds()
 	temp, _ := r.getTemp(offscreenIndex, bounds.Dx(), bounds.Dy(), clear)
@@ -408,4 +418,27 @@ func (r *Renderer) hasSkippableBlend() bool {
 	// ebiten.BlendLighter should also be skippable, but it's so rare
 	// it's probably not be worth it. maybe also shapes.BlendSubtract
 	return r.opts.Blend == ebiten.BlendSourceOver
+}
+
+func (r *Renderer) readFlags(flags ...Flag) (bilinear, dither bool) {
+	for _, f := range flags {
+		switch f {
+		case noFlag:
+			// ignore
+		case Bilinear:
+			if bilinear {
+				r.Warnings.report(WarnRepeatedFlag, f)
+			}
+			bilinear = true
+		case Dithered:
+			if dither {
+				r.Warnings.report(WarnRepeatedFlag, f)
+			}
+			dither = true
+		default:
+			r.Warnings.report(WarnInvalidFlag, f)
+		}
+	}
+
+	return bilinear, dither
 }

@@ -7,8 +7,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Margins are used in basic shader operations like [Renderer.DrawShader](), [Renderer.DrawRectShader],
-// [Renderer.DrawImgShader]().
+// Margins are used in basic shader operations like [Renderer.DrawRectShader]
+// and [Renderer.DrawImgShader]().
 type Margins struct {
 	Left   float32
 	Right  float32
@@ -70,6 +70,23 @@ var (
 	BR  = Origin{X: 1, Y: 1}     // bottom-right
 )
 
+// Adjust translates the given reference position from TL (top-left)
+// origin to o.
+//
+// For example, if we want to draw the bottom-right corner of an image
+// at X=60, Y=40, we adjust the coordinates like this:
+//
+//	x, y := shapes.BR.Adjust(src, 60, 40)
+//
+// See [TC], [TR], [CTR] and company for predefined constants.
+func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
+	if source == nil {
+		return 0, 0
+	}
+	w, h := rectSizeF32(source.Bounds())
+	return x - w*o.X, y - h*o.Y
+}
+
 // Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered], etc.
 type Flag int
 
@@ -97,23 +114,6 @@ func (f Flag) String() string {
 	default:
 		return "Flag#" + strconv.Itoa(int(f))
 	}
-}
-
-// Adjust translates the given reference position from TL (top-left)
-// origin to o.
-//
-// For example, if we want to draw the bottom-right corner of an image
-// at X=60, Y=40, we adjust the coordinates like this:
-//
-//	x, y := shapes.BR.Adjust(src, 60, 40)
-//
-// See [TC], [TR], [CTR] and company for predefined constants.
-func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
-	if source == nil {
-		return 0, 0
-	}
-	w, h := rectSizeF32(source.Bounds())
-	return x - w*o.X, y - h*o.Y
 }
 
 // GaussKernel is a precomputed gaussian kernel used in certain blur and glow operations.
@@ -247,4 +247,11 @@ func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
 		To:    colorToF64(to),
 		Steps: steps,
 	}
+}
+
+func mapBool[T any](b bool, falseValue, trueValue T) T {
+	if b {
+		return trueValue
+	}
+	return falseValue
 }
