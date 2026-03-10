@@ -161,7 +161,7 @@ func (l flagList) Flip(f Flag) {
 	l[f] = -(l[f] - f)
 }
 
-func wrap(x, lo, hi float64) float64 {
+func wrap[Float ~float32 | ~float64](x, lo, hi Float) Float {
 	if x < lo {
 		return hi
 	} else if x > hi {

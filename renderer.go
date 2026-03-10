@@ -178,6 +178,61 @@ func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, ma
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 }
 
+// DrawCircShader draws a shader within a circular triangle strip. This is particularly
+// useful when the bounding rectangle of a circle is much bigger than the actual area
+// that we need to render.
+//
+// Due to the dynamically adjusted number of segments and rendering area, notice that:
+//   - You can't use per-vertex colors, only the first vertex color will be used.
+//   - You shouldn't rely on blends like BlendSourceIn or BlendClear that aren't "safe
+//     to crop".
+func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts CircShaderOptions, shader *ebiten.Shader) {
+	if opts.Tolerance == 0.0 {
+		opts.Tolerance = 7.5 // default tolerance, update opts.Tolerance docs if changed
+	}
+	if opts.Radius < 0.0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, opts.Radius)
+		return
+	}
+	if opts.Radius == 0 {
+		return // ignore blends, this is already a crop operation
+	}
+
+	if opts.Tolerance < 0.1 {
+		r.Warnings.report(WarnLowToleranceRaised, opts.Tolerance)
+		opts.Tolerance = 0.1
+	}
+
+	if opts.StartAngle == opts.EndAngle {
+		return
+	}
+
+	memo := r.memorizeColors()
+	r.vertices = r.vertices[:0]
+	rads := uradsDeltaCW(opts.StartAngle, opts.EndAngle)
+	r.vertices = appendArcVertices(r.vertices, float64(opts.Radius), float64(opts.Thickness), float64(opts.StartAngle), float64(rads), float64(opts.Tolerance))
+
+	for i := range r.vertices {
+		r.vertices[i].DstX += cx
+		r.vertices[i].DstY += cy
+		r.vertices[i].ColorR = memo[0]
+		r.vertices[i].ColorG = memo[1]
+		r.vertices[i].ColorB = memo[2]
+		r.vertices[i].ColorA = memo[3]
+	}
+
+	r.indices = r.indices[:0]
+	for i := range uint16(len(r.vertices)/2 - 1) {
+		s := i << 1
+		r.indices = append(r.indices, s+0, s+1, s+2, s+2, s+1, s+3)
+	}
+
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+
+	r.restoreIndices()
+	r.setColors(memo)
+}
+
 // DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
 //
 // This operation is affected by [Renderer.Tint].

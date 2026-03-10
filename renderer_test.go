@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -157,6 +158,52 @@ func TestDrawImgShader(t *testing.T) {
 	rectO := ebiten.NewImageWithOptions(image.Rect(16, 16, 16+64, 16+48), nil)
 	rectO.Fill(color.White)
 	app.Images = append(app.Images, rect, rectO)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestDrawCircShader$ . -count 1
+func TestDrawCircShader(t *testing.T) {
+	var startDegs float32
+	var degs float32 = 360
+	var tolerance float32
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f]",
+			ctx.Title(), startDegs, degs, tolerance,
+		))
+		canvas.Fill(color.Black)
+
+		if ctx.NewInput {
+			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), float32(-1.0), float32(1.0))
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyS):
+				startDegs = wrap(startDegs+15*sign, 0, 360)
+			case inpututil.IsKeyJustPressed(ebiten.KeyD):
+				degs = wrap(degs+15*sign, 0, 360)
+			case inpututil.IsKeyJustPressed(ebiten.KeyT):
+				tolerance = wrap(tolerance+0.2*sign, 0, 10.0)
+				if tolerance < 0.00001 {
+					tolerance = 0.0
+				}
+			}
+		}
+
+		w, h := rectSizeF32(canvas.Bounds())
+		r := min(w, h) * 0.333
+		th := r * 0.1
+
+		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+		ctx.Renderer.StrokeCircle(canvas, w/2, h/2, r, th)
+
+		ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
+		opts := CircShaderOpts(r, th)
+		opts.StartAngle = startDegs * math.Pi / 180
+		opts.EndAngle = uradsAddCW(opts.StartAngle, degs*math.Pi/180)
+		opts.Tolerance = tolerance
+		ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
+	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

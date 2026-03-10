@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"image/color"
+	"math"
 	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -204,6 +205,8 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 	}
 }
 
+// GradientOptions are used for multiple color operations like
+// [Renderer.Gradient]() and [Renderer.GradientRadial]().
 type GradientOptions struct {
 	// Starting gradient color.
 	From [4]float64
@@ -254,4 +257,35 @@ func mapBool[T any](b bool, falseValue, trueValue T) T {
 		return trueValue
 	}
 	return falseValue
+}
+
+// CircShaderOptions are used for [Renderer.DrawCircShader]().
+type CircShaderOptions struct {
+	Radius float32
+
+	Thickness float32
+
+	// See [RadsRight] constants for angle conventions and docs.
+	StartAngle float32
+
+	// See [RadsRight] constants for angle conventions and docs.
+	EndAngle float32
+
+	// Tolerance sets the maximum allowed tessellation overshoot
+	// in pixels.
+	//
+	// If zero, a default coarse tolerance of 7.5 is used.
+	// The minimum non-zero value is 0.1.
+	Tolerance float32
+}
+
+// CircShaderOpts creates a full circle [CircShaderOptions] with the given radius
+// and thickness.
+func CircShaderOpts(radius, thickness float32) CircShaderOptions {
+	return CircShaderOptions{
+		Radius:     radius,
+		Thickness:  thickness,
+		StartAngle: 0.0,
+		EndAngle:   2 * math.Pi,
+	}
 }

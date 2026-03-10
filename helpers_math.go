@@ -3,6 +3,8 @@ package shapes
 import (
 	"cmp"
 	"math"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 var roFloat32Inf = float32(math.Inf(1))
@@ -108,6 +110,32 @@ func parallelsAtDist[Float ~float32 | ~float64](a, b, c, dist Float) (Float, Flo
 	}
 	shift := dist * norm
 	return c - shift, c + shift, norm
+}
+
+func distToLineF32(coords, start, end PointF32) float32 {
+	if start.X == end.X {
+		return abs(coords.X - end.X)
+	}
+	if start.Y == end.Y {
+		return abs(coords.Y - end.Y)
+	}
+
+	// given ax + by + c = 0, and point (x1, y1):
+	// >> d = |ax1 + by1 + c|/sqrt(a² + b²)
+	a, b, c := toLinearFormABC(start.X, start.Y, end.X, end.Y)
+	return abs(a*coords.X+b*coords.Y+c) / float32(math.Sqrt(float64(a*a+b*b)))
+}
+
+func distToArcF32(coords, start, end PointF32, radius float32) float32 {
+	panic("unimplemented")
+}
+
+func distToQuadF32(coords, start, end PointF32, cx, cy float32) float32 {
+	panic("unimplemented")
+}
+
+func distToCubeF32(coords, start, end PointF32, cax, cay, cbx, cby float32) float32 {
+	panic("unimplemented")
 }
 
 func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Float {
@@ -308,4 +336,85 @@ func uradsAddCW[Float ~float32 | ~float64](start, delta Float) Float {
 		total += 2 * math.Pi
 	}
 	return total
+}
+
+// Vertices are appended in (in, out) pairs.
+// precondition: tolerance >= 0.1
+func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, rads float64, tolerance float64) []ebiten.Vertex {
+	if tolerance < 0.095 {
+		panic("tolerance < 0.1")
+	}
+
+	var sidePad float64
+	var fullCircle bool
+	if rads >= 2*math.Pi-0.000001 {
+		rads = 2 * math.Pi
+		startRads = 0.0
+		fullCircle = true
+	} else if tolerance >= 1.0 {
+		sidePad = 1.0
+	}
+
+	radiusIn := max(radius-thickness*0.5, 0)
+	radiusOut := radius + thickness*0.5 + tolerance
+
+	// - compute maximum chord length -
+	// maximum chord length is determined by maxOvershoot, which must be <= sagitta
+	// (s, the distance between the midpoints of an arc and its chord of length c).
+	// this is given by the formula c = 2*sqrt(2*R*s - s²), which can be derived from
+	// the triangle with hypotenuse = R, side = R - s, base = c/2. apply pythagoras
+	// and you get (R - s)² + (c/2)² = R²
+	maxChordLen := 2 * math.Sqrt(2*radiusOut*tolerance-tolerance*tolerance)
+
+	// compute max angle from max chord length and turn into number of segments
+	maxAngle := 2 * math.Asin(maxChordLen/(2*radiusOut)) // chord/angle formula c = 2*R*sin(θ/2)
+	if maxAngle <= 0 {
+		panic(maxAngle)
+	}
+	numSegments := math.Ceil(rads / maxAngle)
+	// fmt.Printf("numSegments: %d\n", int(numSegments))
+	step := rads / float64(numSegments)
+
+	// tighten radiusOut using the final angle
+	actualS := radiusOut * (1 - math.Cos(step*0.5))
+	radiusOut = radius + thickness*0.5 + actualS
+
+	// sidePad = 0.0
+	iters := int(numSegments)
+	if !fullCircle {
+		iters += 1
+	}
+	for i := range iters {
+		sin, cos := math.Sincos(uradsAddCW(startRads, step*float64(i)))
+		vertices = append(vertices,
+			ebiten.Vertex{
+				DstX: float32(radiusIn * cos),
+				DstY: float32(radiusIn * sin),
+			},
+			ebiten.Vertex{
+				DstX: float32(radiusOut * cos),
+				DstY: float32(radiusOut * sin),
+			},
+		)
+		if sidePad > 0 {
+			if i == 0 {
+				shiftX, shiftY := float32(-sin), float32(cos)
+				vertices[0].DstX += shiftX
+				vertices[0].DstY += shiftY
+				vertices[1].DstX += shiftX
+				vertices[1].DstY += shiftY
+			} else if i == iters-1 {
+				shiftX, shiftY := float32(sin), float32(-cos)
+				vertices[i].DstX += shiftX
+				vertices[i].DstY += shiftY
+				vertices[i-1].DstX += shiftX
+				vertices[i-1].DstY += shiftY
+			}
+		}
+	}
+	if fullCircle { // perfect wrap
+		vertices = append(vertices, vertices[0], vertices[1])
+	}
+
+	return vertices
 }
