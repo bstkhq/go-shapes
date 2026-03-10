@@ -457,6 +457,17 @@ func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThicknes
 	}
 }
 
+var strokeIndices = []uint16{
+	0, 1, 4,
+	4, 1, 5,
+	5, 1, 2,
+	5, 2, 6,
+	6, 2, 3,
+	6, 3, 7,
+	7, 3, 0,
+	0, 4, 7,
+}
+
 func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickness int) {
 	oox, ooy := float32(ox), float32(oy)
 	ofx, ofy := float32(ox+w), float32(oy+h)
@@ -526,7 +537,7 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 		r.vertices[bri].ColorA = lerp(bA, tA, iov)
 	}
 
-	target.DrawTrianglesShader(r.vertices[:], r.strokeIndices[:], shaderDefault.Load(), &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], strokeIndices[:], shaderDefault.Load(), &r.opts)
 	r.vertices = r.vertices[:4]
 }
 

@@ -34,9 +34,8 @@ type Renderer struct {
 	lastBlend           ebiten.Blend
 	lastBlendSafeToCrop bool
 
-	singleClr     bool
-	tint          float32 // mix rate for renderer colors in supported operations
-	strokeIndices []uint16
+	singleClr bool
+	tint      float32 // mix rate for renderer colors in supported operations
 
 	temps          []offscreen
 	blueNoise64RGB *ebiten.Image // used for dithering in some operations
@@ -57,17 +56,17 @@ func NewRenderer() *Renderer {
 	renderer.lastBlend = ebiten.BlendSourceOver
 	renderer.opts.Blend = ebiten.BlendSourceOver
 	renderer.opts.Uniforms = make(map[string]any, 8)
-	renderer.strokeIndices = []uint16{
-		0, 1, 4,
-		4, 1, 5,
-		5, 1, 2,
-		5, 2, 6,
-		6, 2, 3,
-		6, 3, 7,
-		7, 3, 0,
-		0, 4, 7,
-	}
 	return &renderer
+}
+
+func (r *Renderer) restoreIndices() {
+	r.indices = r.indices[:6]
+	r.indices[0] = 0
+	r.indices[1] = 1
+	r.indices[2] = 2
+	r.indices[3] = 0
+	r.indices[4] = 2
+	r.indices[5] = 3
 }
 
 // GetColorF32 returns the current color of the requested vertex
