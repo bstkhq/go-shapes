@@ -11,33 +11,51 @@ import (
 
 // TODO: mention that jfmaps only works with / assumes solid shapes with crisp anti-aliasing (at most one translucent pixel on the shape boundary transition)
 
-// JFMapCompute computes a jumping flood map from the given seeds and
-// stores it in jfmap.
+// TODO: accept bilinear flags for expand and all others. to be seen if with fine it's still required
+
+type JFMFineInit struct {
+	Source   *ebiten.Image
+	MinAlpha float32
+	MaxAlpha float32
+}
+
+// JFMapCompute computes a jumping flood map from the given seeds and stores it in jfmap.
 //
-// A jumping flood map encodes offsets to nearest seeds, which allows
-// computing precise distances and can make large radius morphological
-// operations like outlining, expansion and erosion viable.
+// A jumping flood map encodes offsets to nearest seeds, which allows computing precise
+// distances and can make large radius morphological operations like outlining, expansion
+// and erosion viable. As a downside, they are expensive to recompute on the fly and they
+// are based on binary seeds, which means additional techniques might have to be used to
+// smooth results in many contexts.
 //
 // Jumping flood map internal encoding details are documented in shaders/jfm_pass.kage.
 //
-// Seed pixels in 'seeds' must be marked as trasparent vec4(0); all other
-// pixels must be pure white. maxDistance acts as the cutoff distance for the
-// algorithm, leaving pixels beyond it as pure white. maxDistance must be in
-// [0, 32000] (inclusive). Higher maxDistance values require more iterations
-// of the algorithm, up to a maximum of 16.
+// Seed pixels in 'seeds' must be marked as trasparent vec4(0); all other pixels must be
+// pure white. maxDistance acts as the cutoff distance for the algorithm, leaving pixels
+// beyond it as pure white. maxDistance must be in [0, 32000] (inclusive). Higher maxDistance
+// values require more iterations of the algorithm (logarithmically), up to a maximum of 16.
 //
-// This function uses one internal offscreen (#0). seeds can be on #0 if
-// the image being overwritten is not a concern. jfmap is always overwritten
-// and doesn't need to be cleared before operation.
+// This function uses one internal offscreen (#0). seeds can be on #0 if the image being
+// overwritten is not a concern. jfmap is always overwritten and doesn't need to be cleared
+// before operation.
 //
-// This is a low-level operation; most users should use [Renderer.JFMapFill]()
-// or [Renderer.JFMapBoundary]() instead.
+// This is a low-level operation; most users should use [Renderer.JFMapFill]() or
+// [Renderer.JFMapBoundary]() instead.
 func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
+	r.jfmapCompute(jfmap, seeds, nil, 0, maxDistance)
+}
+
+// internal version of JFMapCompute. If src != nil, the source image will be used
+// to perform even finer distance computation, using the given minAlpha/maxAlpha
+// range for the finetuning.
+func (r *Renderer) jfmapCompute(jfmap, seeds, src *ebiten.Image, refSeedAlpha float32, maxDistance int) {
 	if maxDistance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, maxDistance)
 		maxDistance = 32000
 	} else if maxDistance < 0 {
 		panic("maxDistance < 0")
+	}
+	if refSeedAlpha < 0.0 || refSeedAlpha > 1.0 {
+		panic("(internal) refSeedAlpha must be in [0, 1]")
 	}
 
 	sbounds := seeds.Bounds()
@@ -48,7 +66,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 		panic(fmt.Sprintf("seeds size != jfmap size (%dx%d != %dx%d)", sw, sh, tw, th))
 	}
 
-	// base case
+	// base case (note: it should technically handle fine pass too, but it's not practical)
 	if maxDistance == 0 {
 		var opts ebiten.DrawImageOptions
 		opts.Blend = ebiten.BlendCopy
@@ -58,18 +76,36 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 		return
 	}
 
+	// fine pass configuration
+	var shader *ebiten.Shader
+	if src != nil {
+		srcBounds := src.Bounds()
+		if sw != srcBounds.Dx() || sh != srcBounds.Dy() {
+			panic("(internal) when given, src bounds must match seed bounds")
+		}
+		if jfmap == src || jfmap == seeds {
+			panic("whoopsies")
+		}
+		r.opts.Uniforms["RefSeedAlpha"] = refSeedAlpha
+		r.opts.Images[1] = src
+		shader = shaderJFMPassFine.Load()
+	} else {
+		shader = shaderJFMPass.Load()
+	}
+
 	// we use 1+JFA, so the first pass uses jump size = 1
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 
-	dstOX, dstOY := float32(tbounds.Min.X), float32(tbounds.Min.Y)
+	jfmOX, jfmOY := rectOriginF32(tbounds)
+	seedOX, seedOY := rectOriginF32(sbounds)
 	w, h := float32(sw), float32(sh)
-	mapCoords := [2][4]float32{{dstOX, dstOY, dstOX + w, dstOY + h}, {0, 0, w, h}}
+	mapCoords := [2][4]float32{{jfmOX, jfmOY, jfmOX + w, jfmOY + h}, {seedOX, seedOY, seedOX + w, seedOY + h}}
 	r.setFlatCustomVAs01(1.0, float32(maxDistance))
 	r.opts.Images[0] = seeds
 	r.setDstRectCoords(mapCoords[0][0], mapCoords[0][1], mapCoords[0][2], mapCoords[0][3])
 	r.setSrcRectCoords(mapCoords[1][0], mapCoords[1][1], mapCoords[1][2], mapCoords[1][3])
-	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass.Load(), &r.opts)
+	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
@@ -83,10 +119,15 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 		newIndex := 1 - mapIndex
 		r.setSrcRectCoords(mapCoords[newIndex][0], mapCoords[newIndex][1], mapCoords[newIndex][2], mapCoords[newIndex][3])
 		r.opts.Images[0] = maps[newIndex]
-		maps[mapIndex].DrawTrianglesShader(r.vertices[:], r.indices[:], shaderJFMPass.Load(), &r.opts)
+		maps[mapIndex].DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
 		mapIndex = newIndex
 		jumpSize /= 2
 	}
+
+	// cleanup
+	clear(r.opts.Uniforms)
+	r.opts.Images[0] = nil
+	r.opts.Images[1] = nil
 
 	// copy to jfmap if last step was done on temp
 	if mapIndex == 0 {
@@ -97,27 +138,24 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 
 	// cleanup
 	r.opts.Blend = memoBlend
-	r.opts.Images[0] = nil
 }
 
-// JFMapFill computes a jumping flood map of the given source image
-// and stores it in jfmap.
+// JFMapFill computes a jumping flood map of the given source image and stores it
+// in jfmap. minAlpha and maxAlpha delimit the seeds area (inclusive). For exclusive
+// bounds, shift by +/-0.001. If fine is true, the source is passed to the JFA passes
+// for a finer JFMap construction that takes into account source alphas.
 //
 // Preconditions:
 //   - source and jfmap must have the same size
 //   - 0 <= maxDistance <= 32k
 //   - 0.0 <= minAlpha <= maxAlpha <= 1.0
 //
-// Parameters:
-//   - minAlpha, maxAlpha: inclusive range defining the area inside the boundary.
-//     For exclusive bounds, shift by +/-0.001.
-//
 // This function uses one internal offscreen (#0); neither source nor jfmap can use it,
-// but they can share internal atlas otherwise. jfmap doesn't need to be cleared before
-// operation.
+// but they can share internal atlas when fine is not used. jfmap doesn't need to be
+// cleared before operation.
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32) {
+func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32, fine bool) {
 	if minAlpha < 0 {
 		r.Warnings.report(WarnInvalidAlphaClamped, minAlpha)
 		minAlpha = 0
@@ -133,31 +171,41 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 	}
 
 	r.setFlatCustomVAs01(minAlpha, maxAlpha)
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill.Load())
+	refAlpha := jfmInitRefAlpha(fine, minAlpha, maxAlpha)
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill.Load(), refAlpha)
+}
+
+// BoundaryMode is a parameter type for [Renderer.JFMapBoundary]().
+type BoundaryMode struct {
+	// If false, the boundary is marked at the last pixel inside the
+	// boundary region (minAlpha, maxAlpha). If true, at the first pixel
+	// outside it.
+	Outer bool
+
+	// If false, out-of-bound pixels are treated as zero. If true,
+	// nearest edge pixel color is used instead.
+	ExtendEdges bool
+
+	// If true, the source is passed to the JFA passes for a finer
+	// JFMap construction that takes into account source alphas.
+	Fine bool
 }
 
 // JFMapBoundary computes a jumping flood map of the given source image
-// and stores it in jfmap.
+// and stores it in jfmap. minAlpha and maxAlpha delimit the area inside
+// the boundary (inclusive). For exclusive bounds, shift by +/-0.001.
 //
 // Preconditions (panics if violated):
 //   - source and jfmap must have the same size
 //   - 0 <= maxDistance <= 32k
 //   - 0.0 <= minAlpha <= maxAlpha <= 1.0
 //
-// Parameters:
-//   - minAlpha, maxAlpha: inclusive range defining the area inside the boundary.
-//     For exclusive bounds, shift by +/-0.001.
-//   - outer: if false, the boundary is marked at the last pixel inside the
-//     (minAlpha, maxAlpha) region; if true, at the first pixel outside it.
-//   - extendEdges: if false, out-of-bounds pixels are treated as zero (vec4(0));
-//     if true, the nearest edge pixel is repeated.
-//
 // This function uses one internal offscreen (#0); neither source nor jfmap can use it,
-// but they can share internal atlas otherwise. jfmap doesn't need to be cleared before
-// operation.
+// but they can share internal atlas when fine is not used. jfmap doesn't need to be cleared
+// before operation.
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32, outer bool, extendEdges bool) {
+func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, minAlpha, maxAlpha float32, mode BoundaryMode) {
 	if minAlpha < 0 {
 		r.Warnings.report(WarnInvalidAlphaClamped, minAlpha)
 		minAlpha = 0
@@ -172,19 +220,30 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 		return
 	}
 
-	boolToF32 := func(b bool) float32 {
-		if b {
-			return 1.0
-		}
-		return 0.0
+	outer := mapBool[float32](mode.Outer, 0, 1)
+	extend := mapBool[float32](mode.ExtendEdges, 0, 1)
+	r.setFlatCustomVAs(minAlpha, maxAlpha, outer, extend)
+	refAlpha := jfmInitRefAlpha(mode.Fine, minAlpha, maxAlpha)
+	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary.Load(), refAlpha)
+}
+
+func jfmInitRefAlpha(fine bool, minAlpha, maxAlpha float32) float32 {
+	if !fine {
+		return -1.0
 	}
-	r.setFlatCustomVAs(minAlpha, maxAlpha, boolToF32(outer), boolToF32(extendEdges))
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary.Load())
+	switch {
+	case minAlpha == 0.0 && maxAlpha < 1.0:
+		return 0.0
+	case maxAlpha == 1.0 && minAlpha > 0.0:
+		return 1.0
+	default:
+		return (maxAlpha + minAlpha) / 2.0
+	}
 }
 
 // helper for JFMapFill and JFMapBoundary. init shader vertex attributes must have already
-// been set. uses unsafe offscreen #0.
-func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initShader *ebiten.Shader) {
+// been set. uses unsafe offscreen #0. pass refAlpha >= for fine jfmap
+func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initShader *ebiten.Shader, refAlpha float32) {
 	ox, oy, sw, sh := rectOriginSizeF32(source.Bounds())
 	seeds, _ := r.getTemp(0, int(sw), int(sh), false)
 	r.setDstRectCoords(0, 0, sw, sh)
@@ -196,26 +255,34 @@ func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initSha
 	seeds.DrawTrianglesShader(r.vertices[:], r.indices[:], initShader, &r.opts)
 	r.opts.Blend = memoBlend
 
-	r.JFMapCompute(jfmap, seeds, maxDistance)
+	if refAlpha < 0.0 {
+		r.JFMapCompute(jfmap, seeds, maxDistance)
+	} else {
+		r.jfmapCompute(jfmap, seeds, source, refAlpha, maxDistance)
+	}
 }
 
 // JFMHeat is a debug and utility method to draw a heatmap for jfmap into the given target,
 // using 0 and maxDistance as reference distances for "hot" and "cold". The seeds of a
 // jfmap can be visualized by setting maxDistance to a positive value below 1 (e.g. 0.1).
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance float32) {
 	r.setFlatCustomVA0(maxDistance)
 	r.DrawImgShader(target, jfmap, ox, oy, NoMargins, shaderJFMHeat.Load())
 }
 
-// JFMExpand performs morphological expansion. distance must be in [0, 32k].
-// Notice that since jumping flood algorithms are based on distances to seeds,
-// the only work well for shapes with hard edges. For soft edges, pure
-// [Renderer.ApplyExpansion]() is the only real high quality option.
-//
+// JFMExpand performs morphological expansion.
+//   - distance must be in [0, 32k].
+//   - source and jfmap must be the same size, and they should be in the same atlas to avoid
+//     automatic atlasing issues.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
-//     using [JFMPixel] mode with [0.001, 1.0] alpha interval (all not fully transparent pixels
+//     using [Renderer.JFMapFill]() with [0.001, 1.0] alpha interval (all non-transparent pixels
 //     are seeds).
-//   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
+//
+// TODO: specify offscreens being used
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
@@ -224,24 +291,39 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 		panic("distance < 0")
 	}
 
-	var jfmapMaxDist float64
 	if jfmap == nil {
-		jfmapMaxDist = math.Ceil(float64(distance))
+		jfmapMaxDist := ceilF32(distance)
 		source, jfmap = r.UnsafeTempDual(1, source, int(jfmapMaxDist), false)
-		r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0)
+		r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0, false)
+		ox -= jfmapMaxDist // compensate drawing position
+		oy -= jfmapMaxDist
+	} else {
+		sw, sh := rectSize(source.Bounds())
+		mw, mh := rectSize(jfmap.Bounds())
+		if sw != mw || sh != mh {
+			panic(fmt.Sprintf("source size != jfmap size (%dx%d != %dx%d)", sw, sh, mw, mh))
+		}
 	}
 
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
-	r.DrawImgShader(target, source, ox-float32(jfmapMaxDist), oy-float32(jfmapMaxDist), NoMargins, shaderJFMExpansion.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMExpansion.Load())
 	r.opts.Images[1] = nil
 }
 
-// JFMErode performs morphological erosion. distance must be in [0, 32k].
-//
-//   - jfmap can be nil, in which case it will be automatically generated for only this operation
-//     using [JFMPixel] mode with [0.0, 0.0] alpha interval (transparent pixels are seeds).
+// NOTE: expand and erode can be done with rel dist product. We might support a Feather flag alongside Bilinear.
+//func (r *Renderr) JFMFeather(target, source, jfmap *ebiten.Image, ox, oy, radius, curve float32) {}
+
+// JFMErode performs morphological erosion.
+//   - distance must be in [0, 32k].
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
+//   - jfmap can be nil, in which case it will be automatically generated for only this operation
+//     using [Renderer.JFMapBoundary]() with [0.0, 0.0] alpha interval + outer.
+//
+// This operation is affected by [Renderer.Tint]. (TODO)
+// TODO: specify offscreens being used
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
@@ -253,7 +335,7 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 	if jfmap == nil {
 		jfmapMaxDist := int(math.Ceil(float64(distance)))
 		source, jfmap = r.UnsafeTempDual(1, source, jfmapMaxDist, false)
-		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.0)
+		r.JFMapBoundary(jfmap, source, jfmapMaxDist, 0.0, 0.0, BoundaryMode{Outer: true})
 	}
 
 	r.opts.Images[1] = jfmap
@@ -265,27 +347,33 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 // TODO: unimplemented
 //
 // JFMOutline performs morphological outlining.
-//
-//   - colorMix controls the outline color (0 = use vertex colors, 1 = use source colors)
-//   - jfmap can be nil, in which case it will be automatically generated for only this operation
-//     using [JFMBoundary] mode.
+//   - thicknesses must be in [0, 32k].
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-func (r *Renderer) JFMOutline(target, source, jfmap *ebiten.Image, ox, oy, inThickness, outThickness, inOpacity, colorMix float32) {
+//   - jfmap can be nil, in which case it will be automatically generated for only this
+//     operation using [JFMBoundary] mode.
+//
+// This operation is affected by [Renderer.Tint].
+// TODO: specify offscreens being used
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
+func (r *Renderer) JFMOutline(target, source, jfmap *ebiten.Image, ox, oy, inThickness, outThickness, inOpacity float32) {
 	panic("unimplemented")
 }
 
 // TODO: unimplemented
 //
 // JFMInsetContour is a specific effect designed mainly for text animations. It creates an
-// internal outline, which includes the image borders where the target clips the source, while
-// also allowing to control the inner fill opacity.
-//
-//   - colorMix controls the outline color (0 = use vertex colors, 1 = use source colors)
-//   - jfmap can be nil, in which case it will be automatically generated for only this operation
-//     using [JFMBoundary] mode.
+// internal outline, which includes the image borders where the target clips the source, and
+// also allows control over the inner fill opacity.
+//   - inThickness must be in [0, 32k].
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
-func (r *Renderer) JFMInsetContour(target, source, jfmap *ebiten.Image, ox, oy, inThickness, inOpacity, colorMix float32) {
+//   - jfmap can be nil, in which case it will be automatically generated for only this
+//     operation using [JFMBoundary] mode.
+//
+// This operation is affected by [Renderer.Tint]. (TODO)
+// TODO: specify offscreens being used
+//
+// For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
+func (r *Renderer) JFMInsetContour(target, source, jfmap *ebiten.Image, ox, oy, inThickness, inOpacity float32) {
 	panic("unimplemented")
 }
-
-//func (r *Renderr) JFMFeather(target, source, jfmap *ebiten.Image, ox, oy, radius, curve float32) {}

@@ -14,6 +14,7 @@ type shaderRef struct {
 }
 
 func (s *shaderRef) Load() *ebiten.Shader {
+	// TODO: log loads
 	s.once.Do(s.loadOnce)
 	return s.shader
 }
@@ -293,6 +294,10 @@ var shaderHalftoneTri = shaderRef{src: shaderHalftoneTriSrc}
 //go:embed shaders/jfm_pass.kage
 var shaderJFMPassSrc []byte
 var shaderJFMPass = shaderRef{src: shaderJFMPassSrc}
+
+//go:embed shaders/jfm_pass_fine.kage
+var shaderJFMPassFineSrc []byte
+var shaderJFMPassFine = shaderRef{src: shaderJFMPassFineSrc}
 
 //go:embed shaders/jfm_init_fill.kage
 var shaderJFMInitFillSrc []byte

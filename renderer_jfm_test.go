@@ -64,7 +64,7 @@ func TestJFMCompute(t *testing.T) {
 	src.Set(2, 2, color.White)
 
 	dst := ebiten.NewImage(9, 9)
-	r.JFMapBoundary(dst, src, 4, 0.001, 1.0, false, false)
+	r.JFMapBoundary(dst, src, 4, 0.001, 1.0, BoundaryMode{})
 
 	out := image.NewRGBA(image.Rect(0, 0, 9, 9))
 	if err := ebiten.RunGame(&testOutputWriter{subject: dst, out: out.Pix}); err != nil {
@@ -114,7 +114,7 @@ func TestJFMCompute2(t *testing.T) {
 	src := ebiten.NewImage(1, 260)
 	dst := ebiten.NewImage(1, 260)
 	src.Set(0, 258, color.White)
-	r.JFMapBoundary(dst, src, 257, 0.001, 1.0, false, false)
+	r.JFMapBoundary(dst, src, 257, 0.001, 1.0, BoundaryMode{})
 
 	out := image.NewRGBA(image.Rect(0, 0, 1, 260))
 	if err := ebiten.RunGame(&testOutputWriter{subject: dst, out: out.Pix}); err != nil {
@@ -184,16 +184,31 @@ func TestJFMExpand(t *testing.T) {
 			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
 			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh/4, Circ2Radius+16.0)
 			ctx.Renderer.DrawCircle(canvas, bw/4, bh-bh/4, Circ2Radius+16.0)
+			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh-bh/4, Circ2Radius+16.0)
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		}
+
+		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
+		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
+
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
 		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r)
+
+		maxDist := ceilF32(r)
+		source := ctx.Renderer.UnsafeTempCopy(1, ctx.Images[imgIndex], int(maxDist), false)
+		jfmap := ctx.Renderer.UnsafeTemp(2, source.Bounds().Dx(), source.Bounds().Dy(), false)
+		ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0, true) // TODO: test with true for fine.
+		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r)
 	})
 
 	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
-	// app.Renderer.GradientRadial(circle, BaseRadius, BaseRadius, color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, BaseRadius*0.25, BaseRadius*0.75, BaseRadius, -1, 3.0)
+	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
+	gradientOpts.Bias = 0.5
+	app.Renderer.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
-	// app.Renderer.Gradient(circle, nil, 0, 0, color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, -1.0, DirRadsBLTR, 0.75)
+	gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
+	gradientOpts.Bias = -0.25
+	app.Renderer.Gradient(circle, gradientOpts, DirRadsBLTR)
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
 	xSign := ebiten.NewImage(XW, XH)
@@ -203,7 +218,8 @@ func TestJFMExpand(t *testing.T) {
 	app.Renderer.SetColorF32(0.5, 0.25, 0.75, 1.0)
 	app.Renderer.DrawCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-	app.Images = append(app.Images, circle, xSign, circ2)
+	rect := app.Renderer.NewRect(256, 192)
+	app.Images = append(app.Images, circle, xSign, circ2, rect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +262,7 @@ func TestJFMHeat(t *testing.T) {
 			const MaxDist = 128
 			bounds := canvas.Bounds()
 			jfmap := ctx.Renderer.UnsafeTemp(1, bounds.Dx(), bounds.Dy(), false)
-			ctx.Renderer.JFMapFill(jfmap, canvas, MaxDist, 0.001, 1.0)
+			ctx.Renderer.JFMapFill(jfmap, canvas, MaxDist, 0.001, 1.0, false)
 			ctx.Renderer.JFMHeat(canvas, jfmap, 0, 0, MaxDist)
 		}
 	})

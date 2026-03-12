@@ -1,26 +1,19 @@
 //kage:unit pixels
 package main
 
-// This file implements a single JFA (jump flooding algorithm) pass in Kage.
-// The whole algorithm consists of initialization, loop of passes and finalization.
-//
-// Given Ebitengine's limitations in terms of texture formats, the data for the
-// JF internal maps is encoded as follows:
-//  - vec4(1) represents a pixel with an unknown/max seed offset. Decoding this
-//    value with jfaComputeOffsetToSeed gives a distance of (-32767, -32767). Users
-//    should not be allowed to request distances beyond 32k.
-//  - vec4(0) represents a seed pixel. Decoding this value with jfaComputeOffsetToSeed
-//    gives a distance of (0, 0) (offset to nearest seed is zero).
-//  - Otherwise the (R G B A) values are used to encode the offset to the nearest seed.
-//    In particular, (R G) represents the x offset and (B A) represents the y offset.
-//    The encoding is simply 16 bits: top bit represents sign (0 positive, 1 negative),
-//    and the remaining 15 bits represent the magnitude. See jfaDecodeAxisOffsetToSeed
-//    and jfaEncodeAxisOffsetToSeed for the actual code.
+// see jfm_pass.kage for context on JFA and basic jfm_pass implementation.
+// this implementation uses the original source image as an additional
+// information point, and does finer grained offset selection by compensating
+// distances with RefSeedAlpha and the original source alpha. This makes
+// JFMap construction more expensive. TODO: describe quality differences
+// and quantify construction difference.
 
-// TODO: actually, we can pass a second image to do fine grained alpha adjustment? With
-// some parameters for alpha normalization? We can figure out the band of uncertainty and
-// have an extra lookup in that case, right? that would be complex but probably increase
-// quality by picking actually closer/better seeds.
+var RefSeedAlpha float
+
+// NOTE: one might consider whether to take origin alpha into account too, but the
+// source alpha is constant relative to itself, so all distances would be affected
+// equally with the current single RefSeedAlpha setup. Maybe sum of jumps would be
+// affected but we compute the final jump as a single step..?
 
 func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	pix := imageSrc0At(sourceCoords)
@@ -29,10 +22,10 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	}
 
 	jump := int(customVAs[0])
-	maxOffset := int(customVAs[1])
+	maxDist := customVAs[1]
 	bestOffset := jfaComputeOffsetToSeed(pix)
 	initOffset := bestOffset
-	bestDist := sqDist(bestOffset) // if pix is max_offset/uninitialized, bestDist = 2*(32767^2) (expect precision loss)
+	bestDist := length(vec2(bestOffset)) // if pix is max_offset/uninitialized, bestDist = length(vec2(32767)) (expect precision loss)
 
 	offsets := [8]ivec2{
 		ivec2(-jump, -jump), ivec2(0, -jump), ivec2(+jump, -jump),
@@ -56,31 +49,24 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 		neighbour := neighbours[i]
 		offset := jfaComputeOffsetToSeed(neighbour) // neighbour best seed offset
 		offset += offsets[i]                        // our candidate best seed offset
-		dist := sqDist(offset)
-		if dist < bestDist || (dist == bestDist && winTie(offset, bestOffset)) {
-			bestDist = dist
-			bestOffset = offset
+		dist := length(vec2(offset))
+		if dist <= maxDist && dist < bestDist {
+			// due to checking against both max offset and best dist, the sampling
+			// at imgSrc1 can't be out of bounds, so it's ok to use Unsafe
+			alpha := imageSrc1UnsafeAt(sourceCoords + vec2(offset)).a
+			dist += abs(RefSeedAlpha-alpha) * 0.5
+			if dist < bestDist {
+				bestDist = dist
+				bestOffset = offset
+			}
 		}
 	}
 
-	if initOffset != bestOffset && validOffsetDistance(bestOffset, maxOffset) {
+	if initOffset != bestOffset && bestDist <= maxDist {
 		pix.xy = jfaEncodeAxisOffsetToSeed(bestOffset.x)
 		pix.zw = jfaEncodeAxisOffsetToSeed(bestOffset.y)
 	}
 	return pix
-}
-
-func sqDist(offset ivec2) float {
-	fOffset := vec2(offset)
-	return fOffset.x*fOffset.x + fOffset.y*fOffset.y
-}
-
-func winTie(offset, bestOffset ivec2) bool {
-	return (offset.x < bestOffset.x || (offset.x == bestOffset.x && offset.y < bestOffset.y))
-}
-
-func validOffsetDistance(offset ivec2, maxOffset int) bool {
-	return offset.x*offset.x+offset.y*offset.y <= maxOffset*maxOffset
 }
 
 // return 1 instead of 0 when going out of bounds
