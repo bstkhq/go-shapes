@@ -4,6 +4,10 @@ import (
 	"image"
 )
 
+func rectSize(bounds image.Rectangle) (w, h int) {
+	return bounds.Dx(), bounds.Dy()
+}
+
 func rectOriginSize(bounds image.Rectangle) (ox, oy, w, h int) {
 	return bounds.Min.X, bounds.Min.Y, bounds.Dx(), bounds.Dy()
 }

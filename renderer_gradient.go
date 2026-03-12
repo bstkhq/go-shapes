@@ -32,7 +32,7 @@ func (r *Renderer) setColors(values [16]float32) {
 //
 // If you need to apply the gradient over a mask, use ebiten.BlendSourceIn:
 //
-//	tmp := r.UnsafeTempCopy(0, mask, false) // optionally make a mask copy
+//	tmp := r.UnsafeTempCopy(0, mask, 0, false) // optionally make a mask copy
 //	r.Options().Blend = ebiten.BlendSourceIn
 //	r.Gradient(tmp, opts, DirRadsBLTR) // gradient applied to mask copy
 //	r.Options().Blend = ebiten.BlendSourceOver
@@ -68,14 +68,6 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.setColors(memo)
-}
-
-func (r *Renderer) gradientMask(target, mask *ebiten.Image, x, y float32, opts GradientOptions, dirRadians float64) {
-	tmp := r.UnsafeTempCopy(0, mask, false) // optionally make a mask copy
-	r.Options().Blend = ebiten.BlendSourceIn
-	r.Gradient(tmp, opts, DirRadsBLTR) // gradient applied to mask copy
-	r.Options().Blend = ebiten.BlendSourceOver
-	r.DrawAt(target, tmp, x, y, 1.0)
 }
 
 // ColorizeByLightnessO(target, source *ebiten.Image, ox, oy float32, opts GradientOpts, fromLightness, toLightness float32)

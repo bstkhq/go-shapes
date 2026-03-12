@@ -32,6 +32,10 @@ func (p PointF32) Length() float32 {
 	return float32(math.Hypot(float64(p.X), float64(p.Y)))
 }
 
+func (p PointF32) lengthSq() float32 {
+	return p.X*p.X + p.Y*p.Y
+}
+
 func (p PointF32) Normalize() PointF32 {
 	l := p.Length()
 	if l == 0 {
