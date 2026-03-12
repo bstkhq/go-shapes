@@ -49,8 +49,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 
 	for i := 0; i < 8; i++ {
 		neighbour := neighbours[i]
-		offset := jfaComputeOffsetToSeed(neighbour)
-		offset += offsets[i]
+		offset := jfaComputeOffsetToSeed(neighbour) // neighbour best seed offset
+		offset += offsets[i]                        // our candidate best seed offset
 		dist := sqDist(offset)
 		if dist < bestDist || (dist == bestDist && winTie(offset, bestOffset)) {
 			bestDist = dist

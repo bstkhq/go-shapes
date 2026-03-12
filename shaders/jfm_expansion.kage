@@ -3,20 +3,76 @@ package main
 
 // see jfm_pass.kage for further context on JFA and offsets decoding
 
-func Fragment(_ vec4, sourceCoords0 vec2, color vec4, customVAs vec4) vec4 {
+var Smooth int
+
+// imageSrc0 = source, imageSrc1 = jf map
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	thickness := customVAs[0]
 
-	normCoords0 := (sourceCoords0 - imageSrc0Origin()) / imageSrc0Size()
-	sourceCoords1 := (normCoords0 * imageSrc1Size()) + imageSrc0Origin()
+	var in float
+	if Smooth == 1 {
+		in = smoothWithin(sourceCoords, thickness)
+	} else {
+		in = within(sourceCoords, vec2(0), thickness)
+	}
 
-	seedDist := distanceToSeed(sourceCoords1, sourceCoords0)
-	return color * (1.0 - clamp(seedDist-thickness, 0, 1))
+	return color * in
 }
 
-func distanceToSeed(dfCoords, pxCoords vec2) float {
-	seedOffset := vec2(jfaComputeOffsetToSeed(imageSrc1At(dfCoords)))
-	alphaDist := 1.0 - pow(imageSrc0At(pxCoords).a, 1/2.2)
-	return length(seedOffset) + alphaDist
+// within checks if the distance from the given point to a seed falls
+// below maxDist. it returns a value between 0 (outside) and 1 (inside).
+// sourceCoords + neighborOffsets are not checked to be in bounds
+func within(sourceCoords, neighborOffset vec2, maxDist float) float {
+	sourceCoords += neighborOffset
+	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
+
+	// source alpha on expansions is assumed to be 0 if not seed,
+	// so it's not fetched
+	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
+	seedDist := length(offset+neighborOffset) + (1.0 - seedAlpha)
+	return (1.0 - clamp(seedDist-maxDist, 0, 1))
+}
+
+func smoothWithin(sourceCoords vec2, maxDist float) float {
+	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
+	clampedLS := max(-1.0, minCoords.x-sourceCoords.x) // clamped shifts
+	clampedRS := min(1.0, maxCoords.x-sourceCoords.x)
+	clampedTS := max(-1.0, minCoords.y-sourceCoords.y)
+	clampedBS := min(1.0, maxCoords.y-sourceCoords.y)
+
+	// weights for corners and sides. they don't make much
+	// theoretical sense, but they seem subjectively smoother to me
+	wx, ws := 0.8, 0.9
+
+	// side and diag are factors to shift the sampling slightly inwards.
+	// this doesn't make much theoretical sense, but since sampling
+	// is nearest, this offsetting makes smooth movement in x/y
+	// more progressive: points jump samples in a staircase instead of
+	// all at once. there must be better methods, but this is low
+	// overhead at the moment
+	const side = 0.75
+	const diag = 0.707 * 0.75
+
+	tl := within(sourceCoords, vec2(clampedLS*side, clampedTS*side), maxDist) * wx
+	tc := within(sourceCoords, vec2(+0.0, clampedTS*side), maxDist) * ws
+	tr := within(sourceCoords, vec2(clampedRS*side, clampedTS*side), maxDist) * wx
+	cl := within(sourceCoords, vec2(clampedLS*side, +0.0), maxDist) * ws
+	cc := within(sourceCoords, vec2(+0.0, +0.0), maxDist)
+	cr := within(sourceCoords, vec2(clampedRS*side, +0.0), maxDist) * ws
+	bl := within(sourceCoords, vec2(clampedLS*side, clampedBS*side), maxDist) * wx
+	bc := within(sourceCoords, vec2(+0.0, clampedBS*side), maxDist) * ws
+	br := within(sourceCoords, vec2(clampedRS*side, clampedBS*side), maxDist) * wx
+
+	return max3(max3(tl, tc, tr), max3(cl, cc, cr), max3(bl, bc, br))
+}
+
+func max3(a, b, c float) float {
+	return max(max(a, b), c)
+}
+
+func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
 }
 
 // taken from jfm_pass.kage

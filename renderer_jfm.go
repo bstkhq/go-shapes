@@ -215,14 +215,13 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 //   - distance must be in [0, 32k].
 //   - source and jfmap must be the same size, and they should be in the same atlas to avoid
 //     automatic atlasing issues.
+//   - smooth can be set to true to sample a 3x3 area for higher morphological accuracy.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [Renderer.JFMapFill]() with [0.001, 1.0] alpha interval (all non-transparent pixels
-//     are seeds).
-//
-// TODO: specify offscreens being used
+//     are seeds). If jfmap is nil, this function uses the internal offscreens (#0, #1).
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
+func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32, smooth bool) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
 		distance = 32000
@@ -244,10 +243,18 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 		}
 	}
 
+	if smooth {
+		r.opts.Uniforms["Smooth"] = 1
+	}
+
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVA0(distance)
 	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMExpansion.Load())
 	r.opts.Images[1] = nil
+
+	if smooth {
+		clear(r.opts.Uniforms)
+	}
 }
 
 // NOTE: expand and erode can be done with rel dist product. We might support a Feather flag alongside Bilinear.
@@ -257,10 +264,10 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 //   - distance must be in [0, 32k].
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
-//     using [Renderer.JFMapBoundary]() with [0.0, 0.0] alpha interval + outer.
+//     using [Renderer.JFMapBoundary]() with [0.0, 0.0] alpha interval + outer. If jfmap is nil,
+//     this function uses the internal offscreens (#0, #1).
 //
 // This operation is affected by [Renderer.Tint]. (TODO)
-// TODO: specify offscreens being used
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
@@ -307,10 +314,10 @@ func (r *Renderer) JFMOutline(target, source, jfmap *ebiten.Image, ox, oy, inThi
 //   - inThickness must be in [0, 32k].
 //   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
 //   - jfmap can be nil, in which case it will be automatically generated for only this
-//     operation using [JFMBoundary] mode.
+//     operation using [JFMBoundary] mode. If jfmap is nil, this function uses the internal
+//     offscreens (#0, #1).
 //
 // This operation is affected by [Renderer.Tint]. (TODO)
-// TODO: specify offscreens being used
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMInsetContour(target, source, jfmap *ebiten.Image, ox, oy, inThickness, inOpacity float32) {

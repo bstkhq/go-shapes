@@ -192,12 +192,13 @@ func TestJFMExpand(t *testing.T) {
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, false)
 
 		maxDist := ceilF32(r)
 		source, jfmap := ctx.Renderer.UnsafeTempDual(1, ctx.Images[imgIndex], int(maxDist), false)
 		ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
-		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r)
+		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist+yShift, r, true)
 	})
 
 	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
