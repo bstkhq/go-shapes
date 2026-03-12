@@ -362,12 +362,29 @@ func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.
 // the returned offscreen. See safety warnings and docs for UnsafeTemp. The 'clear'
 // argument allows specifying whether a 1 pixel clear margin is required or not.
 //
+// If padding > 0 is given, the padding is always cleared and output images have width
+// and height 2*padding larger than source.
+//
 // Returned offscreens always have origin (0, 0).
-func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clear bool) *ebiten.Image {
-	bounds := source.Bounds()
-	temp, _ := r.getTemp(offscreenIndex, bounds.Dx(), bounds.Dy(), clear)
+func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, padding int, clear bool) *ebiten.Image {
+	if padding < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, padding)
+		padding = 0
+	}
+
+	ow, oh := rectSize(source.Bounds())
+	ow, oh = ow+padding*2, oh+padding*2
+	temp, clear := r.getTemp(offscreenIndex, ow, oh, clear)
+	if padding > 0 && !clear {
+		Clear(temp, image.Rect(0, 0, ow, padding))
+		Clear(temp, image.Rect(0, oh-padding, ow, oh))
+		Clear(temp, image.Rect(0, padding, padding, oh-padding))
+		Clear(temp, image.Rect(ow-padding, padding, ow, oh-padding))
+	}
+
 	var opts ebiten.DrawImageOptions
 	opts.Blend = ebiten.BlendCopy
+	opts.GeoM.Translate(float64(padding), float64(padding))
 	temp.DrawImage(source, &opts)
 	return temp
 }
@@ -377,12 +394,14 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, clea
 // on the same offscreen. This function is highly specific and meant to prepare images
 // for shaders that use two source images: an original source and variant or mask for it.
 //
-// If any padding is given, the padding is always cleared.
+// If padding > 0 is given, the padding is always cleared and output images have width
+// and height 2*padding larger than source.
 //
 // See safety warnings and docs for UnsafeTemp.
 func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padding int, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
 	if padding < 0 {
 		r.Warnings.report(WarnNegativeValueZeroed, padding)
+		padding = 0
 	}
 
 	_, _, w, h := rectOriginSize(source.Bounds())
@@ -393,12 +412,13 @@ func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padd
 	} else {
 		ox = pw
 	}
+
 	temp, clear := r.getTemp(offscreenIndex, ox+pw, oy+ph, clear)
 	if padding > 0 && !clear {
-		memoBlend := r.opts.Blend
-		r.opts.Blend = ebiten.BlendClear
-		r.StrokeIntArea(temp, 0, 0, pw, ph, 0, padding)
-		r.opts.Blend = memoBlend
+		Clear(temp, image.Rect(0, 0, pw, padding))
+		Clear(temp, image.Rect(0, ph-padding, pw, ph))
+		Clear(temp, image.Rect(0, padding, padding, ph-padding))
+		Clear(temp, image.Rect(pw-padding, padding, pw, ph-padding))
 	}
 	var opts ebiten.DrawImageOptions
 	opts.Blend = ebiten.BlendCopy
