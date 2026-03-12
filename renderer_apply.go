@@ -19,24 +19,9 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
-	srcBounds := mask.Bounds()
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	ht32 := thickness
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-ht32, dstMinY+oy-ht32
-	maxX, maxY := dstMinX+ox+srcWidth+ht32, dstMinY+oy+srcHeight+ht32
-	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-ht32-1, srcMinY-ht32-1, srcMaxX+ht32+1, srcMaxY+ht32+1)
 	r.setFlatCustomVA0(thickness)
-
-	// draw shader
-	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansion.Load(), &r.opts)
-	r.opts.Images[0] = nil
+	margins := NewMargins(thickness+1.0, thickness+1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderExpansion.Load())
 }
 
 // ApplyExpansionRect performs double pass expansion with a square kernel.
@@ -72,9 +57,6 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	// second pass (horz)
 	r.opts.Blend = memoBlend
 	r.setSrcRectCoords(-thickCeil, 0, sw32+thickCeil, sh32+thickCeil*2.0)
-	dx, dy := rectOriginF32(target.Bounds())
-	ox += dx
-	oy += dy
 	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
 	r.opts.Images[0] = temp
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionHorz.Load(), &r.opts)
@@ -92,24 +74,9 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-
-	srcBounds := mask.Bounds()
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox, dstMinY+oy
-	maxX, maxY := dstMinX+ox+srcWidth, dstMinY+oy+srcHeight
-	r.setDstRectCoords(minX-1, minY-1, maxX+1.0, maxY+1.0)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-1, srcMinY-1, srcMaxX+1.0, srcMaxY+1.0)
 	r.setFlatCustomVA0(thickness)
-
-	// draw shader
-	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderErosion.Load(), &r.opts)
-	r.opts.Images[0] = nil
+	margins := NewMargins(1.0, 1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderErosion.Load())
 }
 
 // ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
@@ -124,24 +91,9 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
-	srcBounds := mask.Bounds()
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	ht32 := thickness / 2.0
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox-ht32, dstMinY+oy-ht32
-	maxX, maxY := dstMinX+ox+srcWidth+ht32, dstMinY+oy+srcHeight+ht32
-	r.setDstRectCoords(minX-1, minY-1, maxX+1, maxY+1)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-ht32-1, srcMinY-ht32-1, srcMaxX+ht32+1.0, srcMaxY+ht32+1.0)
 	r.setFlatCustomVA0(thickness)
-
-	// draw shader
-	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderOutline.Load(), &r.opts)
-	r.opts.Images[0] = nil
+	margins := NewMargins(thickness+1.0, thickness+1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderOutline.Load())
 }
 
 // ApplyGlow draws a horizontal glow effect for the given mask into the target, at the
