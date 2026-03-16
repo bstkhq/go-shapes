@@ -161,13 +161,35 @@ func (t *testOutputWriter) Update() error {
 	return nil
 }
 
-// go test -run ^TestJFMExpand$ . -count 1
-func TestJFMExpand(t *testing.T) {
+func jfmShapes(r *Renderer) []*ebiten.Image {
 	const BaseRadius = 128
 	const XW, XH = BaseRadius * 2, (BaseRadius * 7) / 4
 	const XMargin, XThick = BaseRadius / 3, BaseRadius / 8
 	const Circ2Radius = 72
 
+	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
+	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
+	gradientOpts.Bias = 0.5
+	r.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
+	r.opts.Blend = ebiten.BlendSourceAtop
+	gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
+	gradientOpts.Bias = -0.25
+	r.Gradient(circle, gradientOpts, DirRadsBLTR)
+	r.opts.Blend = ebiten.BlendSourceOver
+	r.SetColorF32(0.75, 0.5, 1.0, 1.0)
+	xSign := ebiten.NewImage(XW, XH)
+	r.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
+	r.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
+	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
+	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
+	r.DrawCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
+	r.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	rect := r.NewRect(256, 192)
+	return []*ebiten.Image{circle, xSign, circ2, rect}
+}
+
+// go test -run ^TestJFMExpand$ . -count 1
+func TestJFMExpand(t *testing.T) {
 	imgIndex := 0
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -182,9 +204,9 @@ func TestJFMExpand(t *testing.T) {
 		r := float32(ctx.DistAnim(16.0, 1.0))
 		if imgIndex == 2 {
 			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh/4, Circ2Radius+16.0)
-			ctx.Renderer.DrawCircle(canvas, bw/4, bh-bh/4, Circ2Radius+16.0)
-			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh-bh/4, Circ2Radius+16.0)
+			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
+			ctx.Renderer.DrawCircle(canvas, bw/4, bh-bh/4, w/2+16.0)
+			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		}
 
@@ -197,29 +219,10 @@ func TestJFMExpand(t *testing.T) {
 		maxDist := ceilF32(r)
 		source, jfmap := ctx.Renderer.UnsafeTempDual(1, ctx.Images[imgIndex], int(maxDist), false)
 		ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
-		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist+yShift, r, true)
+		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, true)
 	})
 
-	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
-	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
-	gradientOpts.Bias = 0.5
-	app.Renderer.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
-	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
-	gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
-	gradientOpts.Bias = -0.25
-	app.Renderer.Gradient(circle, gradientOpts, DirRadsBLTR)
-	app.Renderer.opts.Blend = ebiten.BlendSourceOver
-	app.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-	xSign := ebiten.NewImage(XW, XH)
-	app.Renderer.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
-	app.Renderer.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
-	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
-	app.Renderer.SetColorF32(0.5, 0.25, 0.75, 1.0)
-	app.Renderer.DrawCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
-	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-	rect := app.Renderer.NewRect(256, 192)
-	app.Images = append(app.Images, circle, xSign, circ2, rect)
+	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -278,10 +281,11 @@ func TestJFMErode(t *testing.T) {
 	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
 	gradientOpts.Bias = 0.5
 	app.Renderer.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
-	gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
-	gradientOpts.Bias = -0.25
-	app.Renderer.Gradient(circle, gradientOpts, DirRadsBLTR)
-	app.Renderer.opts.Blend = ebiten.BlendSourceOver
+	// gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
+	// gradientOpts.Bias = -0.25
+	// app.Renderer.opts.Blend = ebiten.BlendSourceIn
+	// app.Renderer.Gradient(circle, gradientOpts, DirRadsBLTR)
+	// app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, circle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -290,19 +294,41 @@ func TestJFMErode(t *testing.T) {
 
 // go test -run ^TestJFMHeat$ . -count 1
 func TestJFMHeat(t *testing.T) {
+	mode := 0
+	clamp, outer := false, false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		mode = updateParam(ctx, ebiten.KeyM, mode, 0, 1, +1)
+		if ctx.NewInput {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyC):
+				clamp = !clamp
+			case inpututil.IsKeyJustPressed(ebiten.KeyR):
+				outer = !outer
+			}
+		}
+
 		canvas.Clear()
 		px, py := ebiten.CursorPosition()
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.DrawCircle(canvas, float32(px), float32(py), 128.0)
 		ctx.Renderer.DrawCircle(canvas, rx, ry, 96.0)
-		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
-			const MaxDist = 128
-			bounds := canvas.Bounds()
-			jfmap := ctx.Renderer.UnsafeTemp(1, bounds.Dx(), bounds.Dy(), false)
-			ctx.Renderer.JFMapFill(jfmap, canvas, MaxDist, 0.001, 1.0)
-			ctx.Renderer.JFMHeat(canvas, jfmap, 0, 0, MaxDist)
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			return
 		}
+
+		const MaxDist = 128
+		bounds := canvas.Bounds()
+		jfmap := ctx.Renderer.UnsafeTemp(1, bounds.Dx(), bounds.Dy(), false)
+		switch mode {
+		case 0:
+			ebiten.SetWindowTitle(fmt.Sprintf("%s [[M]ode: %s]", ctx.Title(), "fill"))
+			ctx.Renderer.JFMapFill(jfmap, canvas, MaxDist, 0.001, 1.0)
+		case 1:
+			// TODO: apparently clamp = false can fail in some contexts
+			ebiten.SetWindowTitle(fmt.Sprintf("%s [[M]ode: %s, oute[R]: %t, [C]lamp: %t]", ctx.Title(), "boundary", outer, clamp))
+			ctx.Renderer.JFMapBoundary(jfmap, canvas, MaxDist, 0.001, 1.0, BoundaryMode{Outer: outer, Clamp: clamp})
+		}
+		ctx.Renderer.JFMHeat(canvas, jfmap, 0, 0, MaxDist)
 	})
 
 	if err := ebiten.RunGame(app); err != nil {

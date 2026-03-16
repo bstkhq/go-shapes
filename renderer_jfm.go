@@ -9,17 +9,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// TODO: mention that jfmaps only works with / assumes solid shapes with crisp anti-aliasing (at most one translucent pixel on the shape boundary transition)
-
-// TODO: accept bilinear flags for expand and all others
-
 // JFMapCompute computes a jumping flood map from the given seeds and stores it in jfmap.
 //
 // A jumping flood map encodes offsets to nearest seeds, which allows computing precise
 // distances and can make large radius morphological operations like outlining, expansion
 // and erosion viable. As a downside, they are expensive to recompute on the fly and they
 // are based on binary seeds, which means additional techniques might have to be used to
-// smooth results in many contexts.
+// smooth results in many contexts (small radius morphological closing, blurs, etc).
 //
 // Jumping flood map internal encoding details are documented in shaders/jfm_pass.kage.
 //
@@ -140,14 +136,17 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 
 // BoundaryMode is a parameter type for [Renderer.JFMapBoundary]().
 type BoundaryMode struct {
-	// If false, the boundary is marked at the last pixel inside the
+	// When false, the boundary is marked at the last pixel inside the
 	// boundary region (minAlpha, maxAlpha). If true, at the first pixel
 	// outside it.
 	Outer bool
 
-	// If false, out-of-bound pixels are treated as zero. If true,
-	// nearest edge pixel color is used instead.
-	ExtendEdges bool
+	// When true, samples outside bounds will be clamped to the image limits.
+	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
+	//
+	// Notice: this flag doesn't have effect when combined with 'outer',
+	// because the boundary would have to be marked outside the image.
+	Clamp bool
 }
 
 // JFMapBoundary computes a jumping flood map of the given source image
@@ -179,7 +178,7 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 	}
 
 	outer := mapBool[float32](mode.Outer, 0, 1)
-	extend := mapBool[float32](mode.ExtendEdges, 0, 1)
+	extend := mapBool[float32](mode.Clamp, 0, 1)
 	r.setFlatCustomVAs(minAlpha, maxAlpha, outer, extend)
 	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary.Load())
 }
@@ -213,14 +212,14 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 
 // JFMExpand performs morphological expansion.
 //   - distance must be in [0, 32k].
-//   - source and jfmap must be the same size, and they should be in the same atlas to avoid
-//     automatic atlasing issues.
+//   - source and jfmap must be the same size and are ideally in the same atlas.
 //   - smooth can be set to true to sample a 3x3 area for higher morphological accuracy.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [Renderer.JFMapFill]() with [0.001, 1.0] alpha interval (all non-transparent pixels
 //     are seeds). If jfmap is nil, this function uses the internal offscreens (#0, #1).
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
+// See also [Renderer.ApplyExpansion]().
 func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32, smooth bool) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
@@ -262,7 +261,7 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 
 // JFMErode performs morphological erosion.
 //   - distance must be in [0, 32k].
-//   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
+//   - source and jfmap are ideally in the same atlas.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [Renderer.JFMapBoundary]() with [0.0, 0.0] alpha interval + outer. If jfmap is nil,
 //     this function uses the internal offscreens (#0, #1).
@@ -294,7 +293,7 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 //
 // JFMOutline performs morphological outlining.
 //   - thicknesses must be in [0, 32k].
-//   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
+//   - source and jfmap are ideally in the same atlas.
 //   - jfmap can be nil, in which case it will be automatically generated for only this
 //     operation using [JFMBoundary] mode.
 //
@@ -312,7 +311,7 @@ func (r *Renderer) JFMOutline(target, source, jfmap *ebiten.Image, ox, oy, inThi
 // internal outline, which includes the image borders where the target clips the source, and
 // also allows control over the inner fill opacity.
 //   - inThickness must be in [0, 32k].
-//   - source and jfmap should be in the same atlas to avoid automatic atlasing issues.
+//   - source and jfmap are ideally in the same atlas.
 //   - jfmap can be nil, in which case it will be automatically generated for only this
 //     operation using [JFMBoundary] mode. If jfmap is nil, this function uses the internal
 //     offscreens (#0, #1).

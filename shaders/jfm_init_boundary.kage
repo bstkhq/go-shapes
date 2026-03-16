@@ -7,7 +7,7 @@ package main
 
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	minAlpha, maxAlpha := customVAs[0], customVAs[1]
-	outer, extendEdges := customVAs[2], customVAs[3]
+	outer, applyClamp := customVAs[2], customVAs[3]
 	pix := imageSrc0At(sourceCoords)
 	if whenWithin(pix.a, minAlpha, maxAlpha) == outer {
 		return vec4(1) // mark as max offset / uninitialized
@@ -19,7 +19,7 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 		sourceCoords + vec2(+1, +0),
 		sourceCoords + vec2(+0, +1),
 	}
-	if extendEdges == 1.0 {
+	if applyClamp == 1.0 {
 		min, max := getMinMaxSourceCoords()
 		for i := 0; i < 4; i++ {
 			coords[i] = clamp(coords[i], min, max)
@@ -44,7 +44,7 @@ func whenWithin(a, min, max float) float {
 }
 
 func getMinMaxSourceCoords() (vec2, vec2) {
-	// origin and end clamped to their centers for this shader
-	origin := imageSrc0Origin() + vec2(0.5)
-	return origin, origin + imageSrc0Size() - vec2(1.0)
+	const epsilon = 0.001
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
 }
