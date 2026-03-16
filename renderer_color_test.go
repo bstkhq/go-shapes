@@ -47,26 +47,45 @@ func TestFlatPaint(t *testing.T) {
 
 // go test -run ^TestColorizeByLightness$ . -count 1
 func TestColorizeByLightness(t *testing.T) {
+	bias := float32(0.0)
+	steps := 7
+	dither := false
+	var fromThresh, toThresh float32 = 0.0, 1.0
+
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s [[B]ias: %.02f, [D]ither: %t, [F]rom thresh: %.02f, [T]o thresh: %.02f]",
+			ctx.Title(), bias, dither, fromThresh, toThresh,
+		))
 		canvas.Fill(color.Black)
+
+		fromThresh = updateParam(ctx, ebiten.KeyF, fromThresh, 0.0, 1.0, 0.1)
+		toThresh = updateParam(ctx, ebiten.KeyT, toThresh, 0.0, 1.0, 0.1)
+		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.1)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			dither = !dither
+		}
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		iw, ih := rectSizeF32(ctx.Images[0].Bounds())
 		x, y := (cw-iw)/2.0, (ch-ih)/2.0
-		from, to := color.RGBA{0, 196, 196, 255}, color.RGBA{255, 0, 255, 255}
-		curveFactor := float32(0.75 + ctx.DistAnim(1.75, 1.0))
+
+		opts := GradientOpts(color.RGBA{0, 196, 196, 255}, color.RGBA{255, 0, 255, 255}, dither)
+		opts.Steps = steps
+		opts.Bias = bias
+
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.DrawAtF32(canvas, ctx.Images[0], x, y)
 		} else {
-			var thresA, thresB float32 = 0.0, 1.0
-			ctx.Renderer.ColorizeByLightness(canvas, ctx.Images[0], x, y, from, to, thresA, thresB, 7, curveFactor)
+			ctx.Renderer.ColorizeByLightness(canvas, ctx.Images[0], opts, x, y, fromThresh, toThresh)
 		}
 	})
 
 	const Radius = 48
-	// base := app.Renderer.NewSimpleGradient(Radius*8, Radius*8, color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, DirRadsTLBR)
+	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
 	base := ebiten.NewImage(Radius*8, Radius*8)
-	app.Renderer.Noise(base, 0.1, 26.26, 0.0)
+	app.Renderer.Gradient(base, gradientOpts, DirRadsTLBR)
+	app.Renderer.Noise(base, 0.1, 0.26, 0.0)
 	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
 	app.Renderer.DrawCircle(base, Radius*2, Radius*4, Radius)
@@ -96,9 +115,12 @@ func TestOklabShift(t *testing.T) {
 		chromaShift := float32(0.3 - ctx.DistAnim(0.6, 0.4))
 		lightnessShift := float32(0.5 - ctx.DistAnim(1.0, 1.0))
 		hueShift := float32(ctx.ModAnim(2*math.Pi, 0.5))
+
+		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
 		ctx.Renderer.OklabShift(canvas, ctx.Images[0], lx, ly, lightnessShift, chromaShift, hueShift)
 
 		rx, ry := ctx.RightClickF32()
+		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 	})
 
@@ -115,20 +137,12 @@ func TestDitherMat4(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.RGBA{128, 0, 128, 255})
 
-		var mat [16]float32
-		switch int(ctx.ModAnim(5.0, 0.25)) {
-		case 0:
-			mat = DitherBayes
-		case 1:
-			mat = DitherDots
-		case 2:
-			mat = DitherGlitch
-		case 3:
-			mat = DitherSerp
-		case 4:
-			mat = DitherCrumbs
+		mats := [][16]float32{DitherBayes, DitherDots, DitherGlitch, DitherSerp, DitherCrumbs}
+		mat := mats[int(ctx.ModAnim(float64(len(mats)), 0.25))]
+
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			mat = combineDitherMat4(mat, DitherBayes)
 		}
-		mat = combineDitherMat4(mat, DitherBayes)
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
@@ -136,18 +150,23 @@ func TestDitherMat4(t *testing.T) {
 		anim := float32(ctx.DistAnim(1.0, 1.0))
 		yOffset := int(ctx.ModAnim(4.0, 1.0))
 		xOffset := 8 - int(ctx.DistAnim(16.0, 1.0))
+		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
 		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lx, ly, xOffset, yOffset, PaletteBW4, mat, anim, 0.0)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, PaletteAlpha8, mat, 0, anim)
+		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, PaletteAlpha8, mat, 0.0, anim)
 	})
 
-	// from, to := color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
-	// // gradient := app.Renderer.NewSimpleGradient(160, 160, from, to, DirRadsLTR)
-	// app.Images = append(app.Images, gradient)
-	// from, to = color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
-	// // gradient = app.Renderer.NewSimpleGradient(160, 160, from, to, DirRadsTLBR)
-	// app.Images = append(app.Images, gradient)
+	gradient := ebiten.NewImage(160, 160)
+	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
+	app.Renderer.Gradient(gradient, gradientOpts, DirRadsLTR)
+	app.Images = append(app.Images, gradient)
+
+	gradient = ebiten.NewImage(160, 160)
+	app.Renderer.Gradient(gradient, gradientOpts, DirRadsTLBR)
+	app.Images = append(app.Images, gradient)
+
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -167,10 +186,10 @@ func TestColorMix(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [bilinear: %t, dithered: %t]", ctx.Title(), flags[Bilinear] == Bilinear, flags[Dithered] == Dithered))
 		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyF):
 				flags.Flip(Bilinear)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			case inpututil.IsKeyJustPressed(ebiten.KeyD):
 				flags.Flip(Dithered)
 			}
 		}

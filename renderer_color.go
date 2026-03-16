@@ -34,11 +34,7 @@ func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift
 //     Expected range: [0.0, 1.0]
 //   - toLightness: pixels above this threshold take 'to' color.
 //     Expected range: [0.0, 1.0].
-//   - steps: number of color steps in the gradient. Use steps <= 0 for a continuous gradient.
-//   - curveFactor: adjusts the gradient's interpolation curve; use 1.0 for linear,
-//     <= 1.0 to bias towards 'from', > 1.0 to bias towards 'to'. Recommended
-//     range: [0.2, 5.0].
-func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float32, from, to color.RGBA, fromLightness, toLightness float32, steps int, curveFactor float32) {
+func (r *Renderer) ColorizeByLightnessOld(target, source *ebiten.Image, x, y float32, from, to color.RGBA, fromLightness, toLightness float32, steps int, curveFactor float32) {
 	fromF64, toF64 := colorToF64(from), colorToF64(to)
 	fromOklab, toOklab := rgbToOklab([3]float64(fromF64[:3])), rgbToOklab([3]float64(toF64[:3]))
 	r.opts.Uniforms["From"] = [4]float32{float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3])}
@@ -46,6 +42,52 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float3
 	r.setFlatCustomVAs(fromLightness, toLightness, float32(steps), curveFactor)
 	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
 	clear(r.opts.Uniforms)
+}
+
+// ColorizeByLightness draws source into target at the given (x, y), taking the
+// lightness of each source pixel and remapping it to a color between 'from' and 'to'.
+//
+// Key parameters:
+//   - fromLightness: pixels before this threshold take 'from' color.
+//     Expected range: [0.0, 1.0]
+//   - toLightness: pixels after this threshold take 'to' color.
+//     Expected range: [0.0, 1.0].
+func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts GradientOptions, x, y, fromLightness, toLightness float32) {
+	if fromLightness > 1.0 || fromLightness < 0.0 {
+		r.Warnings.report(WarnInvalidRateClamped, fromLightness)
+		fromLightness = clamp(fromLightness, 0.0, 1.0)
+	}
+	if toLightness > 1.0 || toLightness < 0.0 {
+		r.Warnings.report(WarnInvalidRateClamped, toLightness)
+		toLightness = clamp(fromLightness, 0.0, 1.0)
+	}
+	if opts.Bias < -1.0 || opts.Bias > 1.0 {
+		r.Warnings.report(WarnInvalidBiasClamped, opts.Bias)
+		opts.Bias = clamp(opts.Bias, -1.0, 1.0)
+	}
+	if opts.Dither {
+		r.ensureBlueNoiseLoaded()
+		r.opts.Uniforms["Dither"] = 1
+		r.opts.Images[1] = r.blueNoise64RGB
+	}
+
+	fromL, fromA, fromB := toOklab(opts.From[0], opts.From[1], opts.From[2])
+	toL, toA, toB := toOklab(opts.To[0], opts.To[1], opts.To[2])
+
+	from := [4]float32{float32(fromL), float32(fromA), float32(fromB), float32(opts.From[3])}
+	to := [4]float32{float32(toL), float32(toA), float32(toB), float32(opts.To[3])}
+	if fromLightness > toLightness {
+		fromLightness, toLightness = toLightness, fromLightness
+		from, to = to, from
+	}
+	r.opts.Uniforms["From"] = from
+	r.opts.Uniforms["To"] = to
+	r.setFlatCustomVAs(fromLightness, toLightness, float32(max(opts.Steps, 0)), (opts.Bias+1.0)/2.0)
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
+	clear(r.opts.Uniforms)
+	if opts.Dither {
+		r.opts.Images[1] = nil
+	}
 }
 
 // ColorMix draws 'base' and 'over' to 'target' using the mix() function for color

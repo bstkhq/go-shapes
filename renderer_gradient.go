@@ -42,7 +42,7 @@ func (r *Renderer) setColors(values [16]float32) {
 func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadians float64) {
 	if opts.Bias < -1.0 || opts.Bias > 1.0 {
 		r.Warnings.report(WarnInvalidBiasClamped, opts.Bias)
-		opts.Bias = clamp(opts.Bias, 0.0, 1.0)
+		opts.Bias = clamp(opts.Bias, -1.0, 1.0)
 	}
 
 	memo := r.memorizeColors()
@@ -70,8 +70,6 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 	r.setColors(memo)
 }
 
-// ColorizeByLightnessO(target, source *ebiten.Image, ox, oy float32, opts GradientOpts, fromLightness, toLightness float32)
-
 // GradientRadial paints a radial gradient over the given target, interpolating
 // in Oklab space.
 //
@@ -89,7 +87,7 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 func (r *Renderer) GradientRadial(target *ebiten.Image, opts GradientOptions, cx, cy float32, fromRadius, transRadius, toRadius float32) {
 	if opts.Bias < -1.0 || opts.Bias > 1.0 {
 		r.Warnings.report(WarnInvalidBiasClamped, opts.Bias)
-		opts.Bias = clamp(opts.Bias, 0.0, 1.0)
+		opts.Bias = clamp(opts.Bias, -1.0, 1.0)
 	}
 	if transRadius < fromRadius || toRadius < transRadius {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [3]float32{fromRadius, transRadius, toRadius})
