@@ -18,7 +18,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 		in = within(sourceCoords, vec2(0), radius)
 	}
 
-	clr := imageSrc0At(sourceCoords)
+	clr := imageSrc0UnsafeAt(sourceCoords)
 	return mix(clr, color*clr.a, tint) * (1 - in)
 }
 

@@ -81,7 +81,8 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 
 // ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
 // This operation is imlemented as the difference between morphological dilation and erosion.
-// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMOutline]().
+// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
+// with a boundary jfmap.
 //
 // thickness can't exceed 16.
 func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {

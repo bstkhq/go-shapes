@@ -8,12 +8,20 @@ var Smooth int
 // imageSrc0 = source, imageSrc1 = jf map
 func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	thickness := customVAs[0]
+	outlineMode := customVAs[1]
+
+	var from float
+	if outlineMode == 1.0 {
+		from = imageSrc0UnsafeAt(sourceCoords).a
+	} else {
+		from = 0.0
+	}
 
 	var in float
 	if Smooth == 1 {
-		in = smoothWithin(sourceCoords, thickness)
+		in = smoothWithin(sourceCoords, thickness, from)
 	} else {
-		in = within(sourceCoords, vec2(0), thickness)
+		in = within(sourceCoords, vec2(0), thickness, from)
 	}
 
 	return color * in
@@ -22,15 +30,16 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 // within checks if the distance from the given point to a seed falls
 // below maxDist. it returns a value between 0 (outside) and 1 (inside).
 // sourceCoords + neighborOffsets are not checked to be in bounds
-func within(sourceCoords, neighborOffset vec2, maxDist float) float {
+func within(sourceCoords, neighborOffset vec2, maxDist float, fromAlpha float) float {
 	sourceCoords += neighborOffset
 	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
 	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
-	seedDist := length(offset+neighborOffset) + (1.0 - seedAlpha)
+	correction := abs((-1.0 + fromAlpha) + seedAlpha)
+	seedDist := length(offset+neighborOffset) + correction
 	return (1.0 - clamp(seedDist-maxDist, 0, 1))
 }
 
-func smoothWithin(sourceCoords vec2, maxDist float) float {
+func smoothWithin(sourceCoords vec2, maxDist float, fromAlpha float) float {
 	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
 	const MaxOffset = 1.0
 	clampedLS := max(-MaxOffset, minCoords.x-sourceCoords.x) // clamped shifts
@@ -41,15 +50,15 @@ func smoothWithin(sourceCoords vec2, maxDist float) float {
 	// blue noise based coords + bias
 	const biasSide = -0.02
 	const biasCorner = -0.05
-	tl := within(sourceCoords, vec2(max(clampedLS, -0.48), max(clampedTS, -0.63)), maxDist) + biasCorner
-	tc := within(sourceCoords, vec2(max(clampedLS, -0.27), max(clampedTS, -0.91)), maxDist) + biasSide
-	tr := within(sourceCoords, vec2(min(clampedRS, +0.88), max(clampedTS, -0.44)), maxDist) + biasCorner
-	cl := within(sourceCoords, vec2(max(clampedLS, -0.79), max(clampedTS, -0.18)), maxDist) + biasSide
-	cc := within(sourceCoords, vec2(+0.0, +0.0), maxDist)
-	cr := within(sourceCoords, vec2(min(clampedRS, +0.73), min(clampedBS, +0.21)), maxDist) + biasSide
-	bl := within(sourceCoords, vec2(max(clampedLS, -0.61), min(clampedBS, +0.38)), maxDist) + biasCorner
-	bc := within(sourceCoords, vec2(min(clampedRS, +0.36), min(clampedBS, +0.57)), maxDist) + biasSide
-	br := within(sourceCoords, vec2(min(clampedRS, +0.19), min(clampedBS, +0.82)), maxDist) + biasCorner
+	tl := within(sourceCoords, vec2(max(clampedLS, -0.48), max(clampedTS, -0.63)), maxDist, fromAlpha) + biasCorner
+	tc := within(sourceCoords, vec2(max(clampedLS, -0.27), max(clampedTS, -0.91)), maxDist, fromAlpha) + biasSide
+	tr := within(sourceCoords, vec2(min(clampedRS, +0.88), max(clampedTS, -0.44)), maxDist, fromAlpha) + biasCorner
+	cl := within(sourceCoords, vec2(max(clampedLS, -0.79), max(clampedTS, -0.18)), maxDist, fromAlpha) + biasSide
+	cc := within(sourceCoords, vec2(+0.0, +0.0), maxDist, fromAlpha)
+	cr := within(sourceCoords, vec2(min(clampedRS, +0.73), min(clampedBS, +0.21)), maxDist, fromAlpha) + biasSide
+	bl := within(sourceCoords, vec2(max(clampedLS, -0.61), min(clampedBS, +0.38)), maxDist, fromAlpha) + biasCorner
+	bc := within(sourceCoords, vec2(min(clampedRS, +0.36), min(clampedBS, +0.57)), maxDist, fromAlpha) + biasSide
+	br := within(sourceCoords, vec2(min(clampedRS, +0.19), min(clampedBS, +0.82)), maxDist, fromAlpha) + biasCorner
 
 	return clamp(max3(max3(tl, tc, tr), max3(cl, cc, cr), max3(bl, bc, br)), 0, 1)
 }

@@ -191,9 +191,13 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 // go test -run ^TestJFMExpand$ . -count 1
 func TestJFMExpand(t *testing.T) {
 	imgIndex := 0
+	outline := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
 		canvas.Fill(color.Black)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyL) {
+			outline = !outline
+		}
 
 		bw, bh := rectSizeF32(canvas.Bounds())
 		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
@@ -210,13 +214,21 @@ func TestJFMExpand(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, false)
+		if outline {
+			ctx.Renderer.ApplyOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+		} else {
+			ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+		}
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, outline, false)
 
 		maxDist := ceilF32(r)
 		source, jfmap := ctx.Renderer.UnsafeTempDual(1, ctx.Images[imgIndex], int(maxDist), false)
-		ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
-		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, true)
+		if outline {
+			ctx.Renderer.JFMapBoundary(jfmap, source, int(maxDist), 0.001, 1.0, BoundaryMode{})
+		} else {
+			ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
+		}
+		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, outline, true)
 	})
 
 	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
@@ -239,10 +251,10 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 		const r = 9.0
 		iw, ih := rectSizeF32(ctx.Images[imgIndex].Bounds())
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, false)
 
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, true)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, true)
 	})
 
 	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
