@@ -11,6 +11,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 
 	offset := Offsets
 	outTriBase, minInTriBase, maxInTriBase := customVAs.x, customVAs.y, customVAs.z
+	tint := customVAs[3]
 	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
 	relCoords := targetCoords.xy - imageDstOrigin() - offset
 	cellSize := vec2(outTriSize.x*0.5, outTriSize.y)
@@ -51,7 +52,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	dist := distanceToEqTriangle(p, inTriBase)
 	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
 	alpha = pow(alpha, 1.0/2.2)
-	return color * alpha * sample.a
+	return mix(sample, color*sample.a, tint) * alpha
 }
 
 func distanceToEqTriangle(p vec2, sideLen float) float {
