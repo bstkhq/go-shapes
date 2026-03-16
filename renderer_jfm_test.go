@@ -225,6 +225,41 @@ func TestJFMExpand(t *testing.T) {
 	}
 }
 
+// go test -run ^TestJFMExpandSoftMotion$ . -count 1
+func TestJFMExpandSoftMotion(t *testing.T) {
+	const BaseRadius = 64
+	const XW, XH = BaseRadius * 2, (BaseRadius * 7) / 4
+	const XMargin, XThick = BaseRadius / 3, BaseRadius / 8
+
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		bw, bh := rectSizeF32(canvas.Bounds())
+		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		xShift := float32(-4.0 + ctx.DistAnim(8.0, 0.77))
+
+		const r = 9.0
+		smooth := !ebiten.IsKeyPressed(ebiten.KeySpace)
+		i0w, i0h := rectSizeF32(ctx.Images[0].Bounds())
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], bw/4-i0w/2+xShift, bh/4-i0h/2+yShift, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[0], nil, bw/4-i0w/2+xShift, bh-bh/4-i0h/2+yShift, r, smooth)
+
+		i1w, i1h := rectSizeF32(ctx.Images[1].Bounds())
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[1], bw-bw/4-i1w/2+xShift, bh/4-i1h/2+yShift, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[1], nil, bw-bw/4-i1w/2+xShift, bh-bh/4-i1h/2+yShift, r, smooth)
+	})
+
+	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
+	app.Renderer.DrawCircle(circle, BaseRadius, BaseRadius, BaseRadius)
+	xSign := ebiten.NewImage(XW, XH)
+	app.Renderer.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
+	app.Renderer.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
+	app.Images = append(app.Images, circle, xSign)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestJFMErode$ . -count 1
 func TestJFMErode(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {

@@ -35,35 +35,26 @@ func within(sourceCoords, neighborOffset vec2, maxDist float) float {
 
 func smoothWithin(sourceCoords vec2, maxDist float) float {
 	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
-	clampedLS := max(-1.0, minCoords.x-sourceCoords.x) // clamped shifts
-	clampedRS := min(1.0, maxCoords.x-sourceCoords.x)
-	clampedTS := max(-1.0, minCoords.y-sourceCoords.y)
-	clampedBS := min(1.0, maxCoords.y-sourceCoords.y)
+	const MaxOffset = 1.0
+	clampedLS := max(-MaxOffset, minCoords.x-sourceCoords.x) // clamped shifts
+	clampedRS := min(+MaxOffset, maxCoords.x-sourceCoords.x)
+	clampedTS := max(-MaxOffset, minCoords.y-sourceCoords.y)
+	clampedBS := min(+MaxOffset, maxCoords.y-sourceCoords.y)
 
-	// weights for corners and sides. they don't make much
-	// theoretical sense, but they seem subjectively smoother to me
-	wx, ws := 0.8, 0.9
-
-	// side and diag are factors to shift the sampling slightly inwards.
-	// this doesn't make much theoretical sense, but since sampling
-	// is nearest, this offsetting makes smooth movement in x/y
-	// more progressive: points jump samples in a staircase instead of
-	// all at once. there must be better methods, but this is low
-	// overhead at the moment
-	const side = 0.75
-	const diag = 0.707 * 0.75
-
-	tl := within(sourceCoords, vec2(clampedLS*side, clampedTS*side), maxDist) * wx
-	tc := within(sourceCoords, vec2(+0.0, clampedTS*side), maxDist) * ws
-	tr := within(sourceCoords, vec2(clampedRS*side, clampedTS*side), maxDist) * wx
-	cl := within(sourceCoords, vec2(clampedLS*side, +0.0), maxDist) * ws
+	// blue noise based coords + bias
+	const biasSide = -0.02
+	const biasCorner = -0.05
+	tl := within(sourceCoords, vec2(max(clampedLS, -0.48), max(clampedTS, -0.63)), maxDist) + biasCorner
+	tc := within(sourceCoords, vec2(max(clampedLS, -0.27), max(clampedTS, -0.91)), maxDist) + biasSide
+	tr := within(sourceCoords, vec2(min(clampedRS, +0.88), max(clampedTS, -0.44)), maxDist) + biasCorner
+	cl := within(sourceCoords, vec2(max(clampedLS, -0.79), max(clampedTS, -0.18)), maxDist) + biasSide
 	cc := within(sourceCoords, vec2(+0.0, +0.0), maxDist)
-	cr := within(sourceCoords, vec2(clampedRS*side, +0.0), maxDist) * ws
-	bl := within(sourceCoords, vec2(clampedLS*side, clampedBS*side), maxDist) * wx
-	bc := within(sourceCoords, vec2(+0.0, clampedBS*side), maxDist) * ws
-	br := within(sourceCoords, vec2(clampedRS*side, clampedBS*side), maxDist) * wx
+	cr := within(sourceCoords, vec2(min(clampedRS, +0.73), min(clampedBS, +0.21)), maxDist) + biasSide
+	bl := within(sourceCoords, vec2(max(clampedLS, -0.61), min(clampedBS, +0.38)), maxDist) + biasCorner
+	bc := within(sourceCoords, vec2(min(clampedRS, +0.36), min(clampedBS, +0.57)), maxDist) + biasSide
+	br := within(sourceCoords, vec2(min(clampedRS, +0.19), min(clampedBS, +0.82)), maxDist) + biasCorner
 
-	return max3(max3(tl, tc, tr), max3(cl, cc, cr), max3(bl, bc, br))
+	return clamp(max3(max3(tl, tc, tr), max3(cl, cc, cr), max3(bl, bc, br)), 0, 1)
 }
 
 func max3(a, b, c float) float {
