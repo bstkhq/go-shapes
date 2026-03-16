@@ -200,7 +200,11 @@ func TestDrawCircShader(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
 		opts := CircShaderOpts(r, th)
 		opts.StartAngle = startDegs * math.Pi / 180
-		opts.EndAngle = uradsAddCW(opts.StartAngle, degs*math.Pi/180)
+		if degs >= 359.999 {
+			opts.EndAngle = opts.StartAngle + degs*math.Pi/180
+		} else {
+			opts.EndAngle = uradsAddCW(opts.StartAngle, degs*math.Pi/180)
+		}
 		opts.Tolerance = tolerance
 		ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
 	})
