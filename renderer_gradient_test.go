@@ -21,18 +21,10 @@ func TestGradient(t *testing.T) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
 		canvas.Fill(color.Black)
 
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-				dither = !dither
-			}
-
-			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyB):
-				bias = wrap(bias+0.05*sign, -1, 1)
-			case inpututil.IsKeyJustPressed(ebiten.KeyS):
-				steps = wrap(steps+sign, 0, 8)
-			}
+		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.05)
+		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 8.0, 1)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			dither = !dither
 		}
 
 		_, _, cw, ch := rectOriginSize(canvas.Bounds())
@@ -86,18 +78,10 @@ func TestGradientRadial(t *testing.T) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
 		canvas.Fill(color.Black)
 
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-				dither = !dither
-			}
-
-			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), -1.0, 1.0)
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyB):
-				bias = wrap(bias+0.05*sign, -1, 1)
-			case inpututil.IsKeyJustPressed(ebiten.KeyS):
-				steps = wrap(steps+sign, 0, 8)
-			}
+		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.05)
+		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 8.0, 1)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			dither = !dither
 		}
 
 		lx, ly := ctx.LeftClickF32()

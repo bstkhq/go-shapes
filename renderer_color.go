@@ -2,7 +2,6 @@ package shapes
 
 import (
 	"fmt"
-	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -24,24 +23,6 @@ import (
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
 	r.DrawImgShader(target, source, x, y, NoMargins, shaderOklabShift.Load())
-}
-
-// ColorizeByLightness draws source into target at the given (x, y), taking the
-// lightness of each source pixel and remapping it to a color between 'from' and 'to'.
-//
-// Key parameters:
-//   - fromLightness: pixels below this threshold take 'from' color.
-//     Expected range: [0.0, 1.0]
-//   - toLightness: pixels above this threshold take 'to' color.
-//     Expected range: [0.0, 1.0].
-func (r *Renderer) ColorizeByLightnessOld(target, source *ebiten.Image, x, y float32, from, to color.RGBA, fromLightness, toLightness float32, steps int, curveFactor float32) {
-	fromF64, toF64 := colorToF64(from), colorToF64(to)
-	fromOklab, toOklab := rgbToOklab([3]float64(fromF64[:3])), rgbToOklab([3]float64(toF64[:3]))
-	r.opts.Uniforms["From"] = [4]float32{float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3])}
-	r.opts.Uniforms["To"] = [4]float32{float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3])}
-	r.setFlatCustomVAs(fromLightness, toLightness, float32(steps), curveFactor)
-	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
-	clear(r.opts.Uniforms)
 }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the

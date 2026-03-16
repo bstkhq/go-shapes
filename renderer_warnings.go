@@ -38,7 +38,6 @@ const (
 	WarnInconsistentRangeInvalidated
 
 	// implementation-specific
-	WarnInvalidZoomClamped
 	WarnInvalidNoiseSeedClamped
 	WarnTooManyVertexAttribs
 	WarnTooManyColorsClamped
@@ -84,6 +83,8 @@ func (w Warning) Message() string {
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation skipped"
 	case WarnInconsistentRangeInvalidated:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation result invalidated"
+	case WarnInvalidNoiseSeedClamped:
+		return "noise seed out of [0, 1] range, clamped"
 	case WarnTooManyVertexAttribs:
 		return "too many vertex attributes, ignored excess ones"
 	case WarnTooManyColorsClamped:

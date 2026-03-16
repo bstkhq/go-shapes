@@ -54,11 +54,12 @@ func TestColorizeByLightness(t *testing.T) {
 
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
-			"%s [[B]ias: %.02f, [D]ither: %t, [F]rom thresh: %.02f, [T]o thresh: %.02f]",
-			ctx.Title(), bias, dither, fromThresh, toThresh,
+			"%s [[S]teps: %d, [B]ias: %.02f, [D]ither: %t, [F]romL: %.02f, [T]oL: %.02f]",
+			ctx.Title(), steps, bias, dither, fromThresh, toThresh,
 		))
 		canvas.Fill(color.Black)
 
+		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 12, 1)
 		fromThresh = updateParam(ctx, ebiten.KeyF, fromThresh, 0.0, 1.0, 0.1)
 		toThresh = updateParam(ctx, ebiten.KeyT, toThresh, 0.0, 1.0, 0.1)
 		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.1)

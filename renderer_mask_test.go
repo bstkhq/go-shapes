@@ -199,7 +199,7 @@ func TestAlphaMaskCirc(t *testing.T) {
 				randomness = max(randomness-0.1, 0.0)
 			}
 		}
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - randomness %.02f", randomness))
+		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [randomness %.02f]", randomness))
 
 		reveal := -0.1 + float32(ctx.ModAnim(2.0, 0.2))
 		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy, flags...)

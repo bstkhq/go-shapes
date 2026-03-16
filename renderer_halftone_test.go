@@ -16,7 +16,9 @@ func TestHalftoneTri(t *testing.T) {
 		} else {
 			ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 			ctx.Renderer.SetColorF32(1.0, 0.5, 0, 1.0)
-			ctx.Renderer.HalftoneTri(canvas, ctx.Images[0], 0, 0, 16.0, 6.0, 15.0, 0, 0)
+			size := float32(16.0)
+			xOffset := float32(ctx.ModAnim(float64(size*2.0), 1.0))
+			ctx.Renderer.HalftoneTri(canvas, ctx.Images[0], 0, 0, size, size*0.2, size*1.0, xOffset, 0)
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 			ctx.Renderer.SetTint(0)
 		}

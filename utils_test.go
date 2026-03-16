@@ -64,7 +64,7 @@ func (ctx *TestAppCtx) Title() string {
 	)
 }
 
-func updateParam[T float32 | float64 | int](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
+func updateParam[T float32 | float64 | ~int | ~uint8](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
 	if !ctx.NewInput || !inpututil.IsKeyJustPressed(key) {
 		return value
 	}
@@ -74,14 +74,21 @@ func updateParam[T float32 | float64 | int](ctx TestAppCtx, key ebiten.Key, valu
 	} else {
 		value += delta
 	}
+	value = wrap(value, minValue, maxValue)
+	return value
+}
 
-	if value > maxValue {
-		value = minValue
-	}
-	if value < minValue {
-		value = maxValue
+func updateParamMult[T float32 | float64 | ~int](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, factor T) T {
+	if !ctx.NewInput || !inpututil.IsKeyJustPressed(key) {
+		return value
 	}
 
+	if ebiten.IsKeyPressed(ebiten.KeyShift) {
+		value /= factor
+	} else {
+		value *= factor
+	}
+	value = wrap(value, minValue, maxValue)
 	return value
 }
 
@@ -182,7 +189,7 @@ func (l flagList) Flip(f Flag) {
 	l[f] = -(l[f] - f)
 }
 
-func wrap[Float ~float32 | ~float64](x, lo, hi Float) Float {
+func wrap[Float ~float32 | ~float64 | ~int | ~uint8](x, lo, hi Float) Float {
 	if x < lo {
 		return hi
 	} else if x > hi {

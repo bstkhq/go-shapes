@@ -128,15 +128,9 @@ func TestApplyBlurK(t *testing.T) {
 		canvas.Fill(color.Black)
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [downscaling: x%d (D), bicubic: %t (B)]", ctx.Title(), dscale.Factor(), bicubic))
 
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-				dscale += 1
-				if dscale > DownscaleX16 {
-					dscale = DownscaleNone
-				}
-			} else if inpututil.IsKeyJustPressed(ebiten.KeyB) {
-				bicubic = !bicubic
-			}
+		dscale = updateParam(ctx, ebiten.KeyD, dscale, DownscaleNone, DownscaleX16, 1)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyB) {
+			bicubic = !bicubic
 		}
 
 		lx, ly := ctx.LeftClickF32()
@@ -249,20 +243,8 @@ func TestApplyBlurVogel(t *testing.T) {
 		const FxRadius = 16
 		canvas.Fill(color.RGBA{0, 0, 255, 255})
 
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyS) {
-				sampling *= 2
-				if sampling > 64 {
-					sampling = 8
-				}
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-				downscale += 1
-				if downscale > DownscaleX16 {
-					downscale = DownscaleNone
-				}
-			}
-		}
+		downscale = updateParam(ctx, ebiten.KeyD, downscale, DownscaleNone, DownscaleX16, 1)
+		sampling = updateParamMult(ctx, ebiten.KeyS, sampling, 8, 64, 2)
 		seed := float32(1.0)
 		if ebiten.IsKeyPressed(ebiten.KeyN) {
 			seed = rand.Float32()

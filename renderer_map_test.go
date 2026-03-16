@@ -70,7 +70,6 @@ func TestMapProjectiveTilt(t *testing.T) {
 	const CardWidth, CardHeight = 256, 328
 
 	tilt := 0.0
-	clamping := false
 	anisotropic := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [tilt: %.05f, anisotropic: %t]", ctx.Title(), tilt, anisotropic))
@@ -85,16 +84,12 @@ func TestMapProjectiveTilt(t *testing.T) {
 				shift /= 100.0
 			}
 
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft):
 				tilt = max(tilt-shift, -1.0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+			case inpututil.IsKeyJustPressed(ebiten.KeyArrowRight):
 				tilt = min(tilt+shift, 1.0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyC) {
-				clamping = !clamping
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+			case inpututil.IsKeyJustPressed(ebiten.KeyA):
 				anisotropic = !anisotropic
 			}
 		}
@@ -120,7 +115,8 @@ func TestMapProjectiveTilt(t *testing.T) {
 	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
-	// app.Renderer.GradientDither(img, 0, 0, CardWidth, CardHeight, color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, DirRadsTTB, 1.0)
+	gradientOpts := GradientOpts(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, true)
+	app.Renderer.Gradient(img, gradientOpts, DirRadsTTB)
 	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
 	app.Renderer.DrawPieRate(img, CardWidth/2, CardHeight/2-32, 64, DirRadsTTB, 0.15, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
