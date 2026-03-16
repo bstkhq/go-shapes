@@ -64,6 +64,27 @@ func (ctx *TestAppCtx) Title() string {
 	)
 }
 
+func updateParam[T float32 | float64 | int](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
+	if !ctx.NewInput || !inpututil.IsKeyJustPressed(key) {
+		return value
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyShift) {
+		value -= delta
+	} else {
+		value += delta
+	}
+
+	if value > maxValue {
+		value = minValue
+	}
+	if value < minValue {
+		value = maxValue
+	}
+
+	return value
+}
+
 func (ctx *TestAppCtx) DrawAtF32(target, image *ebiten.Image, ox, oy float32) {
 	var opts ebiten.DrawImageOptions
 	opts.GeoM.Translate(float64(ox), float64(oy))

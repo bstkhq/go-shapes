@@ -137,21 +137,21 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 // BoundaryMode is a parameter type for [Renderer.JFMapBoundary]().
 type BoundaryMode struct {
 	// When false, the boundary is marked at the last pixel inside the
-	// boundary region (minAlpha, maxAlpha). If true, at the first pixel
-	// outside it.
+	// region (minAlpha, maxAlpha). If true, at the first pixel outside
+	// it.
 	Outer bool
 
 	// When true, samples outside bounds will be clamped to the image limits.
 	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
 	//
-	// Notice: this flag doesn't have effect when combined with 'outer',
-	// because the boundary would have to be marked outside the image.
+	// Notice: this flag can behave unintuitively when combined with 'outer'.
 	Clamp bool
 }
 
 // JFMapBoundary computes a jumping flood map of the given source image
-// and stores it in jfmap. minAlpha and maxAlpha delimit the area inside
-// the boundary (inclusive). For exclusive bounds, shift by +/-0.001.
+// and stores it in jfmap. minAlpha and maxAlpha delimit the area to be
+// considered for the boundary (inclusive). For exclusive bounds, shift
+// by +/-0.001.
 //
 // Preconditions (panics if violated):
 //   - source and jfmap must have the same size
@@ -261,15 +261,15 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 
 // JFMErode performs morphological erosion.
 //   - distance must be in [0, 32k].
-//   - source and jfmap are ideally in the same atlas.
+//   - source and jfmap must be the same size and are ideally in the same atlas.
 //   - jfmap can be nil, in which case it will be automatically generated for only this operation
 //     using [Renderer.JFMapBoundary]() with [0.0, 0.0] alpha interval + outer. If jfmap is nil,
 //     this function uses the internal offscreens (#0, #1).
 //
-// This operation is affected by [Renderer.Tint]. (TODO)
+// This operation is affected by [Renderer.Tint].
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32) {
+func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32, smooth bool) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
 		distance = 32000
@@ -278,15 +278,29 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 	}
 
 	if jfmap == nil {
+		source, jfmap = r.UnsafeTempDual(1, source, 0, false)
 		jfmapMaxDist := int(math.Ceil(float64(distance)))
-		source, jfmap = r.UnsafeTempDual(1, source, jfmapMaxDist, false)
-		r.JFMapBoundary(jfmap, source, jfmapMaxDist, 0.0, 0.0, BoundaryMode{Outer: true})
+		r.JFMapFill(jfmap, source, jfmapMaxDist, 0.0, 0.001)
+	} else {
+		sw, sh := rectSize(source.Bounds())
+		mw, mh := rectSize(jfmap.Bounds())
+		if sw != mw || sh != mh {
+			panic(fmt.Sprintf("source size != jfmap size (%dx%d != %dx%d)", sw, sh, mw, mh))
+		}
+	}
+
+	if smooth {
+		r.opts.Uniforms["Smooth"] = 1
 	}
 
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVA0(distance)
+	r.setFlatCustomVAs01(distance, r.tint)
 	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMErosion.Load())
 	r.opts.Images[1] = nil
+
+	if smooth {
+		clear(r.opts.Uniforms)
+	}
 }
 
 // TODO: unimplemented

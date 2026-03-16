@@ -8,8 +8,8 @@ import (
 
 // ApplyExpansion performs morphological dilation of the given mask and
 // draws it onto the given target. Notice that this is a quadratic algorithm.
-// For large erosion operations, consider [Renderer.ApplyExpansionRect]() and
-// [Renderer.JFMExpansion]().
+// For large expansion operations, consider [Renderer.ApplyExpansionRect]() and
+// [Renderer.JFMExpand]().
 //
 // thickness can't exceed 16.
 func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
@@ -65,7 +65,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 
 // ApplyErosion performs morphological erosion of the given mask and draws it
 // onto the given target. Notice that this is a quadratic algorithm. For large
-// erosion operations, consider [Renderer.JFMErosion]().
+// erosion operations, consider [Renderer.JFMErode]().
 //
 // thickness can't exceed 16.
 func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {

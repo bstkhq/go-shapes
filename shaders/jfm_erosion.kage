@@ -3,26 +3,66 @@ package main
 
 // see jfm_pass.kage for further context on JFA and offsets decoding
 
-func Fragment(_ vec4, sourceCoords0 vec2, color vec4, customVAs vec4) vec4 {
+var Smooth int
+
+// imageSrc0 = source, imageSrc1 = jf map. seeds must be outside the region
+// to erode, potentially including the first boundary pixel
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	radius := customVAs[0]
+	tint := customVAs[1]
 
-	normCoords0 := (sourceCoords0 - imageSrc0Origin()) / imageSrc0Size()
-	sourceCoords1 := (normCoords0 * imageSrc1Size()) + imageSrc0Origin()
-
-	seedOffset := vec2(jfaComputeOffsetToSeed(imageSrc1At(sourceCoords1)))
-	seed := imageSrc0At(sourceCoords0 + seedOffset)
-	if seedOffset == vec2(0, 0) {
-		return color
+	var in float
+	if Smooth == 1 {
+		in = smoothWithin(sourceCoords, radius)
+	} else {
+		in = within(sourceCoords, vec2(0), radius)
 	}
 
-	_ = seed
-	seedDist := distanceToSeed(seedOffset, sourceCoords0)
-	return color * clamp(seedDist-radius, 0, 1)
+	clr := imageSrc0At(sourceCoords)
+	return mix(clr, color*clr.a, tint) * (1 - in)
 }
 
-func distanceToSeed(seedOffset, pxCoords vec2) float {
-	alphaDist := 1.0 - pow(imageSrc0At(pxCoords).a, 1/2.2)
-	return length(seedOffset) + alphaDist
+// taken from jfm_expansion.kage
+func within(sourceCoords, neighborOffset vec2, maxDist float) float {
+	sourceCoords += neighborOffset
+	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
+	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
+	seedDist := length(offset+neighborOffset) + seedAlpha
+	return (1.0 - clamp(seedDist-maxDist, 0, 1))
+}
+
+// taken from jfm_expansion.kage
+func smoothWithin(sourceCoords vec2, maxDist float) float {
+	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
+	const MaxOffset = 1.0
+	clampedLS := max(-MaxOffset, minCoords.x-sourceCoords.x) // clamped shifts
+	clampedRS := min(+MaxOffset, maxCoords.x-sourceCoords.x)
+	clampedTS := max(-MaxOffset, minCoords.y-sourceCoords.y)
+	clampedBS := min(+MaxOffset, maxCoords.y-sourceCoords.y)
+
+	// blue noise based coords + bias
+	const biasSide = -0.02
+	const biasCorner = -0.05
+	tl := within(sourceCoords, vec2(max(clampedLS, -0.48), max(clampedTS, -0.63)), maxDist) + biasCorner
+	tc := within(sourceCoords, vec2(max(clampedLS, -0.27), max(clampedTS, -0.91)), maxDist) + biasSide
+	tr := within(sourceCoords, vec2(min(clampedRS, +0.88), max(clampedTS, -0.44)), maxDist) + biasCorner
+	cl := within(sourceCoords, vec2(max(clampedLS, -0.79), max(clampedTS, -0.18)), maxDist) + biasSide
+	cc := within(sourceCoords, vec2(+0.0, +0.0), maxDist)
+	cr := within(sourceCoords, vec2(min(clampedRS, +0.73), min(clampedBS, +0.21)), maxDist) + biasSide
+	bl := within(sourceCoords, vec2(max(clampedLS, -0.61), min(clampedBS, +0.38)), maxDist) + biasCorner
+	bc := within(sourceCoords, vec2(min(clampedRS, +0.36), min(clampedBS, +0.57)), maxDist) + biasSide
+	br := within(sourceCoords, vec2(min(clampedRS, +0.19), min(clampedBS, +0.82)), maxDist) + biasCorner
+
+	return clamp(max3(max3(tl, tc, tr), max3(cl, cc, cr), max3(bl, bc, br)), 0, 1)
+}
+
+func max3(a, b, c float) float {
+	return max(max(a, b), c)
+}
+
+func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
 }
 
 // taken from jfm_pass.kage

@@ -25,9 +25,6 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 func within(sourceCoords, neighborOffset vec2, maxDist float) float {
 	sourceCoords += neighborOffset
 	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
-
-	// source alpha on expansions is assumed to be 0 if not seed,
-	// so it's not fetched
 	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
 	seedDist := length(offset+neighborOffset) + (1.0 - seedAlpha)
 	return (1.0 - clamp(seedDist-maxDist, 0, 1))

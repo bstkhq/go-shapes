@@ -192,11 +192,8 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 func TestJFMExpand(t *testing.T) {
 	imgIndex := 0
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
 		canvas.Fill(color.Black)
-
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-			imgIndex = (imgIndex + 1) % len(ctx.Images)
-		}
 
 		bw, bh := rectSizeF32(canvas.Bounds())
 		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
@@ -230,11 +227,9 @@ func TestJFMExpand(t *testing.T) {
 
 // go test -run ^TestJFMExpandSoftMotion$ . -count 1
 func TestJFMExpandSoftMotion(t *testing.T) {
-	const BaseRadius = 64
-	const XW, XH = BaseRadius * 2, (BaseRadius * 7) / 4
-	const XMargin, XThick = BaseRadius / 3, BaseRadius / 8
-
+	imgIndex := 0
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
 		canvas.Fill(color.Black)
 
 		bw, bh := rectSizeF32(canvas.Bounds())
@@ -242,22 +237,15 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 		xShift := float32(-4.0 + ctx.DistAnim(8.0, 0.77))
 
 		const r = 9.0
-		smooth := !ebiten.IsKeyPressed(ebiten.KeySpace)
-		i0w, i0h := rectSizeF32(ctx.Images[0].Bounds())
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], bw/4-i0w/2+xShift, bh/4-i0h/2+yShift, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[0], nil, bw/4-i0w/2+xShift, bh-bh/4-i0h/2+yShift, r, smooth)
+		iw, ih := rectSizeF32(ctx.Images[imgIndex].Bounds())
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false)
 
-		i1w, i1h := rectSizeF32(ctx.Images[1].Bounds())
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[1], bw-bw/4-i1w/2+xShift, bh/4-i1h/2+yShift, r)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[1], nil, bw-bw/4-i1w/2+xShift, bh-bh/4-i1h/2+yShift, r, smooth)
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, true)
 	})
 
-	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
-	app.Renderer.DrawCircle(circle, BaseRadius, BaseRadius, BaseRadius)
-	xSign := ebiten.NewImage(XW, XH)
-	app.Renderer.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
-	app.Renderer.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
-	app.Images = append(app.Images, circle, xSign)
+	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -265,28 +253,35 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 
 // go test -run ^TestJFMErode$ . -count 1
 func TestJFMErode(t *testing.T) {
+	imgIndex := 0
+	motion := false
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
+		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
+		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyM) {
+			motion = !motion
+		}
 
 		bw, bh := rectSizeF32(canvas.Bounds())
-		w, h := rectSizeF32(ctx.Images[0].Bounds())
-		ctx.DrawAtF32(canvas, ctx.Images[0], bw/4-w/2, bh/4-h/2)
+		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
+		ctx.DrawAtF32(canvas, ctx.Images[imgIndex], bw/4-w/2, bh/4-h/2)
 		r := float32(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], bw-bw/4-w/2, bh/4-h/2, r)
-		ctx.Renderer.JFMErode(canvas, ctx.Images[0], nil, bw/4-w/2, bh-bh/4-h/2, r)
+		tint := float32(ctx.DistAnim(1.0, 0.5))
+		ctx.Renderer.SetTint(tint)
+		mx, my := float32(0.0), float32(0.0)
+		if motion {
+			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
+			r = 6.0
+		}
+		ctx.Renderer.ApplyErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r)
+		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
+		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
+
+		// ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, true)
+		ctx.Renderer.SetTint(0)
 	})
 
-	const BaseRadius = 128
-	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
-	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
-	gradientOpts.Bias = 0.5
-	app.Renderer.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
-	// gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
-	// gradientOpts.Bias = -0.25
-	// app.Renderer.opts.Blend = ebiten.BlendSourceIn
-	// app.Renderer.Gradient(circle, gradientOpts, DirRadsBLTR)
-	// app.Renderer.opts.Blend = ebiten.BlendSourceOver
-	app.Images = append(app.Images, circle)
+	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
