@@ -422,48 +422,25 @@ func TestDrawEllipse(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawRing$ . -count 1
-func TestDrawRing(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 64.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 48.0)
-
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 1)
-		ctx.Renderer.SetColorF32(0.5, 1.0, 0.5, 1.0, 2, 3)
-		ctx.Renderer.DrawRing(canvas, lx, ly, 65.0, 67.0)
-		ctx.Renderer.DrawRing(canvas, rx, ry, 48.0-4, 48+0)
-
-		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 48.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawRingSector$ . -count 1
-func TestDrawRingSector(t *testing.T) {
+// go test -run ^TestDrawCircSector$ . -count 1
+func TestDrawCircSector(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		startRads := ctx.ModAnim(2*math.Pi, 1.0)
 		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 8.0)
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 8.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// go test -run ^TestStrokeRingSector$ . -count 1
-func TestStrokeRingSector(t *testing.T) {
+// go test -run ^TestStrokeCircSector$ . -count 1
+func TestStrokeCircSector(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
@@ -471,50 +448,13 @@ func TestStrokeRingSector(t *testing.T) {
 		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
 
 		ctx.Renderer.SetColorF32(0, 0, 0.5, 0.5)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		thick := float32(ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.StrokeRingSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 0.0)
+		ctx.Renderer.StrokeCircSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 0.0)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.StrokeRingSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 8.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawPie$ . -count 1
-func TestDrawPie(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		rate := -0.01 + ctx.DistAnim(1.02, 1.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawPieRate(canvas, cx, cy, 96.0, RadsRight, rate, 6.0)
-
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0)
-		ctx.Renderer.DrawPie(canvas, cx, cy, 64.0, RadsRight+rate, RadsBottom, 3.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokePie$ . -count 1
-func TestStrokePie(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		rate := -0.01 + ctx.DistAnim(1.02, 1.0)
-		thick := float32(4.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.StrokePieRate(canvas, cx, cy, 96.0, thick, RadsRight, rate, 6.0)
-
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0)
-		ctx.Renderer.StrokePie(canvas, cx, cy, 64.0, thick, RadsRight+rate, RadsBottom, 3.0)
+		ctx.Renderer.StrokeCircSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 8.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

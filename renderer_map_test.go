@@ -118,7 +118,8 @@ func TestMapProjectiveTilt(t *testing.T) {
 	gradientOpts := GradientOpts(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, true)
 	app.Renderer.Gradient(img, gradientOpts, DirRadsTTB)
 	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
-	app.Renderer.DrawPieRate(img, CardWidth/2, CardHeight/2-32, 64, DirRadsTTB, 0.15, 0)
+	sr, er := RadsSpan(DirRadsTTB, 0.15)
+	app.Renderer.DrawCircSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 

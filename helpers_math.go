@@ -31,6 +31,27 @@ func (gen *GoldenRatioGen) Float64() float64 {
 	return v
 }
 
+// RadsSpan returns the start and end angles (in radians) centered
+// around centerDir. fillRate must be in [0...1].
+//
+// This is a helper function often used with [Renderer.DrawCircSector]()
+// and similar functions.
+//
+// See [RadsRight] constants for angle conventions and docs.
+func RadsSpan[Float ~float64 | ~float32](centerDir Float, fillRate Float) (start, end Float) {
+	if fillRate <= 0 {
+		return centerDir, centerDir
+	}
+	if fillRate >= 1.0 {
+		start := uradsAddCW(centerDir, math.Pi)
+		return start, start + 2*Float(math.Pi)
+	}
+
+	centerDir = normURads(centerDir)
+	ratePi := fillRate * math.Pi
+	return uradsAddCW(centerDir, -ratePi), uradsAddCW(centerDir, ratePi)
+}
+
 func ceilF32(x float32) float32 {
 	return float32(math.Ceil(float64(x)))
 }
@@ -64,8 +85,11 @@ func umod(x, m float64) float64 {
 }
 
 // normURads calls [umod](r, 2*math.Pi) to normalize r to [0, 2*pi) range.
-func normURads(r float64) float64 {
-	return umod(r, 2*math.Pi)
+func normURads[Float ~float64 | ~float32](r Float) Float {
+	if r >= 0 && r <= 2*math.Pi {
+		return r
+	}
+	return Float(umod(float64(r), 2*math.Pi))
 }
 
 // Notice: geometry code is derived from etxt@v0.0.8 emask/helper_funcs.go
@@ -260,32 +284,8 @@ func lineIntersect(p1, d1, p2, d2 PointF32) PointF32 {
 	}
 }
 
-// precondition: angles must be normalized by normURads
-func pieBounds(cx, cy float32, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
-	ss, sc := math.Sincos(startRads)
-	es, ec := math.Sincos(endRads)
-	ss32, sc32, es32, ec32 := float32(ss), float32(sc), float32(es), float32(ec)
-	p1x, p1y := cx+radius*sc32, cy+radius*ss32
-	p2x, p2y := cx+radius*ec32, cy+radius*es32
-	minX, minY = min(cx, p1x, p2x), min(cy, p1y, p2y)
-	maxX, maxY = max(cx, p1x, p2x), max(cy, p1y, p2y)
-	if uradsWithinCW(RadsRight, startRads, endRads) {
-		maxX = cx + radius
-	}
-	if uradsWithinCW(RadsBottom, startRads, endRads) {
-		maxY = cy + radius
-	}
-	if uradsWithinCW(RadsLeft, startRads, endRads) {
-		minX = cx - radius
-	}
-	if uradsWithinCW(RadsTop, startRads, endRads) {
-		minY = cy - radius
-	}
-	return minX, minY, maxX, maxY
-}
-
 // precondition: angles must be normalized by normURads, outRadius >= inRadius
-func ringSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
+func circSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	ss, sc := math.Sincos(startRads)
 	es, ec := math.Sincos(endRads)
 	ss32, sc32, es32, ec32 := float32(ss), float32(sc), float32(es), float32(ec)
@@ -313,14 +313,14 @@ func ringSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, en
 
 // uradsWithinCW returns whether 'rads' is within the clockwise segment [start, end],
 // assumming that all angles are normalized in the [0, 2*pi) range (e.g. normURads)
-func uradsWithinCW[Float ~float32 | ~float64](rads, start, end Float) bool {
+func uradsWithinCW[Float ~float64 | ~float32](rads, start, end Float) bool {
 	if start < end {
 		return rads >= start && rads <= end
 	}
 	return rads >= start || rads <= end
 }
 
-func uradsDeltaCW[Float ~float32 | ~float64](start, end Float) Float {
+func uradsDeltaCW[Float ~float64 | ~float32](start, end Float) Float {
 	if end >= start {
 		return end - start
 	}
@@ -328,7 +328,7 @@ func uradsDeltaCW[Float ~float32 | ~float64](start, end Float) Float {
 }
 
 // precondition: start is in [0, 2*pi) range, delta is in (-2*pi, 2*pi) range
-func uradsAddCW[Float ~float32 | ~float64](start, delta Float) Float {
+func uradsAddCW[Float ~float64 | ~float32](start, delta Float) Float {
 	total := start + delta
 	if total > 2*math.Pi {
 		total -= 2 * math.Pi

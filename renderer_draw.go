@@ -23,15 +23,6 @@ func (r *Renderer) NewCircle(radius float64) *ebiten.Image {
 	return img
 }
 
-// NewRing returns a new image with a ring of the given dimensions, drawn
-// with the renderer's current color.
-func (r *Renderer) NewRing(inRadius, outRadius float64) *ebiten.Image {
-	side := float32(math.Ceil(outRadius * 2))
-	img := ebiten.NewImage(int(side), int(side))
-	r.DrawRing(img, side/2, side/2, float32(inRadius), float32(outRadius))
-	return img
-}
-
 // DrawRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
 func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
 	if rounding == 0 {
@@ -121,6 +112,7 @@ func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickn
 }
 
 // DrawCircle draws a filled circle. Radius can't be negative.
+// See also [Renderer.StrokeCircle](), [Renderer.DrawCircSector]().
 func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
 	if radius == 0 {
 		return
@@ -161,40 +153,34 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
 }
 
-// DrawRing draws a smooth ring at the given position. For ring segments
-// with start and end angles, see [Renderer.DrawRingSector]() instead.
-func (r *Renderer) DrawRing(target *ebiten.Image, cx, cy, inRadius, outRadius float32) {
-	if inRadius >= outRadius {
-		return // skip empty draws
-	}
-	r.setDstRectCoords(cx-outRadius, cy-outRadius, cx+outRadius, cy+outRadius)
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, outRadius, inRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderRing.Load(), &r.opts)
-}
-
-// DrawRingSector draws a smooth ring segment. See [RadsRight] constants for
-// angle conventions and docs.
+// DrawCircSector draws a smooth circular sector. Use inRadius = 0 for pie shapes, inRadius > 0 for
+// rings. Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice
+// that inwards rounding requires non-trivial CPU precalculations.
 //
-// Only outer rounding is supported at the moment.
-func (r *Renderer) DrawRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
+// Consider [RadsSpan]() if you need to derive (startRads, endRads) from a central direction.
+//
+// See [RadsRight] constants for angle conventions and docs.
+func (r *Renderer) DrawCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads {
 		return // skip empty draws
 	}
-	if inRadius <= 0 {
-		r.DrawCircle(target, cx, cy, outRadius)
+	if inRadius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
+		inRadius = 0
 	}
 	if endRads >= startRads+2*math.Pi {
-		r.DrawRing(target, cx, cy, inRadius, outRadius)
+		thickness := outRadius - inRadius
+		r.StrokeCircle(target, cx, cy, outRadius-thickness/2, thickness)
+		return
 	}
 
 	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalDrawRingSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
+	r.internalDrawCircSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
 }
 
 // precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalDrawRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := ringSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
+func (r *Renderer) internalDrawCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
+	pieMinX, pieMinY, pieMaxX, pieMaxY := circSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
 	if rounding != 0 {
 		r := abs(rounding)
 		pieMinX -= r
@@ -212,33 +198,36 @@ func (r *Renderer) internalDrawRingSector(target *ebiten.Image, cx, cy, inRadius
 	r.opts.Uniforms["Rounding"] = rounding
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderRingSector.Load(), &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSector.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
-// StrokeRingSector draws the outline of a smooth ring segment. See [RadsRight]
-// constants for angle conventions and docs.
+// StrokeCircSector draws the outline of a circular sector. Thickness must be >= 0.
+// Rounding can be positive for outwards rounding, or negative for inwards rounding.
+// Notice that inwards rounding requires non-trivial CPU precalculations.
 //
-// Only outer rounding is supported at the moment.
-func (r *Renderer) StrokeRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
+// See [RadsRight] constants for angle conventions and docs.
+func (r *Renderer) StrokeCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads || thickness <= 0 {
 		return // skip empty draws
 	}
-	if inRadius <= 0 {
-		r.StrokeCircle(target, cx, cy, outRadius, thickness)
+	if inRadius < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
+		inRadius = 0
 	}
 	if endRads >= startRads+2*math.Pi {
 		r.StrokeCircle(target, cx, cy, inRadius, thickness)
 		r.StrokeCircle(target, cx, cy, outRadius, thickness)
+		return
 	}
 
 	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalStrokeRingSector(target, cx, cy, inRadius, outRadius, thickness, startRads, endRads, rounding)
+	r.internalStrokeCircSector(target, cx, cy, inRadius, outRadius, thickness, startRads, endRads, rounding)
 }
 
 // precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalStrokeRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := ringSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
+func (r *Renderer) internalStrokeCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
+	pieMinX, pieMinY, pieMaxX, pieMaxY := circSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
 	if rounding != 0 {
 		r := abs(rounding)
 		pieMinX -= r
@@ -261,114 +250,7 @@ func (r *Renderer) internalStrokeRingSector(target *ebiten.Image, cx, cy, inRadi
 	r.opts.Uniforms["Thickness"] = thickness
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeRingSector.Load(), &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// DrawPie draws circular sector defined by (startRads, endRads).
-// See [RadsRight] constants for angle conventions and docs.
-//
-// Some examples:
-//   - startRads = RadsRight, endRads = RadsBottom will draw the bottom-right quarter circle pie.
-//   - startRads = RadsBottom, endRads = RadsRight will draw a pie missing the bottom-right quarter.
-//
-// Notice that the rounding parameter doesn't expand the shape beyond the radius, but it does expand
-// the side flat faces of the pie.
-func (r *Renderer) DrawPie(target *ebiten.Image, cx, cy, radius float32, startRads, endRads float64, rounding float32) {
-	if startRads == endRads || radius < 0 {
-		return // empty
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.DrawCircle(target, cx, cy, radius)
-		return // full circle
-	}
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	r.internalDrawPieRate(target, cx, cy, radius, centerDir, startRads, endRads, float64(delta)/(2*math.Pi), rounding)
-}
-
-// DrawPieRate is similar to DrawPie, but using a single direction for the center of the pie
-// slice and a rate value between (0, 1), with 0 being empty pie and 1 being completely filled.
-// See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) DrawPieRate(target *ebiten.Image, cx, cy, radius float32, centerDir, rate float64, rounding float32) {
-	if rate <= 0 || radius < 0 {
-		return // empty
-	}
-	if rate > 1.0 {
-		r.DrawCircle(target, cx, cy, radius)
-		return // full circle
-	}
-
-	ratePi := rate * math.Pi
-	startRads, endRads := uradsAddCW(centerDir, ratePi), uradsAddCW(centerDir, ratePi)
-	r.internalDrawPieRate(target, cx, cy, radius, centerDir, startRads, endRads, rate, rounding)
-}
-
-// preconditions: 0 < rate < 1.0, centerDir, startRads, endRads and rate are consistent
-func (r *Renderer) internalDrawPieRate(target *ebiten.Image, cx, cy, radius float32, centerDir, startRads, endRads, rate float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := pieBounds(cx, cy, radius, startRads, endRads)
-	pieMinX -= rounding
-	pieMinY -= rounding
-	pieMaxX += rounding
-	pieMaxY += rounding
-	r.setDstRectCoords(pieMinX, pieMinY, pieMaxX, pieMaxY)
-
-	ws, wc := math.Sincos(rate * math.Pi)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["Rounding"] = rounding
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, float32(normURads(centerDir)), radius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderPie.Load(), &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// StrokePie is the stroke version of [Renderer.DrawPie](). The shape is drawn with an ouline of the given thickness.
-func (r *Renderer) StrokePie(target *ebiten.Image, cx, cy, radius, thickness float32, startRads, endRads float64, rounding float32) {
-	if startRads == endRads || radius < 0 {
-		return // empty
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.StrokeCircle(target, cx, cy, radius, thickness)
-		return // full circle
-	}
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	r.internalStrokePieRate(target, cx, cy, radius, thickness, centerDir, startRads, endRads, float64(delta)/(2*math.Pi), rounding)
-}
-
-// StrokePie is the stroke version of [Renderer.DrawPieRate](). The shape is drawn with an ouline of the given thickness.
-func (r *Renderer) StrokePieRate(target *ebiten.Image, cx, cy, radius, thickness float32, centerDir, rate float64, rounding float32) {
-	if rate <= 0 || radius < 0 {
-		return // empty
-	}
-	if rate > 1.0 {
-		r.StrokeCircle(target, cx, cy, radius, thickness)
-		return // full circle
-	}
-
-	ratePi := rate * math.Pi
-	startRads, endRads := uradsAddCW(centerDir, ratePi), uradsAddCW(centerDir, ratePi)
-	r.internalStrokePieRate(target, cx, cy, radius, thickness, centerDir, startRads, endRads, rate, rounding)
-}
-
-// preconditions: 0 < rate < 1.0, centerDir, startRads, endRads and rate are consistent
-func (r *Renderer) internalStrokePieRate(target *ebiten.Image, cx, cy, radius, thickness float32, centerDir, startRads, endRads, rate float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := pieBounds(cx, cy, radius, startRads, endRads)
-	pieMinX -= (rounding + thickness)
-	pieMinY -= (rounding + thickness)
-	pieMaxX += (rounding + thickness)
-	pieMaxY += (rounding + thickness)
-	r.setDstRectCoords(pieMinX, pieMinY, pieMaxX, pieMaxY)
-
-	ws, wc := math.Sincos(rate * math.Pi)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["Rounding"] = rounding
-	r.opts.Uniforms["Thickness"] = thickness
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, float32(normURads(centerDir)), radius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokePie.Load(), &r.opts)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircSector.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -542,7 +424,6 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 }
 
 // StrokeRect is the image.Rectangle compatible equivalent of [Renderer.StrokeArea]().
-// When no rounding is required, prefer [Renderer.StrokeIntArea]() instead.
 func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness, rounding float32) {
 	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), inThickness, outThickness, rounding)
 }
@@ -596,8 +477,8 @@ func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickne
 // DrawTriangle draws a smooth triangle using the given vertices and an optional rounding factor.
 //
 // Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice that
-// inwards rounding is non-trivial (two dozen f64 products and 3 square roots for CPU-side
-// precomputations).
+// inwards rounding requires non-trivial CPU precalculations (two dozen f64 products and 3 square
+// roots).
 func (r *Renderer) DrawTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
 	r.drawTriangle(target, points, 0.0, rounding)
 }
@@ -757,6 +638,8 @@ func (r *Renderer) DrawQuad(target *ebiten.Image, quad [4]PointF32, thickening f
 	r.DrawQuadSoft(target, quad, thickening, 1.3333)
 }
 
+// DrawQuadSoft draws a quad like [Renderer.DrawQuad]() but with an extra softEdge, which
+// creates a shadow-like soft edge. TODO: inconsistent softEdge between DrawAreaSoft and this.
 func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
 	for i, pt := range expandQuad(quad, thickening) {
 		r.vertices[i].DstX = pt.X
