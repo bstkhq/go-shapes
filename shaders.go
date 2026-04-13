@@ -82,6 +82,10 @@ var shaderCircSector = shaderRef{src: shaderCircSectorSrc}
 var shaderStrokeCircSectorSrc []byte
 var shaderStrokeCircSector = shaderRef{src: shaderStrokeCircSectorSrc}
 
+//go:embed shaders/circ_sector_segment.kage
+var shaderCircSectorSegmentSrc []byte
+var shaderCircSectorSegment = shaderRef{src: shaderCircSectorSegmentSrc}
+
 //go:embed shaders/ellipse.kage
 var shaderEllipseSrc []byte
 var shaderEllipse = shaderRef{src: shaderEllipseSrc}
