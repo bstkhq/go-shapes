@@ -2,7 +2,7 @@
 package main
 
 var Center vec2
-var Dir float
+var Rotation vec2 // (cos, sin) of -Dir
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
@@ -10,7 +10,7 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	apertureCosSin, radius, thickness := customVAs.xy, customVAs.z, customVAs.w
 
 	relCoords := targetCoords.xy - imageDstOrigin() - Center
-	relCoords = rotate(relCoords, -Dir)
+	relCoords = rotate(relCoords, Rotation)
 	dist := sdfArc(relCoords, apertureCosSin, radius) - thickness/2.0
 
 	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
@@ -29,7 +29,6 @@ func sdfArc(p, cs vec2, radius float) float {
 	}
 }
 
-func rotate(p vec2, rads float) vec2 {
-	cosR, sinR := cos(rads), sin(rads)
-	return vec2(p.x*cosR-p.y*sinR, p.x*sinR+p.y*cosR)
+func rotate(p, dir vec2) vec2 {
+	return vec2(p.x*dir.x-p.y*dir.y, p.x*dir.y+p.y*dir.x)
 }

@@ -418,3 +418,25 @@ func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, r
 
 	return vertices
 }
+
+// (cx, cy) is a point on circle, (ox, oy) is an outside point.
+// Circle center is assumed to be (0,0). this function will return
+// (cx, cy) unless the line from c to o crosses another point
+// in the circle first.
+func lineCircIntersect(radius, cx, cy, ox, oy float64) (float64, float64) {
+	dx, dy := ox-cx, oy-cy
+	dd := dx*dx + dy*dy
+	if dd == 0 {
+		return cx, cy
+	}
+
+	// direct second root (t=0 is not relevant)
+	t := -2.0 * (cx*dx + cy*dy) / dd
+
+	// forward check
+	if t > 0 {
+		return cx + t*dx, cy + t*dy
+	}
+
+	return cx, cy
+}

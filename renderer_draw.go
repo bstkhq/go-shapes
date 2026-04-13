@@ -152,7 +152,8 @@ func (r *Renderer) DrawCircLine(target *ebiten.Image, cx, cy, radius, startRads,
 	r.setFlatCustomVAs(float32(c), float32(s), radius32, thick32)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.opts.Uniforms["Center"] = [2]float32{cx32 - tox, cy32 - toy}
-	r.opts.Uniforms["Dir"] = float32(uradsAddCW(startRads, delta*0.5))
+	s, c = math.Sincos(-uradsAddCW(startRads, delta*0.5))
+	r.opts.Uniforms["Rotation"] = [2]float32{float32(c), float32(s)}
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircLine.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
@@ -310,11 +311,11 @@ func (r *Renderer) DrawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadi
 	r.opts.Uniforms["Radiuses"] = [2]float32{float32(inRadius), float32(outRadius)}
 	r.opts.Uniforms["InPoint"] = [2]float32{float32(inX), float32(inY)}
 	r.opts.Uniforms["OutPoint"] = [2]float32{float32(outX), float32(outY)}
-	pt := PointF32{X: float32(inX - outX), Y: float32(inY - outY)}.Normalize()
-	r.opts.Uniforms["Dir"] = [2]float32{pt.X, pt.Y}
+	s, c := math.Sincos(-centerDir)
+	r.opts.Uniforms["Rotation"] = [2]float32{float32(c), float32(s)}
 
 	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(centerDir), float32(rounding))
+	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(rounding), 0)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }

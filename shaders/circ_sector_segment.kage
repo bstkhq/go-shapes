@@ -7,21 +7,20 @@ package main
 var Radiuses vec2 // in, out
 var InPoint vec2  // relative to right dir (rads = 0), clockwise
 var OutPoint vec2 // relative to right dir (rads = 0), clockwise
-var Dir vec2
+var Rotation vec2 // (cos, sin) of -dir
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
 
 	center := customVAs.xy
-	centerDir := customVAs.z
-	rounding := customVAs.w // can only be >= 0
+	rounding := customVAs.z
 
 	relCoords := targetCoords.xy - imageDstOrigin()
 	relCenterCoords := relCoords - center
 
 	// rotate and use abs to mirror. with this, we now can operate
 	// as if we only had the lower half circle to solve
-	p := rotate(relCenterCoords, -centerDir)
+	p := rotate(relCenterCoords, Rotation)
 	p.y = abs(p.y)
 
 	// here's the conceptually tricky part: we have three points, center, InPoint,
@@ -70,7 +69,6 @@ func sdfSegment(p, a, b vec2) (dist float, halfPlaneSide float) {
 	return length(pa - ba*h), sign(ba.x*pa.y - ba.y*pa.x)
 }
 
-func rotate(p vec2, rads float) vec2 {
-	cosR, sinR := cos(rads), sin(rads)
-	return vec2(p.x*cosR-p.y*sinR, p.x*sinR+p.y*cosR)
+func rotate(p, dir vec2) vec2 {
+	return vec2(p.x*dir.x-p.y*dir.y, p.x*dir.y+p.y*dir.x)
 }
