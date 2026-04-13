@@ -59,6 +59,59 @@ func TestDrawShapes(t *testing.T) {
 	}
 }
 
+// go test -run ^TestDrawCircLine$ . -count 1
+func TestDrawCircLine(t *testing.T) {
+	var startRads, endRads float64 = 0.2, RadsBottomRight
+	var thickness, radius float64 = 16.0, 96.0
+
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s  [startRads: %.02f (S + up/down), endRads: %.02f (E), thickness: %.02f (T), radius: %.02f (R)]",
+			ctx.Title(), startRads, endRads, thickness, radius,
+		))
+		if ctx.NewInput {
+			switch {
+			case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
+				switch {
+				case ebiten.IsKeyPressed(ebiten.KeyS):
+					startRads = wrap(startRads+math.Pi/6, 0, 2.0*math.Pi)
+				case ebiten.IsKeyPressed(ebiten.KeyE):
+					endRads = wrap(endRads+math.Pi/6, 0, 2.0*math.Pi)
+				case ebiten.IsKeyPressed(ebiten.KeyT):
+					thickness = wrap(thickness+2.0, 0.0, 32.0)
+				case ebiten.IsKeyPressed(ebiten.KeyR):
+					radius = wrap(radius+16.0, 0.0, 256.0)
+				}
+			case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):
+				switch {
+				case ebiten.IsKeyPressed(ebiten.KeyS):
+					startRads = wrap(startRads-math.Pi/6, 0, 2.0*math.Pi)
+				case ebiten.IsKeyPressed(ebiten.KeyE):
+					endRads = wrap(endRads-math.Pi/6, 0, 2.0*math.Pi)
+				case ebiten.IsKeyPressed(ebiten.KeyT):
+					thickness = wrap(thickness-2.0, 0.0, 32.0)
+				case ebiten.IsKeyPressed(ebiten.KeyR):
+					radius = wrap(radius-16.0, 0.0, 256.0)
+				}
+			}
+		}
+
+		w, h := rectSizeF64(canvas.Bounds())
+		cx, cy := w/2.0, h/2.0
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.DrawCircLine(canvas, cx, cy, radius, startRads, endRads, thickness)
+
+		ctx.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
+		ctx.Renderer.DrawCircSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)    // reference
+		ctx.Renderer.DrawLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
+		ctx.Renderer.DrawCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                        // for thickness
+	})
+
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestDrawTriangles$ . -count 1
 func TestDrawTriangles(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -429,10 +482,25 @@ func TestDrawCircSector(t *testing.T) {
 		cx, cy := w/2.0, h/2.0
 		startRads := ctx.ModAnim(2*math.Pi, 1.0)
 		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
+		inRadius, outRadius := float32(48.0), float32(128.0)
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			inRadius = 0.0
+		}
+
+		// ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(16.0, 1.0)))
+		// ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
+		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
+
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 8.0)
+		off := float32(200.0)
+		ctx.Renderer.DrawCircSector(canvas, cx+off, cy+off, inRadius, outRadius, startRads, endRads, -24.0)
+
+		// ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
+		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 8.0)
+
+		// ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
+		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, -16.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -448,13 +516,62 @@ func TestStrokeCircSector(t *testing.T) {
 		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
 
 		ctx.Renderer.SetColorF32(0, 0, 0.5, 0.5)
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
+		inRadius, outRadius := float32(48.0), float32(128.0)
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			inRadius = 0.0
+		}
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		thick := float32(ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.StrokeCircSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 0.0)
+		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 0.0)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.StrokeCircSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 8.0)
+		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 8.0)
+	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestDrawCircWedge$ . -count 1
+func TestDrawCircWedge(t *testing.T) {
+	var inRate, outRate float64 = 0.2, 0.35
+	var rotate bool = true
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s  [inRate: %.02f (shift + up/down), outRate: %.02f (up/down), rotate: %t (R)]", ctx.Title(), inRate, outRate, rotate))
+		if ctx.NewInput {
+			if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+				rotate = !rotate
+			}
+
+			const Change = 0.05
+			change := 0.0
+			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+				change = Change
+			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+				change = -Change
+			}
+
+			if ebiten.IsKeyPressed(ebiten.KeyShift) {
+				inRate = wrap(inRate+change, 0.0, 1.0)
+			} else {
+				outRate = wrap(outRate+change, 0.0, 1.0)
+			}
+		}
+
+		w, h := rectSizeF32(canvas.Bounds())
+		cx, cy := w/2.0, h/2.0
+		inRadius, outRadius := 128.0, 192.0
+		ctx.Renderer.SetColorF32(0.4, 0.4, 0.4, 1.0)
+		ctx.Renderer.StrokeCircle(canvas, cx, cy, float32(inRadius), 3.0)
+		ctx.Renderer.StrokeCircle(canvas, cx, cy, float32(outRadius), 3.0)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		centerDir := ctx.ModAnim(2*math.Pi, 0.5)
+		if !rotate {
+			centerDir = 0.0
+		}
+		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
+		ctx.Renderer.DrawCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

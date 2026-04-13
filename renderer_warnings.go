@@ -41,6 +41,7 @@ const (
 	WarnInvalidNoiseSeedClamped
 	WarnTooManyVertexAttribs
 	WarnTooManyColorsClamped
+	WarnInvalidApertureClamped
 
 	warnSentinel
 )
@@ -89,6 +90,8 @@ func (w Warning) Message() string {
 		return "too many vertex attributes, ignored excess ones"
 	case WarnTooManyColorsClamped:
 		return "too many color values, clamped to max"
+	case WarnInvalidApertureClamped:
+		return "aperture out of [0, 2*Pi], clamped"
 	default:
 		return fmt.Sprintf("%s 0x%08x", unknownWarningPrefix, w)
 	}

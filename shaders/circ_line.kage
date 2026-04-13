@@ -1,0 +1,35 @@
+//kage:unit pixels
+package main
+
+var Center vec2
+var Dir float
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	apertureCosSin, radius, thickness := customVAs.xy, customVAs.z, customVAs.w
+
+	relCoords := targetCoords.xy - imageDstOrigin() - Center
+	relCoords = rotate(relCoords, -Dir)
+	dist := sdfArc(relCoords, apertureCosSin, radius) - thickness/2.0
+
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}
+
+func sdfArc(p, cs vec2, radius float) float {
+	p.y = abs(p.y)
+	if cs.y*p.x < cs.x*p.y {
+		// outside arc
+		return length(p - cs*radius)
+	} else {
+		// inside arc
+		return abs(length(p) - radius)
+	}
+}
+
+func rotate(p vec2, rads float) vec2 {
+	cosR, sinR := cos(rads), sin(rads)
+	return vec2(p.x*cosR-p.y*sinR, p.x*sinR+p.y*cosR)
+}
