@@ -419,6 +419,29 @@ func TestStrokeArea(t *testing.T) {
 	}
 }
 
+// go test -run ^TestAreaRounding$ . -count 1
+func TestAreaRounding(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		const rw, rh, ra = 196, 128, 0.5
+		ctx.Renderer.SetColorF32(ra, ra, ra, ra)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		rounding := float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		ctx.Renderer.DrawArea(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
+		inThick, outThick := float32(8.0), float32(8.0)
+		if ebiten.IsKeyPressed(ebiten.KeyI) {
+			inThick = 0.0
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyP) {
+			outThick = 0.0
+		}
+		ctx.Renderer.StrokeArea(canvas, cw/2+16, ch/2-rh/2, rw, rh, inThick, outThick, rounding)
+	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStrokeCircle$ . -count 1
 func TestStrokeCircle(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
