@@ -59,6 +59,42 @@ func TestDrawShapes(t *testing.T) {
 	}
 }
 
+// go test -run ^TestStrokeTriangle$ . -count 1
+func TestStrokeTriangle(t *testing.T) {
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+		const a = 0.5
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		cw3, ch3 := cw/3.0, ch/3.0
+
+		var points [3][3]PointF32
+		for x := range 3 {
+			points[x][0] = PointF32{X: 32.0 + float32(x)*cw3, Y: 32.0}
+			points[x][1] = points[x][0].AddXY(cw3*0.7, ch3*0.2)
+			points[x][2] = points[x][0].AddXY(cw3*0.35, ch3*0.6)
+		}
+
+		thick := float32(8.0)
+		if ebiten.IsKeyPressed(ebiten.KeyT) {
+			thick = -thick
+		}
+		r := float32(ctx.DistAnim(24.0, 1.0))
+
+		ctx.Renderer.SetColorF32(a, a, a, a)
+		ctx.Renderer.DrawTriangle(canvas, points[0], 0.0) // no rounding
+		ctx.Renderer.DrawTriangle(canvas, points[1], r)   // outer rounding
+		ctx.Renderer.DrawTriangle(canvas, points[2], -r)  // inner rounding
+		ctx.Renderer.SetColorF32(a, 0, a, a)
+		ctx.Renderer.StrokeTriangle(canvas, points[0], thick, 0.0)
+		ctx.Renderer.StrokeTriangle(canvas, points[1], thick, r)
+		ctx.Renderer.StrokeTriangle(canvas, points[2], thick, -r)
+	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestDrawCircLine$ . -count 1
 func TestDrawCircLine(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
