@@ -487,20 +487,10 @@ func TestDrawCircSector(t *testing.T) {
 			inRadius = 0.0
 		}
 
-		// ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(16.0, 1.0)))
-		// ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
-
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		off := float32(200.0)
-		ctx.Renderer.DrawCircSector(canvas, cx+off, cy+off, inRadius, outRadius, startRads, endRads, -24.0)
-
-		// ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 8.0)
-
-		// ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
-		// ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, -16.0)
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
+		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
+		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -562,16 +552,23 @@ func TestDrawCircWedge(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		inRadius, outRadius := 128.0, 192.0
+
+		// draw guidelines
 		ctx.Renderer.SetColorF32(0.4, 0.4, 0.4, 1.0)
 		ctx.Renderer.StrokeCircle(canvas, cx, cy, float32(inRadius), 3.0)
 		ctx.Renderer.StrokeCircle(canvas, cx, cy, float32(outRadius), 3.0)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		centerDir := ctx.ModAnim(2*math.Pi, 0.5)
 		if !rotate {
 			centerDir = 0.0
 		}
+		sin, cos := math.Sincos(centerDir)
+		r := outRadius + 32.0
+		ctx.Renderer.DrawLine(canvas, float64(cx), float64(cy), float64(cx)+r*cos, float64(cy)+r*sin, 3.0)
+
+		// draw wedge
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
-		ctx.Renderer.DrawCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
+		ctx.Renderer.drawCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
 	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

@@ -66,6 +66,10 @@ var shaderStrokeRect = shaderRef{src: shaderStrokeRectSrc}
 var shaderLineSrc []byte
 var shaderLine = shaderRef{src: shaderLineSrc}
 
+//go:embed shaders/circ_line.kage
+var shaderCircLineSrc []byte
+var shaderCircLine = shaderRef{src: shaderCircLineSrc}
+
 //go:embed shaders/circle.kage
 var shaderCircleSrc []byte
 var shaderCircle = shaderRef{src: shaderCircleSrc}

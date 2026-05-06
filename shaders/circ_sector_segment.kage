@@ -7,7 +7,7 @@ package main
 var Radiuses vec2 // in, out
 var InPoint vec2  // relative to right dir (rads = 0), clockwise
 var OutPoint vec2 // relative to right dir (rads = 0), clockwise
-var Rotation vec2 // (cos, sin) of -dir
+var Rotation vec2 // (cos, sin) of dir
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
@@ -70,5 +70,5 @@ func sdfSegment(p, a, b vec2) (dist float, halfPlaneSide float) {
 }
 
 func rotate(p, dir vec2) vec2 {
-	return vec2(p.x*dir.x-p.y*dir.y, p.x*dir.y+p.y*dir.x)
+	return vec2(p.x*dir.x+p.y*dir.y, -p.x*dir.y+p.y*dir.x)
 }

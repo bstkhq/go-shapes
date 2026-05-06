@@ -2,7 +2,7 @@
 package main
 
 var Center vec2
-var Rotation vec2 // (cos, sin) of -Dir
+var Rotation vec2 // (cos, sin) of Dir
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
@@ -30,5 +30,5 @@ func sdfArc(p, cs vec2, radius float) float {
 }
 
 func rotate(p, dir vec2) vec2 {
-	return vec2(p.x*dir.x-p.y*dir.y, p.x*dir.y+p.y*dir.x)
+	return vec2(p.x*dir.x+p.y*dir.y, -p.x*dir.y+p.y*dir.x)
 }
