@@ -556,6 +556,58 @@ func TestDrawCircSector(t *testing.T) {
 	}
 }
 
+// go test -run ^TestDrawCircSectorRounding$ . -count 1
+func TestDrawCircSectorRounding(t *testing.T) {
+	var startRads, aperture float64 = 0, math.Pi / 4.0
+	var inRadius, outRadius float32 = 64.0, 128.0
+	var rounding float32 = -16.0
+
+	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s  [startRads: %.02f (<S>), aperture: %.02f (<A>), inRadius: %.02f (<Q>), outRadius: %.02f (<W>), rounding: %.02f (<R>)]",
+			ctx.Title(), startRads, aperture, inRadius, outRadius, rounding,
+		))
+
+		if ctx.NewInput {
+			sign := 0.0
+			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+				sign = +1.0
+			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+				sign = -1.0
+			}
+
+			const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 16.0
+			const RadiusChange, RoundingChange = 16.0, 4.0
+			switch {
+			case ebiten.IsKeyPressed(ebiten.KeyS):
+				startRads = wrap(startRads+StartRadsChange*sign, 0, 2*math.Pi)
+			case ebiten.IsKeyPressed(ebiten.KeyA):
+				aperture = wrap(aperture+ApertureChange*sign, 0, 2*math.Pi)
+			case ebiten.IsKeyPressed(ebiten.KeyQ):
+				inRadius = wrap(inRadius+RadiusChange*float32(sign), 0, outRadius)
+			case ebiten.IsKeyPressed(ebiten.KeyW):
+				outRadius = wrap(outRadius+RadiusChange*float32(sign), inRadius, 384.0)
+			case ebiten.IsKeyPressed(ebiten.KeyR):
+				rounding = wrap(rounding+RadiusChange*float32(sign), -48.0, 48.0)
+			}
+		}
+
+		w, h := rectSizeF32(canvas.Bounds())
+		cx, cy := w/2.0, h/2.0
+
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), 0)
+		} else {
+			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), rounding)
+		}
+	})
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStrokeCircSector$ . -count 1
 func TestStrokeCircSector(t *testing.T) {
 	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {

@@ -202,6 +202,68 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
 }
 
+// drawCircWedge draws a circular sector with the contact points at the inner and
+// outer radius being controlled by inAperture and outAperture, which must be in
+// [0..2*Pi]. inner rounding is not implemented because of analytical geometry skill
+// issue with the many edge cases.
+func (r *Renderer) drawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
+	if inRadius < 0 {
+		r.Warnings.report(WarnRadiusClamped, inRadius)
+		inRadius = 0.0
+	}
+	if outRadius < 0 {
+		r.Warnings.report(WarnRadiusClamped, outRadius)
+		outRadius = 0.0
+	}
+	if inRadius == outRadius && rounding <= 0 {
+		return
+	}
+	if inRadius > outRadius {
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float64{inRadius, outRadius})
+		return
+	}
+	if inAperture > 2*math.Pi || inAperture < 0.0 {
+		r.Warnings.report(WarnInvalidApertureClamped, inAperture)
+		inAperture = clamp(inAperture, 0.0, 2.0*math.Pi)
+	}
+	if outAperture > 2*math.Pi || outAperture < 0.0 {
+		r.Warnings.report(WarnInvalidRateClamped, outAperture)
+		outAperture = clamp(outAperture, 0.0, 2.0*math.Pi)
+	}
+
+	// compute in and out radius points relative to centerDir = 0 (right)
+	inSin, inCos := math.Sincos(inAperture / 2.0)
+	outSin, outCos := math.Sincos(outAperture / 2.0)
+	inX, inY := inCos*inRadius, inSin*inRadius
+	outX, outY := outCos*outRadius, outSin*outRadius
+
+	// perform line-circle intersection to clamp the in point to the
+	// nearest side of the outer point (within the in circle)
+	inX, inY = lineCircIntersect(inRadius, inX, inY, outX, outY)
+
+	centerDirSin, centerDirCos := math.Sincos(centerDir)
+	r.innerDrawCircWedge(target, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding)
+}
+
+// precondition: inX, inY, outX and outY given relative to centerDir = 0 (right), distances match inRadius and outRadius
+func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding float64) {
+	// TODO: bounding can use min(inX, outX), min(-inY, -outY), max(inX, outX), max(inY, outY) probably?
+	// minX, maxX := min(inX, outX), max(inX, outX)
+	// minY, maxY := min(-inY, -outY), max(inY, outY)
+	minX, maxX := -outRadius-rounding, outRadius+rounding // TODO: unbounded
+	minY, maxY := -outRadius-rounding, outRadius+rounding
+	r.setDstRectCoords(float32(cx+minX), float32(cy+minY), float32(cx+maxX), float32(cy+maxY))
+	r.opts.Uniforms["Radiuses"] = [2]float32{float32(inRadius), float32(outRadius)}
+	r.opts.Uniforms["InPoint"] = [2]float32{float32(inX), float32(inY)}
+	r.opts.Uniforms["OutPoint"] = [2]float32{float32(outX), float32(outY)}
+	r.opts.Uniforms["Rotation"] = [2]float32{float32(centerDirCos), float32(centerDirSin)}
+
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(rounding), 0)
+	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
+	clear(r.opts.Uniforms)
+}
+
 // DrawCircSector draws a smooth circular sector. Use inRadius = 0 for pie shapes, inRadius > 0 for
 // rings. Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice
 // that inwards rounding requires non-trivial CPU precalculations and a different shader from outwards
@@ -276,69 +338,50 @@ func (r *Renderer) innerRoundingDrawCircSector(target *ebiten.Image, cx, cy, cen
 		panic("rounding <= 0")
 	}
 
-	panic("unimplemented")
-}
+	// shrink radiuses
+	arcCollapse := -min((outRadius-inRadius)-rounding*2, 0)
+	if arcCollapse == 0 {
+		inRadius += rounding
+		outRadius -= rounding
+	} else if arcCollapse >= rounding {
+		return // nothing to draw, shape fully collapsed
+	} else { // partial collapse, in/out radius become the same and expansion starts to shrink
+		outRadius = inRadius + (outRadius-inRadius)/2.0
+		inRadius = outRadius
+		// effective rounding will become rounding - arcCollapse for the arc,
+		// but full rounding still has to be applied to the cut itself
+	}
 
-// drawCircWedge draws a circular sector with the contact points at the inner and
-// outer radius being controlled by inAperture and outAperture, which must be in
-// [0..2*Pi]. inner rounding is not implemented, I'm not good enough at analytical
-// geometry to handle all the edge cases.
-func (r *Renderer) drawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
-	if inRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, inRadius)
-		inRadius = 0.0
+	if rounding > 2*inRadius || inRadius <= 0 {
+		panic("unreachable")
 	}
-	if outRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, outRadius)
-		outRadius = 0.0
-	}
-	if inRadius == outRadius && rounding <= 0 {
+
+	// compute cut sector origin, which is displaced alongside centerDir
+	dirOffset := rounding / ws
+	cds, cdc := math.Sincos(centerDir)
+
+	// handle shape collapses
+	if dirOffset >= inRadius {
+		panic("TODO: validate later")
+		if dirOffset >= outRadius {
+			return // treat as fully collapsed
+		}
+
+		// cone collapse
+		cutCX, cutCY := cx+cdc*dirOffset, cy+cds*dirOffset
+		r.internalDrawCircSector(target, float32(cutCX), float32(cutCY), 0, float32(outRadius-dirOffset), startRads, endRads, float32(rounding-arcCollapse))
 		return
 	}
-	if inRadius > outRadius {
-		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float64{inRadius, outRadius})
-		return
-	}
-	if inAperture > 2*math.Pi || inAperture < 0.0 {
-		r.Warnings.report(WarnInvalidApertureClamped, inAperture)
-		inAperture = clamp(inAperture, 0.0, 2.0*math.Pi)
-	}
-	if outAperture > 2*math.Pi || outAperture < 0.0 {
-		r.Warnings.report(WarnInvalidRateClamped, outAperture)
-		outAperture = clamp(outAperture, 0.0, 2.0*math.Pi)
+
+	var relInCut, relOutCut [2]float64
+	if inRadius > 0 {
+		relInCut, _, _ = circIntersect(0, 0, inRadius, wc*inRadius, ws*inRadius, rounding)
+	} else { // inRadius <= 0, treat separately as a collapsed pie
+		relInCut[0], relInCut[1] = dirOffset, 0
 	}
 
-	// compute in and out radius points relative to centerDir = 0 (right)
-	inSin, inCos := math.Sincos(inAperture / 2.0)
-	outSin, outCos := math.Sincos(outAperture / 2.0)
-	inX, inY := inCos*inRadius, inSin*inRadius
-	outX, outY := outCos*outRadius, outSin*outRadius
-
-	// perform line-circle intersection to clamp the in point to the
-	// nearest side of the outer point (within the in circle)
-	inX, inY = lineCircIntersect(inRadius, inX, inY, outX, outY)
-
-	minCenterDirSin, minCenterDirCos := math.Sincos(centerDir)
-	r.innerDrawCircWedge(target, cx, cy, inRadius, outRadius, minCenterDirSin, minCenterDirCos, inX, inY, outX, outY, rounding)
-}
-
-// precondition: inX, inY, outX and outY given relative to centerDir = 0 (right), distances match inRadius and outRadius
-func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, minCenterDirSin, minCenterDirCos, inX, inY, outX, outY, rounding float64) {
-	// TODO: bounding can use min(inX, outX), min(-inY, -outY), max(inX, outX), max(inY, outY) probably?
-	// minX, maxX := min(inX, outX), max(inX, outX)
-	// minY, maxY := min(-inY, -outY), max(inY, outY)
-	minX, maxX := -outRadius-rounding, outRadius+rounding // TODO: unbounded
-	minY, maxY := -outRadius-rounding, outRadius+rounding
-	r.setDstRectCoords(float32(cx+minX), float32(cy+minY), float32(cx+maxX), float32(cy+maxY))
-	r.opts.Uniforms["Radiuses"] = [2]float32{float32(inRadius), float32(outRadius)}
-	r.opts.Uniforms["InPoint"] = [2]float32{float32(inX), float32(inY)}
-	r.opts.Uniforms["OutPoint"] = [2]float32{float32(outX), float32(outY)}
-	r.opts.Uniforms["Rotation"] = [2]float32{float32(minCenterDirCos), float32(minCenterDirSin)}
-
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(rounding), 0)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
-	clear(r.opts.Uniforms)
+	relOutCut, _, _ = circIntersect(0, 0, outRadius, wc*outRadius, ws*outRadius, rounding)
+	r.innerDrawCircWedge(target, cx, cy, inRadius, outRadius, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
 }
 
 // StrokeCircSector draws the outline of a circular sector. Thickness must be >= 0.
