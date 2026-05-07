@@ -440,3 +440,46 @@ func lineCircIntersect(radius, cx, cy, ox, oy float64) (float64, float64) {
 
 	return cx, cy
 }
+
+// circIntersect returns up to two intersection points between two circles.
+// it returns two points as (x, y) pairs and the number of solutions (0, 1, or 2).
+func circIntersect(acx, acy, aRadius, bcx, bcy, bRadius float64) ([2]float64, [2]float64, int) {
+	dx, dy := bcx-acx, bcy-acy
+	dc := math.Sqrt(dx*dx + dy*dy)
+
+	// return 0 solutions if circles concentric or inside each other
+	if dc == 0 || dc > aRadius+bRadius || dc < math.Abs(aRadius-bRadius) {
+		return [2]float64{}, [2]float64{}, 0
+	}
+
+	// apothemA = distance from (acx, acy) to middle of the chord created
+	// by the intersection line. we use the pythagorean theorem to write
+	// two equations:
+	//  > apothemA^2 + halfChord^2 = aRadius^2
+	//  > (dc - apothemA)^2 + halfChord^2 = bRadius^2
+	// we can cancel halfChord to find apothemA:
+	//  > (dc - apothemA)^2 - bRadius^2 = apothemA^2 - aRadius^2
+	//  > (dc - apothemA)^2 - apothemA^2 = bRadius^2 - aRadius^2
+	//  => apply binomial theorem (a - b)^2 = a^2 - 2ab + b^2
+	//  > dc^2 - 2*dc*apothemA + apothemA^2 - apothemA^2 = bRadius^2 - aRadius^2
+	//  > -2*dc*apothemA = bRadius^2 - aRadius^2 - dc^2
+	aRadiusSq, bRadiusSq := aRadius*aRadius, bRadius*bRadius
+	apothemA := (aRadiusSq - bRadiusSq + dc*dc) / (2 * dc)
+	halfChord := math.Sqrt(max(0, aRadiusSq-(apothemA*apothemA))) // trivial derivation
+
+	// find chord midpoint through line intersection
+	chordMidX := acx + apothemA*(dx/dc)
+	chordMidY := acy + apothemA*(dy/dc)
+
+	// tangent case
+	if halfChord == 0 {
+		return [2]float64{chordMidX, chordMidY}, [2]float64{chordMidX, chordMidY}, 1
+	}
+
+	// general case, offset chord midpoint to get the ends
+	m := halfChord / dc
+	xOffset, yOffset := -dy*m, dx*m
+	chordO := [2]float64{chordMidX - xOffset, chordMidY - yOffset}
+	chordF := [2]float64{chordMidX + xOffset, chordMidY + yOffset}
+	return chordO, chordF, 2
+}
