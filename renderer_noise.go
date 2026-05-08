@@ -1,8 +1,6 @@
 package shapes
 
 import (
-	"image/png"
-
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -39,25 +37,6 @@ func (r *Renderer) NoiseGolden(target *ebiten.Image, scale, intensity, t float32
 	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderNoiseGolden.Load())
 }
 
-func (r *Renderer) ensureBlueNoiseLoaded() {
-	if r.blueNoise64RGB != nil {
-		return
-	}
-
-	file, err := assets.Open("assets/blue64.png")
-	if err != nil {
-		panic(err)
-	}
-
-	img, err := png.Decode(file)
-	if err != nil {
-		panic(err)
-	}
-
-	r.blueNoise64RGB = ebiten.NewImageFromImage(img)
-}
-
-func (r *Renderer) loadBlueNoiseAt(imgIndex int) {
-	r.ensureBlueNoiseLoaded()
-	r.opts.Images[imgIndex] = r.blueNoise64RGB
+func (r *Renderer) loadBlueNoise64RGBAt(imgIndex int) {
+	r.opts.Images[imgIndex] = loadBlueNoise64RGB()
 }

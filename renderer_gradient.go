@@ -53,9 +53,8 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 	r.setFlatCustomVAs(float32(fromL), float32(fromA), float32(fromB), float32(opts.From[3]))
 
 	if opts.Dither {
-		r.ensureBlueNoiseLoaded()
 		r.opts.Uniforms["Dither"] = 1
-		r.opts.Images[0] = r.blueNoise64RGB
+		r.loadBlueNoise64RGBAt(0)
 	}
 	dirSin, dirCos := math.Sincos(dirRadians)
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
@@ -102,9 +101,8 @@ func (r *Renderer) GradientRadial(target *ebiten.Image, opts GradientOptions, cx
 	r.setFlatCustomVAs(float32(fromL), float32(fromA), float32(fromB), float32(opts.From[3]))
 
 	if opts.Dither {
-		r.ensureBlueNoiseLoaded()
 		r.opts.Uniforms["Dither"] = 1
-		r.opts.Images[0] = r.blueNoise64RGB
+		r.loadBlueNoise64RGBAt(0)
 	}
 
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())

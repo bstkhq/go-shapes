@@ -1,16 +1,12 @@
 package shapes
 
 import (
-	"embed"
 	"image"
 	"image/color"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
-
-//go:embed assets
-var assets embed.FS
 
 // Renderer is the heart of the go-shapes package and provides access to most of
 // its operations. It stores offscreens and reused data across rendering methods.
@@ -37,9 +33,8 @@ type Renderer struct {
 	singleClr bool
 	tint      float32 // mix rate for renderer colors in supported operations
 
-	temps          []offscreen
-	blueNoise64RGB *ebiten.Image // used for dithering in some operations
-	vogelMemo      *vogelMemory  // helper used by vogel blur
+	temps     []offscreen
+	vogelMemo *vogelMemory // helper used by vogel blur
 
 	// Warnings registers events like invalid parameters being sent to
 	// rendering operations and makes them easy to detect, log and fix.
@@ -263,7 +258,7 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 	bilinear, dither := r.readFlags(flags...)
 	if dither {
 		r.opts.Uniforms["Dither"] = 1
-		r.loadBlueNoiseAt(1)
+		r.loadBlueNoise64RGBAt(1)
 	}
 
 	var shader *ebiten.Shader

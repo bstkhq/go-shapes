@@ -47,9 +47,8 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 		opts.Bias = clamp(opts.Bias, -1.0, 1.0)
 	}
 	if opts.Dither {
-		r.ensureBlueNoiseLoaded()
 		r.opts.Uniforms["Dither"] = 1
-		r.opts.Images[1] = r.blueNoise64RGB
+		r.loadBlueNoise64RGBAt(1)
 	}
 
 	fromL, fromA, fromB := toOklab(opts.From[0], opts.From[1], opts.From[2])
@@ -104,9 +103,8 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alph
 
 	r.opts.Images[1] = over
 	if dither {
-		r.ensureBlueNoiseLoaded()
 		r.opts.Uniforms["Dither"] = 1
-		r.opts.Images[2] = r.blueNoise64RGB
+		r.loadBlueNoise64RGBAt(2)
 	}
 
 	if bilinear {

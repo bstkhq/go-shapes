@@ -14,7 +14,7 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
-		r.loadBlueNoiseAt(2)
+		r.loadBlueNoise64RGBAt(2)
 	}
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
@@ -42,7 +42,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
-		r.loadBlueNoiseAt(2)
+		r.loadBlueNoise64RGBAt(2)
 	}
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
@@ -98,7 +98,7 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
-		r.loadBlueNoiseAt(1)
+		r.loadBlueNoise64RGBAt(1)
 	}
 
 	// TODO: clip beyond outX, no reason to draw everything
@@ -141,7 +141,7 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, ox, oy, circCX, circ
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
-		r.loadBlueNoiseAt(1)
+		r.loadBlueNoise64RGBAt(1)
 	}
 
 	maxDist := hardRadius + softEdge + 1.0
@@ -159,6 +159,8 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, ox, oy, circCX, circ
 	r.setFlatCustomVAs(circCX-tox, circCY-toy, hardRadius, softEdge)
 	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
 	r.opts.Images[0] = nil
+	r.opts.Images[1] = nil
+	clear(r.opts.Uniforms)
 }
 
 // Pattern type for [Renderer.DrawAlphaMaskCirc]().
