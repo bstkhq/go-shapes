@@ -17,16 +17,14 @@ func TestMap(t *testing.T) {
 	card := newCardWaver(CardWidth, CardHeight)
 
 	anisotropic := false
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		if ctx.NewInput {
-			card.Update()
-			if inpututil.IsKeyJustPressed(ebiten.KeyA) {
-				anisotropic = !anisotropic
-			}
-		}
-
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [anisotropic = %t]", ctx.Title(), anisotropic))
-
+		card.Update()
+		if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+			anisotropic = !anisotropic
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
@@ -44,8 +42,9 @@ func TestMap(t *testing.T) {
 		}
 		ctx.Renderer.MapProjective(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	app.Renderer.DrawArea(img, 1, 1, CardWidth, CardHeight, -6.0)
 
@@ -71,29 +70,28 @@ func TestMapProjectiveTilt(t *testing.T) {
 
 	tilt := 0.0
 	anisotropic := false
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [tilt: %.05f, anisotropic: %t]", ctx.Title(), tilt, anisotropic))
 
-		if ctx.NewInput {
-			const CoarseTilt = 0.1
-			shift := CoarseTilt
-			if ebiten.IsKeyPressed(ebiten.KeyShift) {
-				shift /= 10.0
-			}
-			if ebiten.IsKeyPressed(ebiten.KeyControl) {
-				shift /= 100.0
-			}
-
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft):
-				tilt = max(tilt-shift, -1.0)
-			case inpututil.IsKeyJustPressed(ebiten.KeyArrowRight):
-				tilt = min(tilt+shift, 1.0)
-			case inpututil.IsKeyJustPressed(ebiten.KeyA):
-				anisotropic = !anisotropic
-			}
+		const CoarseTilt = 0.1
+		shift := CoarseTilt
+		if ebiten.IsKeyPressed(ebiten.KeyShift) {
+			shift /= 10.0
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyControl) {
+			shift /= 100.0
 		}
 
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft):
+			tilt = max(tilt-shift, -1.0)
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowRight):
+			tilt = min(tilt+shift, 1.0)
+		case inpututil.IsKeyJustPressed(ebiten.KeyA):
+			anisotropic = !anisotropic
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		cox, coy, cw, ch := rectOriginSizeF32(canvas.Bounds())
 		cx, cy := cox+cw/2, coy+ch/2
@@ -109,8 +107,9 @@ func TestMapProjectiveTilt(t *testing.T) {
 		pts[2].Y -= yOff
 
 		ctx.Renderer.MapProjective(canvas, ctx.Images[0], pts, anisotropic)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth, CardHeight)
 	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
 
@@ -145,12 +144,12 @@ func TestMapProjectiveStress(t *testing.T) {
 		cardWavers[i] = newCardWaver(CardWidth, CardHeight)
 	}
 
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		if ctx.NewInput {
-			for _, cardWaver := range cardWavers {
-				cardWaver.Update()
-			}
+	updater := func(TestAppCtx) {
+		for _, cardWaver := range cardWavers {
+			cardWaver.Update()
 		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		ox, oy, w, h := rectOriginSize(canvas.Bounds())
@@ -166,8 +165,9 @@ func TestMapProjectiveStress(t *testing.T) {
 			}
 			cy += dy
 		}
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	img2 := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	app.Renderer.DrawRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)

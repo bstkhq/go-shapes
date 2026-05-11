@@ -192,13 +192,14 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 func TestJFMExpand(t *testing.T) {
 	imgIndex := 0
 	outline := false
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		canvas.Fill(color.Black)
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyL) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyL) {
 			outline = !outline
 		}
-
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 		bw, bh := rectSizeF32(canvas.Bounds())
 		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
 		ctx.DrawAtF32(canvas, ctx.Images[imgIndex], bw/4-w/2, bh/4-h/2)
@@ -229,8 +230,9 @@ func TestJFMExpand(t *testing.T) {
 			ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
 		}
 		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, outline, true)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -240,8 +242,10 @@ func TestJFMExpand(t *testing.T) {
 // go test -run ^TestJFMExpandSoftMotion$ . -count 1
 func TestJFMExpandSoftMotion(t *testing.T) {
 	imgIndex := 0
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		bw, bh := rectSizeF32(canvas.Bounds())
@@ -255,8 +259,9 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
 		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, true)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -267,12 +272,15 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 func TestJFMErode(t *testing.T) {
 	imgIndex := 0
 	motion := false
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+
+	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyM) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyM) {
 			motion = !motion
 		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 
 		bw, bh := rectSizeF32(canvas.Bounds())
 		w, h := rectSizeF32(ctx.Images[imgIndex].Bounds())
@@ -291,8 +299,9 @@ func TestJFMErode(t *testing.T) {
 
 		// ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, true)
 		ctx.Renderer.SetTint(0)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -303,17 +312,16 @@ func TestJFMErode(t *testing.T) {
 func TestJFMHeat(t *testing.T) {
 	mode := 0
 	clamp, outer := false, false
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		mode = updateParam(ctx, ebiten.KeyM, mode, 0, 1, +1)
-		if ctx.NewInput {
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyC):
-				clamp = !clamp
-			case inpututil.IsKeyJustPressed(ebiten.KeyR):
-				outer = !outer
-			}
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyC):
+			clamp = !clamp
+		case inpututil.IsKeyJustPressed(ebiten.KeyR):
+			outer = !outer
 		}
-
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Clear()
 		px, py := ebiten.CursorPosition()
 		rx, ry := ctx.RightClickF32()
@@ -336,8 +344,9 @@ func TestJFMHeat(t *testing.T) {
 			ctx.Renderer.JFMapBoundary(jfmap, canvas, MaxDist, 0.001, 1.0, BoundaryMode{Outer: outer, Clamp: clamp})
 		}
 		ctx.Renderer.JFMHeat(canvas, jfmap, 0, 0, MaxDist)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

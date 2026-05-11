@@ -142,14 +142,14 @@ func TestComputeHomography(t *testing.T) {
 
 // go test -run ^TestCircIntersect$ . -count 1
 func TestCircIntersect(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
-
 		lx, ly := ctx.LeftClickF32()
 
 		rA, rB := min(w, h)*0.4, float32(32.0)
-		if ebiten.IsKeyPressed(ebiten.KeyControl) {
+		if ctx.SpacePressed {
 			rA, rB = rB, rA
 		}
 		xy1, xy2, numSolutions := circIntersect(float64(cx), float64(cy), float64(rA), float64(lx), float64(ly), float64(rB))
@@ -166,7 +166,9 @@ func TestCircIntersect(t *testing.T) {
 			ctx.Renderer.SetColorF32(0.0, 0.8, 0.8, 0.8)
 			ctx.Renderer.DrawCircle(canvas, float32(xy2[0]), float32(xy2[1]), 3.0)
 		}
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

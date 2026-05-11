@@ -13,8 +13,9 @@ import (
 
 // go test -run ^TestScale$ . -count 1
 func TestScale(t *testing.T) {
-	// TODO: test minification, unclear if I should disallow DstSampling in that case
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	// TODO: test minification, unclear if we should disallow DstSampling in that case
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		_, _, w, h := rectOriginSize(canvas.Bounds())
 		scale := float64(min(w, h)) / 6.0
 
@@ -37,8 +38,9 @@ func TestScale(t *testing.T) {
 		ctx.Renderer.Scale(canvas, ctx.Images[0], 0, float32(h)-size, float32(scale), &scOpts)
 		scOpts.Bicubic = true
 		ctx.Renderer.Scale(canvas, ctx.Images[0], float32(w)-size, float32(h)-size, float32(scale), &scOpts)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	sq9 := ebiten.NewImage(3, 3)
 	sq9.WritePixels([]byte{
 		255, 0, 0, 255 /* */, 0, 128, 255, 255 /* */, 255, 128, 0, 255,
@@ -54,17 +56,16 @@ func TestScale(t *testing.T) {
 // go test -run ^TestDrawAt$ . -count 1
 func TestDrawAt(t *testing.T) {
 	flags := newFlagList()
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [bilinear: %t, dithered: %t]", ctx.Title(), flags[Bilinear] == Bilinear, flags[Dithered] == Dithered))
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyF) {
-				flags.Flip(Bilinear)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyD) {
-				flags.Flip(Dithered)
-			}
+		if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+			flags.Flip(Bilinear)
 		}
-
+		if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			flags.Flip(Dithered)
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		x, y := CTR.Adjust(ctx.Images[0], lx, ly)
 		y += -8.0 + float32(ctx.DistAnim(16, 1.0))
@@ -97,10 +98,11 @@ func TestDrawAt(t *testing.T) {
 		y += float32(-4 + ctx.DistAnim(8.0, 1.0))
 		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags...)
 		ctx.Renderer.SetTint(0)
-	})
+	}
 
 	const RW, RH = 96 * 2, 64 * 2
 	const CR = 72
+	app := NewTestApp(updater, drawer)
 	rect := ebiten.NewImage(RW, RH)
 	gradientOpts := GradientOpts(color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, false)
 	app.Renderer.Gradient(rect, gradientOpts, DirRadsBLTR)
@@ -117,7 +119,8 @@ func TestDrawAt(t *testing.T) {
 
 // go test -run ^TestDrawImgShader$ . -count 1
 func TestDrawImgShader(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		for i := range 2 {
@@ -153,7 +156,9 @@ func TestDrawImgShader(t *testing.T) {
 				ctx.Renderer.DrawRectShader(sub, sox, soy, sw, sh, NoMargins, shaderDefault.Load())
 			}
 		}
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	rect := app.Renderer.NewRect(64, 48)
 	rectO := ebiten.NewImageWithOptions(image.Rect(16, 16, 16+64, 16+48), nil)
 	rectO.Fill(color.White)
@@ -168,28 +173,27 @@ func TestDrawCircShader(t *testing.T) {
 	var startDegs float32
 	var degs float32 = 360
 	var tolerance float32
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
 			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f]",
 			ctx.Title(), startDegs, degs, tolerance,
 		))
-		canvas.Fill(color.Black)
-
-		if ctx.NewInput {
-			sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), float32(-1.0), float32(1.0))
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyS):
-				startDegs = wrap(startDegs+15*sign, 0, 360)
-			case inpututil.IsKeyJustPressed(ebiten.KeyD):
-				degs = wrap(degs+15*sign, 0, 360)
-			case inpututil.IsKeyJustPressed(ebiten.KeyT):
-				tolerance = wrap(tolerance+0.2*sign, 0, 10.0)
-				if tolerance < 0.00001 {
-					tolerance = 0.0
-				}
+		sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), float32(-1.0), float32(1.0))
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyS):
+			startDegs = wrap(startDegs+15*sign, 0, 360)
+		case inpututil.IsKeyJustPressed(ebiten.KeyD):
+			degs = wrap(degs+15*sign, 0, 360)
+		case inpututil.IsKeyJustPressed(ebiten.KeyT):
+			tolerance = wrap(tolerance+0.2*sign, 0, 10.0)
+			if tolerance < 0.00001 {
+				tolerance = 0.0
 			}
 		}
-
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
 		r := min(w, h) * 0.333
 		th := r * 0.1
@@ -207,7 +211,9 @@ func TestDrawCircShader(t *testing.T) {
 		}
 		opts.Tolerance = tolerance
 		ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

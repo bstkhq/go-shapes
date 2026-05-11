@@ -27,12 +27,12 @@ func (*BaseTestApp) Update() error {
 func (*BaseTestApp) Draw(*ebiten.Image) {}
 
 type TestAppCtx struct {
-	Renderer   *Renderer
-	Images     []*ebiten.Image
-	Ticks      uint64
-	LeftClick  image.Point
-	RightClick image.Point
-	NewInput   bool // if using inpututil.IsKeyJustPressed inside draw, check for this too
+	Renderer     *Renderer
+	Images       []*ebiten.Image
+	Ticks        uint64
+	LeftClick    image.Point
+	RightClick   image.Point
+	SpacePressed bool
 }
 
 func (ctx *TestAppCtx) LeftClickF32() (x, y float32) {
@@ -65,7 +65,7 @@ func (ctx *TestAppCtx) Title() string {
 }
 
 func updateParam[T float32 | float64 | ~int | ~uint8](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
-	if !ctx.NewInput || !inpututil.IsKeyJustPressed(key) {
+	if !inpututil.IsKeyJustPressed(key) {
 		return value
 	}
 
@@ -79,7 +79,7 @@ func updateParam[T float32 | float64 | ~int | ~uint8](ctx TestAppCtx, key ebiten
 }
 
 func updateParamMult[T float32 | float64 | ~int](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, factor T) T {
-	if !ctx.NewInput || !inpututil.IsKeyJustPressed(key) {
+	if !inpututil.IsKeyJustPressed(key) {
 		return value
 	}
 
@@ -108,27 +108,29 @@ func (ctx *TestAppCtx) DrawWithAlphaAtF32(target, image *ebiten.Image, alpha, ox
 type TestApp struct {
 	BaseTestApp
 	TestAppCtx
-	drawer func(canvas *ebiten.Image, ctx TestAppCtx)
+	updater func(ctx TestAppCtx)
+	drawer  func(canvas *ebiten.Image, ctx TestAppCtx)
 
 	origin    image.Point
 	offscreen *ebiten.Image
 }
 
-func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*ebiten.Image) *TestApp {
+func NewTestApp(updater func(TestAppCtx), drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*ebiten.Image) *TestApp {
 	var app TestApp
 	app.Images = images
 	app.LeftClick = image.Pt((128*4)/3, 128)
 	app.RightClick = image.Pt((320*4)/3, 320)
 	app.Renderer = NewRenderer()
 	app.Renderer.Warnings.SetHandler(NewWarningPanicHandler())
+	app.updater = updater
 	app.drawer = drawer
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	return &app
 }
 
 func (app *TestApp) Update() error {
-	app.NewInput = true
 	app.Ticks += 1
+	app.SpacePressed = ebiten.IsKeyPressed(ebiten.KeySpace)
 	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
 	if left || right {
@@ -173,7 +175,6 @@ func (app *TestApp) Draw(canvas *ebiten.Image) {
 	} else {
 		app.drawer(canvas, app.TestAppCtx)
 	}
-	app.NewInput = false // input will be stale if calling draw again (e.g. high refresh rate displays)
 }
 
 type flagList []Flag

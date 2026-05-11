@@ -10,9 +10,10 @@ import (
 
 // go test -run ^TestApplyExpansion$ . -count 1
 func TestApplyExpansion(t *testing.T) {
-	radius := float32(64.0)
-	expansion := float32(16.0)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	const radius, expansion = 64.0, 16.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -21,7 +22,9 @@ func TestApplyExpansion(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		x := float32(ctx.DistAnim(float64(expansion), 1.0))
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -32,7 +35,9 @@ func TestApplyExpansion(t *testing.T) {
 func TestApplyExpansionRect(t *testing.T) {
 	const Radius = 64.0
 	const Expansion = 16.0
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -47,7 +52,9 @@ func TestApplyExpansionRect(t *testing.T) {
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lx-Radius-Expansion, ly-Radius-Expansion)
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rx-Radius, ry-Radius)
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rx-Radius-Expansion, ry-Radius-Expansion)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	img1 := app.Renderer.NewRect(int(Radius*2), int(Radius*2))
 	img4 := app.Renderer.NewRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
 	img2 := app.Renderer.NewCircle(float64(Radius))
@@ -60,9 +67,10 @@ func TestApplyExpansionRect(t *testing.T) {
 
 // go test -run ^TestApplyErosion$ . -count 1
 func TestApplyErosion(t *testing.T) {
-	radius := float32(96.0)
-	erosion := float32(16.0)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	const radius, erosion = 96.0, 16.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -79,8 +87,9 @@ func TestApplyErosion(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
 		ctx.Renderer.ApplyErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	circle := app.Renderer.NewCircle(float64(radius))
 	triangle := ebiten.NewImage(256, 164)
 	var points [3]PointF32
@@ -96,9 +105,10 @@ func TestApplyErosion(t *testing.T) {
 
 // go test -run ^TestApplyOutline$ . -count 1
 func TestApplyOutline(t *testing.T) {
-	radius := float32(64.0)
-	thick := float32(8.0)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	const radius, thick = 64.0, 8.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -112,12 +122,14 @@ func TestApplyOutline(t *testing.T) {
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.DrawAtF32(canvas, ctx.Images[0], rx-radius, ry-radius)
 		} else {
 			ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], rx-radius, ry-radius, thick)
 		}
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -126,7 +138,8 @@ func TestApplyOutline(t *testing.T) {
 
 // go test -run ^TestApplyGlow2$ . -count 1
 func TestApplyGlow2(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -140,7 +153,9 @@ func TestApplyGlow2(t *testing.T) {
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
 		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 16, 0.5, 0.6)
 		ctx.Renderer.SetTint(0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
@@ -154,7 +169,8 @@ func TestApplyGlow2(t *testing.T) {
 
 // go test -run ^TestApplyHorzGlow$ . -count 1
 func TestApplyHorzGlow(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -168,7 +184,9 @@ func TestApplyHorzGlow(t *testing.T) {
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
 		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6)
 		ctx.Renderer.SetTint(0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
@@ -182,7 +200,8 @@ func TestApplyHorzGlow(t *testing.T) {
 
 // go test -run ^TestApplyDarkHorzGlow$ . -count 1
 func TestApplyDarkHorzGlow(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.White)
 
 		lx, ly := ctx.LeftClickF32()
@@ -200,8 +219,10 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 		_, h := rectSizeF32(ctx.Images[1].Bounds())
 		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius)
 		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry-h-h/16)
-	})
+	}
+
 	const s, m = 96, 16
+	app := NewTestApp(updater, drawer)
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{0, 0, 128, 255})
 	app.Renderer.DrawLine(cross, m, m, s-m, s-m, m/2)
@@ -218,7 +239,8 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 
 // go test -run ^TestApplyGlowK$ . -count 1
 func TestApplyGlowK(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -230,7 +252,7 @@ func TestApplyGlowK(t *testing.T) {
 			radius := float32(kern.Size()*4-1) / 2.0
 			return min(radius, 16.0)
 		}
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], lx, ly, gRad(hkern), gRad(vkern), 0.2, 0.8)
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
@@ -242,15 +264,17 @@ func TestApplyGlowK(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		hkern, vkern = GaussK5, GaussK15
 		ctx.Renderer.SetTint(1.0)
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, gRad(hkern), gRad(vkern), 0.5, 0.6)
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
 			ctx.Renderer.ApplyGlowK(canvas, ctx.Images[0], rx, ry, 0.5, 0.6, kOpts)
 		}
 		ctx.Renderer.SetTint(0)
-	})
+	}
+
 	const s, m = 96, 16
+	app := NewTestApp(updater, drawer)
 	tri := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
 	var points = [3]PointF32{{X: m, Y: s - m}, {X: s / 2, Y: m}, {X: s - m, Y: s - m}}
@@ -266,11 +290,12 @@ func TestApplyGlowK(t *testing.T) {
 // and haven't been able to catch them through tests yet, only live
 // code in more complex projects.
 func TestApplyGlowKBleed(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		i1, i2, i3 := 0, 1, 2
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			i1, i2, i3 = i2, i3, i1
 		}
 		const st, et = 0.0, 0.5
@@ -281,7 +306,9 @@ func TestApplyGlowKBleed(t *testing.T) {
 		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i3], 16, 16+96*1, st, et, KernelOpts(down, GaussK5))
 		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i2], 16+96*1, 16+96*1, st, et, KernelOpts(down, GaussK13))
 		ctx.Renderer.ApplyGlowK(canvas, ctx.Images[i1], 16+96*2, 16+96*1, st, et, KernelOpts(down, GaussK9))
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(1, 0, 1, 1)
 	img1 := app.Renderer.NewRect(33, 33)
 	app.Renderer.SetColorF32(0, 1, 1, 1)
@@ -297,18 +324,20 @@ func TestApplyGlowKBleed(t *testing.T) {
 
 // go test -run ^TestApplyColorGlowK$ . -count 1
 func TestApplyColorGlowK(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if !ctx.SpacePressed {
 			loThresh := 0.1 + ctx.DistAnim(0.4, 1.0)
 			kOpts := KernelOpts(DownscaleX4, GaussK7)
 			ctx.Renderer.ApplyColorGlowK(canvas, ctx.Images[0], lx, ly, RGBF32(color.RGBA{255, 255, 0, 255}), float32(loThresh), 1.0, kOpts)
 		}
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewCircle(96.0)
 	gradientOpts := GradientOpts(color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, false)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
@@ -322,12 +351,15 @@ func TestApplyColorGlowK(t *testing.T) {
 
 // go test -run ^TestScanlinesSharp . -count 1
 func TestScanlinesSharp(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.White)
 		const darkThick, clearThick = 3, 1
 		offset := float32(ctx.ModAnim(darkThick+clearThick, 1.0))
 		ctx.Renderer.ApplyScanlinesSharp(canvas, darkThick, clearThick, 0.05, offset)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -338,19 +370,20 @@ func TestWaveLines(t *testing.T) {
 	const LineThick = 6.0
 
 	offset := float32(0.0)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ebiten.SetFullscreen(true)
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.White)
 		offset += 0.666
 		minFillRate := float32(0.2)
 		maxFillRate := float32(0.8)
 		radsOffset := ctx.ModAnim(2*math.Pi, 0.2)
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			radsOffset = 0.0
 		}
 		ctx.Renderer.ApplyWaveLines(canvas, LineThick, minFillRate, maxFillRate, 16.0, offset, DirRadsLTR+radsOffset)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0, 0, 0, 0.2, 0)
 	app.Renderer.SetColorF32(0, 0.1, 0, 0.2, 1)
 	app.Renderer.SetColorF32(0, 0.1, 0.1, 0.2, 3)

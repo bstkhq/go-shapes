@@ -12,7 +12,8 @@ import (
 
 // go test -run ^TestDrawShapes$ . -count 1
 func TestDrawShapes(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		lx, ly := ctx.LeftClickF64()
@@ -52,8 +53,9 @@ func TestDrawShapes(t *testing.T) {
 		ctx.Renderer.DrawHexagon(canvas, 420, 400, 60, rounding, float32(rads))
 		ctx.Renderer.ScaleAlphaBy(0.5)
 		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, rounding, float32(rads))
+	}
 
-	})
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +63,14 @@ func TestDrawShapes(t *testing.T) {
 
 // go test -run ^TestStrokeTriangle$ . -count 1
 func TestStrokeTriangle(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	var thick float32
+	updater := func(TestAppCtx) {
+		thick = 8.0
+		if ebiten.IsKeyPressed(ebiten.KeyT) {
+			thick = -thick
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		const a = 0.5
 
@@ -75,12 +84,7 @@ func TestStrokeTriangle(t *testing.T) {
 			points[x][2] = points[x][0].AddXY(cw3*0.35, ch3*0.6)
 		}
 
-		thick := float32(8.0)
-		if ebiten.IsKeyPressed(ebiten.KeyT) {
-			thick = -thick
-		}
 		r := float32(ctx.DistAnim(24.0, 1.0))
-
 		ctx.Renderer.SetColorF32(a, a, a, a)
 		ctx.Renderer.DrawTriangle(canvas, points[0], 0.0) // no rounding
 		ctx.Renderer.DrawTriangle(canvas, points[1], r)   // outer rounding
@@ -89,7 +93,9 @@ func TestStrokeTriangle(t *testing.T) {
 		ctx.Renderer.StrokeTriangle(canvas, points[0], thick, 0.0)
 		ctx.Renderer.StrokeTriangle(canvas, points[1], thick, r)
 		ctx.Renderer.StrokeTriangle(canvas, points[2], thick, -r)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -100,38 +106,17 @@ func TestDrawCircLine(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
 	var thickness, radius float64 = 16.0, 96.0
 
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
-			"%s  [startRads: %.02f (S + up/down), endRads: %.02f (E), thickness: %.02f (T), radius: %.02f (R)]",
+			"%s  [startRads: %.02f (S), endRads: %.02f (E), thickness: %.02f (T), radius: %.02f (R)]",
 			ctx.Title(), startRads, endRads, thickness, radius,
 		))
-		if ctx.NewInput {
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
-				switch {
-				case ebiten.IsKeyPressed(ebiten.KeyS):
-					startRads = wrap(startRads+math.Pi/6, 0, 2.0*math.Pi)
-				case ebiten.IsKeyPressed(ebiten.KeyE):
-					endRads = wrap(endRads+math.Pi/6, 0, 2.0*math.Pi)
-				case ebiten.IsKeyPressed(ebiten.KeyT):
-					thickness = wrap(thickness+2.0, 0.0, 32.0)
-				case ebiten.IsKeyPressed(ebiten.KeyR):
-					radius = wrap(radius+16.0, 0.0, 256.0)
-				}
-			case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):
-				switch {
-				case ebiten.IsKeyPressed(ebiten.KeyS):
-					startRads = wrap(startRads-math.Pi/6, 0, 2.0*math.Pi)
-				case ebiten.IsKeyPressed(ebiten.KeyE):
-					endRads = wrap(endRads-math.Pi/6, 0, 2.0*math.Pi)
-				case ebiten.IsKeyPressed(ebiten.KeyT):
-					thickness = wrap(thickness-2.0, 0.0, 32.0)
-				case ebiten.IsKeyPressed(ebiten.KeyR):
-					radius = wrap(radius-16.0, 0.0, 256.0)
-				}
-			}
-		}
-
+		startRads = updateParam(ctx, ebiten.KeyS, startRads, 0, 2*math.Pi, math.Pi/6.0)
+		endRads = updateParam(ctx, ebiten.KeyE, endRads, 0, 2*math.Pi, math.Pi/6.0)
+		thickness = updateParam(ctx, ebiten.KeyT, thickness, 0, 32.0, 2.0)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0, 256.0, 16.0)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF64(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
@@ -141,8 +126,9 @@ func TestDrawCircLine(t *testing.T) {
 		ctx.Renderer.DrawCircSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)    // reference
 		ctx.Renderer.DrawLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
 		ctx.Renderer.DrawCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                        // for thickness
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +136,8 @@ func TestDrawCircLine(t *testing.T) {
 
 // go test -run ^TestDrawTriangles$ . -count 1
 func TestDrawTriangles(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
@@ -214,8 +201,9 @@ func TestDrawTriangles(t *testing.T) {
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, -8.0, inRounding)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -223,11 +211,22 @@ func TestDrawTriangles(t *testing.T) {
 
 // go test -run ^TestDrawHexagons$ . -count 1
 func TestDrawHexagons(t *testing.T) {
+	const Pad, MinRadius, MaxRadius = 16, 48, 64
+	const MinApothem = MinRadius * Sqrt3Div2
 	manRounding := float32(0.0)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+
+	updater := func(ctx TestAppCtx) {
+		// manual control
+		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem: %.02f]", ctx.Title(), manRounding, MinApothem))
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+			manRounding += 1.0
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+			manRounding -= 1.0
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		cw, ch := rectSizeF32(canvas.Bounds())
 
-		const Pad, MinRadius, MaxRadius = 16, 48, 64
 		radius := MinRadius + float32(ctx.DistAnim(MaxRadius-MinRadius, 1.0))
 		rads := float32(ctx.RadsAnim(1.0))
 
@@ -272,7 +271,6 @@ func TestDrawHexagons(t *testing.T) {
 		ctx.Renderer.DrawHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
 
 		// apothem bounded hexagon, inwards rounding
-		const MinApothem = MinRadius * Sqrt3Div2
 		inRounding := float32(ctx.DistAnim(MinApothem, 0.5))
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ctx.Renderer.DrawCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
@@ -282,16 +280,6 @@ func TestDrawHexagons(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.DrawHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
-
-		// manual control
-		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem: %.02f]", ctx.Title(), manRounding, MinApothem))
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-				manRounding += 1.0
-			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-				manRounding -= 1.0
-			}
-		}
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
@@ -305,8 +293,9 @@ func TestDrawHexagons(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.DrawHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +303,8 @@ func TestDrawHexagons(t *testing.T) {
 
 // go test -run ^TestDrawArea$ . -count 1
 func TestDrawArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		rx, ry := ctx.RightClickF32()
 
@@ -342,7 +332,9 @@ func TestDrawArea(t *testing.T) {
 		ctx.Renderer.DrawArea(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
 		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
 		ctx.Renderer.DrawCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +342,8 @@ func TestDrawArea(t *testing.T) {
 
 // go test -run ^TestDrawAreaPrecise$ . -count 1
 func TestDrawAreaPrecise(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.DrawIntArea(canvas, 0, 0, 258, 258)
 		ctx.DrawAtF32(canvas, ctx.Images[0], 1, 1)
@@ -358,8 +351,9 @@ func TestDrawAreaPrecise(t *testing.T) {
 
 		ctx.DrawAtF32(canvas, ctx.Images[2], 270, 1)
 		ctx.DrawAtF32(canvas, ctx.Images[3], 271, 2)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	box := ebiten.NewImage(256, 256)
 	app.Renderer.DrawArea(box, 1, 1, 254, 254, 0)
 	box2 := ebiten.NewImage(254, 254)
@@ -383,7 +377,8 @@ func TestDrawAreaPrecise(t *testing.T) {
 
 // go test -run ^TestStrokeIntArea$ . -count 1
 func TestStrokeIntArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClick.X, ctx.LeftClick.Y
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		ctx.Renderer.DrawIntArea(canvas, lx, ly, 200, 50)
@@ -405,7 +400,9 @@ func TestStrokeIntArea(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
 		ctx.Renderer.StrokeIntArea(canvas, lx, ry, 80, 50, 8, 8)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +410,8 @@ func TestStrokeIntArea(t *testing.T) {
 
 // go test -run ^TestStrokeArea$ . -count 1
 func TestStrokeArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		ctx.Renderer.DrawArea(canvas, lx, ly, 200, 50, 16)
@@ -449,7 +447,9 @@ func TestStrokeArea(t *testing.T) {
 		ctx.Renderer.StrokeArea(canvas, 16, h-16, 96, -64, 0, 8, -32.0)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		ctx.Renderer.DrawCircle(canvas, 16+32, h-16-32, 32)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -457,22 +457,27 @@ func TestStrokeArea(t *testing.T) {
 
 // go test -run ^TestAreaRounding$ . -count 1
 func TestAreaRounding(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		const rw, rh, ra = 196, 128, 0.5
-		ctx.Renderer.SetColorF32(ra, ra, ra, ra)
-
-		cw, ch := rectSizeF32(canvas.Bounds())
-		rounding := float32(-16.0 + ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.DrawArea(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
-		inThick, outThick := float32(8.0), float32(8.0)
+	var inThick, outThick float32
+	updater := func(ctx TestAppCtx) {
+		inThick, outThick = float32(8.0), float32(8.0)
 		if ebiten.IsKeyPressed(ebiten.KeyI) {
 			inThick = 0.0
 		}
 		if ebiten.IsKeyPressed(ebiten.KeyP) {
 			outThick = 0.0
 		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		const rw, rh, ra = 196, 128, 0.5
+		ctx.Renderer.SetColorF32(ra, ra, ra, ra)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		rounding := float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		ctx.Renderer.DrawArea(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
 		ctx.Renderer.StrokeArea(canvas, cw/2+16, ch/2-rh/2, rw, rh, inThick, outThick, rounding)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +485,8 @@ func TestAreaRounding(t *testing.T) {
 
 // go test -run ^TestStrokeCircle$ . -count 1
 func TestStrokeCircle(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		const Radius = 72
 
 		lx, ly := ctx.LeftClickF32()
@@ -505,7 +511,9 @@ func TestStrokeCircle(t *testing.T) {
 		thick2 := float32(ctx.DistAnim(32.0, 1.0))
 		ctx.Renderer.StrokeCircle(canvas, lx, ry, 16, -thick2)
 		ctx.Renderer.StrokeCircle(canvas, rx, ly, thick2-8.0, 16.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +521,8 @@ func TestStrokeCircle(t *testing.T) {
 
 // go test -run ^TestDrawEllipse$ . -count 1
 func TestDrawEllipse(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		rx, ry := ctx.RightClickF32()
 
@@ -528,7 +537,9 @@ func TestDrawEllipse(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
 		ctx.Renderer.DrawCircle(canvas, lx, ly, 24.0)
 		ctx.Renderer.DrawCircle(canvas, rx, ry, 16.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -536,13 +547,14 @@ func TestDrawEllipse(t *testing.T) {
 
 // go test -run ^TestDrawCircSector$ . -count 1
 func TestDrawCircSector(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		startRads := ctx.ModAnim(2*math.Pi, 1.0)
 		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
 		inRadius, outRadius := float32(48.0), float32(128.0)
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			inRadius = 0.0
 		}
 
@@ -550,7 +562,9 @@ func TestDrawCircSector(t *testing.T) {
 		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
 		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -562,47 +576,34 @@ func TestDrawCircSectorRounding(t *testing.T) {
 	var inRadius, outRadius float32 = 64.0, 128.0
 	var rounding float32 = -16.0
 
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
-			"%s  [startRads: %.02f (<S>), aperture: %.02f (<A>), inRadius: %.02f (<Q>), outRadius: %.02f (<W>), rounding: %.02f (<R>)]",
+			"%s  [startRads: %.02f (S), aperture: %.02f (A), inRadius: %.02f (Q), outRadius: %.02f (W), rounding: %.02f (R)]",
 			ctx.Title(), startRads, aperture, inRadius, outRadius, rounding,
 		))
 
-		if ctx.NewInput {
-			sign := 0.0
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-				sign = +1.0
-			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-				sign = -1.0
-			}
-
-			const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 16.0
-			const RadiusChange, RoundingChange = 16.0, 4.0
-			switch {
-			case ebiten.IsKeyPressed(ebiten.KeyS):
-				startRads = wrap(startRads+StartRadsChange*sign, 0, 2*math.Pi)
-			case ebiten.IsKeyPressed(ebiten.KeyA):
-				aperture = wrap(aperture+ApertureChange*sign, 0, 2*math.Pi)
-			case ebiten.IsKeyPressed(ebiten.KeyQ):
-				inRadius = wrap(inRadius+RadiusChange*float32(sign), 0, outRadius)
-			case ebiten.IsKeyPressed(ebiten.KeyW):
-				outRadius = wrap(outRadius+RadiusChange*float32(sign), inRadius, 384.0)
-			case ebiten.IsKeyPressed(ebiten.KeyR):
-				rounding = wrap(rounding+RadiusChange*float32(sign), -48.0, 48.0)
-			}
-		}
-
+		const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 16.0
+		const RadiusChange, RoundingChange = 16.0, 4.0
+		startRads = updateParam(ctx, ebiten.KeyS, startRads, 0, 2.0*math.Pi, StartRadsChange)
+		aperture = updateParam(ctx, ebiten.KeyA, aperture, 0, 2.0*math.Pi, ApertureChange)
+		inRadius = updateParam(ctx, ebiten.KeyQ, inRadius, 0, outRadius, RadiusChange)
+		outRadius = updateParam(ctx, ebiten.KeyW, outRadius, inRadius, 384.0, RadiusChange)
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -48.0, 48.0, RoundingChange)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
 			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), 0)
 		} else {
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), rounding)
 		}
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -610,7 +611,8 @@ func TestDrawCircSectorRounding(t *testing.T) {
 
 // go test -run ^TestStrokeCircSector$ . -count 1
 func TestStrokeCircSector(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		startRads := ctx.ModAnim(2*math.Pi, 1.0)
@@ -618,7 +620,7 @@ func TestStrokeCircSector(t *testing.T) {
 
 		ctx.Renderer.SetColorF32(0, 0, 0.5, 0.5)
 		inRadius, outRadius := float32(48.0), float32(128.0)
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			inRadius = 0.0
 		}
 		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
@@ -628,7 +630,9 @@ func TestStrokeCircSector(t *testing.T) {
 		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 0.0)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
 		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 8.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -638,28 +642,28 @@ func TestStrokeCircSector(t *testing.T) {
 func TestDrawCircWedge(t *testing.T) {
 	var inRate, outRate float64 = 0.2, 0.35
 	var rotate bool = true
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf("%s  [inRate: %.02f (shift + up/down), outRate: %.02f (up/down), rotate: %t (R)]", ctx.Title(), inRate, outRate, rotate))
-		if ctx.NewInput {
-			if inpututil.IsKeyJustPressed(ebiten.KeyR) {
-				rotate = !rotate
-			}
-
-			const Change = 0.05
-			change := 0.0
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-				change = Change
-			} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-				change = -Change
-			}
-
-			if ebiten.IsKeyPressed(ebiten.KeyShift) {
-				inRate = wrap(inRate+change, 0.0, 1.0)
-			} else {
-				outRate = wrap(outRate+change, 0.0, 1.0)
-			}
+		if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+			rotate = !rotate
 		}
 
+		const Change = 0.05
+		change := 0.0
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+			change = Change
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+			change = -Change
+		}
+
+		if ebiten.IsKeyPressed(ebiten.KeyShift) {
+			inRate = wrap(inRate+change, 0.0, 1.0)
+		} else {
+			outRate = wrap(outRate+change, 0.0, 1.0)
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		inRadius, outRadius := 128.0, 192.0
@@ -680,7 +684,9 @@ func TestDrawCircWedge(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
 		ctx.Renderer.drawCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -688,7 +694,8 @@ func TestDrawCircWedge(t *testing.T) {
 
 // go test -run ^TestDrawQuad$ . -count 1
 func TestDrawQuad(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		rx, ry := ctx.RightClickF32()
 
@@ -701,7 +708,9 @@ func TestDrawQuad(t *testing.T) {
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
 		ctx.Renderer.DrawQuad(canvas, quad, thickening)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -709,7 +718,8 @@ func TestDrawQuad(t *testing.T) {
 
 // go test -run ^TestDrawQuadSoft$ . -count 1
 func TestDrawQuadSoft(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		rx, ry := ctx.RightClickF32()
 
@@ -722,7 +732,9 @@ func TestDrawQuadSoft(t *testing.T) {
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
 		ctx.Renderer.DrawQuadSoft(canvas, quad, thickening, 64.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -730,7 +742,8 @@ func TestDrawQuadSoft(t *testing.T) {
 
 // go test -run ^TestDrawAreaSoft$ . -count 1
 func TestDrawAreaSoft(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		cw, ch := rectSizeF32(canvas.Bounds())
 
 		rounding := float32(-32 + ctx.DistAnim(48, 1.0))
@@ -743,7 +756,7 @@ func TestDrawAreaSoft(t *testing.T) {
 		const brW, brH = 128, 96
 		ox, oy := cw-cw/3-64, ch/3-32
 		brSoft := float32(ctx.DistAnim(16.0, 1.0))
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
 			ctx.Renderer.DrawArea(tmp, 96/2, 96/2, brW, brH, rounding)
 			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
@@ -751,14 +764,15 @@ func TestDrawAreaSoft(t *testing.T) {
 			ctx.Renderer.DrawAreaBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
 		}
 
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(1, 0, 0, 1)
 			ctx.Renderer.ScaleAlphaBy(0.333)
 			ctx.Renderer.DrawArea(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
 			ctx.Renderer.DrawArea(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
 		}
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

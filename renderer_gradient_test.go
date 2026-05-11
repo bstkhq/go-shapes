@@ -17,16 +17,17 @@ func TestGradient(t *testing.T) {
 	var steps float64
 	var dither bool
 	var bias float64 = 0.0
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
-		canvas.Fill(color.Black)
 
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
 		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.05)
 		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 8.0, 1)
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 			dither = !dither
 		}
-
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 		_, _, cw, ch := rectOriginSize(canvas.Bounds())
 		cwF32, chF32 := float32(cw), float32(ch)
 		ctx.DrawAtF32(canvas, ctx.Images[0], 16, 16)
@@ -43,8 +44,9 @@ func TestGradient(t *testing.T) {
 		opts.Steps = int(steps)
 		opts.Bias = float32(bias)
 		ctx.Renderer.Gradient(sub, opts, DirRadsTLBR)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	rect := app.Renderer.NewRect(120, 80)
 	square := app.Renderer.NewRect(64, 64)
 	circ := app.Renderer.NewCircle(64.0)
@@ -74,16 +76,16 @@ func TestGradientRadial(t *testing.T) {
 	var steps float64
 	var dither bool
 	var bias float64 = 0.0
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
-		canvas.Fill(color.Black)
-
 		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.05)
 		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 8.0, 1)
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 			dither = !dither
 		}
-
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx-64, ly-64)
 
@@ -95,8 +97,9 @@ func TestGradientRadial(t *testing.T) {
 		opts.Bias = float32(bias)
 		hsF32 := float32(halfsize)
 		ctx.Renderer.GradientRadial(sub, opts, hsF32, hsF32, 24, hsF32-48, hsF32)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewCircle(48.0)
 	opts := GradientOpts(color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, true)
 	opts.Bias = +0.5

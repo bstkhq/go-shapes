@@ -14,7 +14,8 @@ import (
 // go test -run ^TestFlatPaint$ . -count 1
 func TestFlatPaint(t *testing.T) {
 	// NOTICE: FlatPaint was removed in favor of DrawAt
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -30,8 +31,9 @@ func TestFlatPaint(t *testing.T) {
 		rx, ry = CTR.Adjust(ctx.Images[1], rx, ry)
 		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rx, ry, 1.0)
 		ctx.Renderer.SetTint(0)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	rect := app.Renderer.NewRect(120, 80)
 	circ := app.Renderer.NewCircle(64.0)
 	app.Renderer.Options().Blend = ebiten.BlendDestinationOut
@@ -52,20 +54,21 @@ func TestColorizeByLightness(t *testing.T) {
 	dither := false
 	var fromThresh, toThresh float32 = 0.0, 1.0
 
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
 			"%s [[S]teps: %d, [B]ias: %.02f, [D]ither: %t, [F]romL: %.02f, [T]oL: %.02f]",
 			ctx.Title(), steps, bias, dither, fromThresh, toThresh,
 		))
-		canvas.Fill(color.Black)
-
 		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 12, 1)
 		fromThresh = updateParam(ctx, ebiten.KeyF, fromThresh, 0.0, 1.0, 0.1)
 		toThresh = updateParam(ctx, ebiten.KeyT, toThresh, 0.0, 1.0, 0.1)
 		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.1)
-		if ctx.NewInput && inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 			dither = !dither
 		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		iw, ih := rectSizeF32(ctx.Images[0].Bounds())
@@ -75,12 +78,13 @@ func TestColorizeByLightness(t *testing.T) {
 		opts.Steps = steps
 		opts.Bias = bias
 
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			ctx.DrawAtF32(canvas, ctx.Images[0], x, y)
 		} else {
 			ctx.Renderer.ColorizeByLightness(canvas, ctx.Images[0], opts, x, y, fromThresh, toThresh)
 		}
-	})
+	}
+	app := NewTestApp(updater, drawer)
 
 	const Radius = 48
 	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
@@ -109,7 +113,8 @@ func TestColorizeByLightness(t *testing.T) {
 
 // go test -run ^TestOklabShift$ . -count 1
 func TestOklabShift(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
@@ -123,8 +128,9 @@ func TestOklabShift(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.8, 0.5, 0.0, 1.0)
 	circ := app.Renderer.NewCircle(64.0)
 	app.Images = append(app.Images, circ)
@@ -135,13 +141,14 @@ func TestOklabShift(t *testing.T) {
 
 // go test -run ^TestDitherMat4$ . -count 1
 func TestDitherMat4(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.RGBA{128, 0, 128, 255})
 
 		mats := [][16]float32{DitherBayes, DitherDots, DitherGlitch, DitherSerp, DitherCrumbs}
 		mat := mats[int(ctx.ModAnim(float64(len(mats)), 0.25))]
 
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if ctx.SpacePressed {
 			mat = combineDitherMat4(mat, DitherBayes)
 		}
 
@@ -157,8 +164,9 @@ func TestDitherMat4(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
 		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, PaletteAlpha8, mat, 0.0, anim)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	gradient := ebiten.NewImage(160, 160)
 	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
 	app.Renderer.Gradient(gradient, gradientOpts, DirRadsLTR)
@@ -184,17 +192,10 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 // go test -run ^TestColorMix$ . -count 1
 func TestColorMix(t *testing.T) {
 	flags := newFlagList()
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [bilinear: %t, dithered: %t]", ctx.Title(), flags[Bilinear] == Bilinear, flags[Dithered] == Dithered))
-		if ctx.NewInput {
-			switch {
-			case inpututil.IsKeyJustPressed(ebiten.KeyF):
-				flags.Flip(Bilinear)
-			case inpututil.IsKeyJustPressed(ebiten.KeyD):
-				flags.Flip(Dithered)
-			}
-		}
-
+	updater := func(ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
 		lx, ly := ctx.LeftClickF32()
@@ -206,8 +207,9 @@ func TestColorMix(t *testing.T) {
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
 		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
 		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rx+offX, ry, alpha, lvl, flags...)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewCircle(64.0)
 	app.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
 	circ2 := ebiten.NewImage(128+16, 128+16)

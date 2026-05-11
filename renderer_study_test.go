@@ -11,10 +11,13 @@ import (
 
 // go test -run ^TestStudyWaveFuncs$ . -count 1
 func TestStudyWaveFuncs(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.RGBA{128, 0, 0, 255})
 		ctx.Renderer.studyWaveFuncs(canvas, 1.0, 8.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +29,8 @@ func TestStudyRadians(t *testing.T) {
 	const Dist = 96.0
 
 	rads := -math.Pi
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) { rads += 0.01 }
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
@@ -34,9 +38,10 @@ func TestStudyRadians(t *testing.T) {
 
 		sin, cos := math.Sincos(normURads(rads))
 		ctx.Renderer.DrawCircle(canvas, cx+float32(Dist*cos), cy+float32(Dist*sin), PointRadius)
-		rads += 0.01
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [rads: %02f]", ctx.Title(), rads))
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
