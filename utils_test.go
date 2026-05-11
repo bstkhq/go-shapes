@@ -160,7 +160,11 @@ func (app *TestApp) Update() error {
 	}
 
 	ebiten.SetWindowTitle(app.Title())
-	return app.BaseTestApp.Update()
+	if err := app.BaseTestApp.Update(); err != nil {
+		return err
+	}
+	app.updater(app.TestAppCtx)
+	return nil
 }
 
 func (app *TestApp) Draw(canvas *ebiten.Image) {
