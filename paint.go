@@ -37,7 +37,7 @@ func Paint(target *ebiten.Image, rect image.Rectangle, rgba [4]float32, blend eb
 	// not necessarily more lightweight in isolation
 
 	// target bounds are applied here as rect already has global coordinates
-	ox, oy, fx, fy := rectPointsF32(rect)
+	o, f := RectPointsF32(rect)
 
 	whiteImgInit.Do(initWhiteImg)
 	if atomic.CompareAndSwapUint32(&paintInUse, 0, 1) {
@@ -51,7 +51,7 @@ func Paint(target *ebiten.Image, rect image.Rectangle, rgba [4]float32, blend eb
 		if blend != ebiten.BlendClear {
 			setVertColors(paintVerts, rgba)
 		}
-		setVertDstCoords(paintVerts, ox, oy, fx, fy)
+		setVertDstCoords(paintVerts, o.X, o.Y, f.X, f.Y)
 		target.DrawTriangles(paintVerts[:], paintIndices[:], whiteImg, paintOpts)
 		atomic.StoreUint32(&paintInUse, 0)
 	} else { // concurrent case, hope for stack allocs
@@ -59,7 +59,7 @@ func Paint(target *ebiten.Image, rect image.Rectangle, rgba [4]float32, blend eb
 		if blend != ebiten.BlendClear {
 			setVertColors(verts, rgba)
 		}
-		setVertDstCoords(verts, ox, oy, fx, fy)
+		setVertDstCoords(verts, o.X, o.Y, f.X, f.Y)
 		setVertSrcCoords(verts, 1.5, 1.5, 1.5, 1.5)
 		target.DrawTriangles(verts[:], []uint16{0, 1, 2, 2, 3, 0}[:], whiteImg, &ebiten.DrawTrianglesOptions{Blend: blend})
 	}

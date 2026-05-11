@@ -11,6 +11,10 @@ func RectWithSize(ox, oy int, w, h int) image.Rectangle {
 	return image.Rect(ox, oy, ox+w, oy+h)
 }
 
+func RectPointsF32(bounds image.Rectangle) (min, max PointF32) {
+	return PtF32(float32(bounds.Min.X), float32(bounds.Min.Y)), PtF32(float32(bounds.Max.X), float32(bounds.Max.Y))
+}
+
 func rectSize(bounds image.Rectangle) (w, h int) {
 	return bounds.Dx(), bounds.Dy()
 }
@@ -33,10 +37,6 @@ func rectSizeF32(bounds image.Rectangle) (w, h float32) {
 
 func rectSizeF64(bounds image.Rectangle) (w, h float64) {
 	return float64(bounds.Dx()), float64(bounds.Dy())
-}
-
-func rectPointsF32(bounds image.Rectangle) (minX, minY, maxX, maxY float32) {
-	return float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Max.X), float32(bounds.Max.Y)
 }
 
 func rightBorder(bounds image.Rectangle, borderSize int) image.Rectangle {

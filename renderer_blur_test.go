@@ -296,7 +296,7 @@ func TestApplyBlurVogel(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	circle := app.Renderer.NewFilledCircle(float64(radius))
 	rect := ebiten.NewImage(120, 80)
-	app.Renderer.StrokeIntRect(rect, rect.Bounds(), 0, 16, 0)
+	app.Renderer.StrokeIntRect(rect, rect.Bounds(), 0, 16)
 	app.Images = append(app.Images, circle, rect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

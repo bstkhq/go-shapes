@@ -8,6 +8,10 @@ type PointF32 struct {
 	X, Y float32
 }
 
+func PtF32(x, y float32) PointF32 {
+	return PointF32{X: x, Y: y}
+}
+
 func (p PointF32) Sub(o PointF32) PointF32 {
 	return PointF32{p.X - o.X, p.Y - o.Y}
 }

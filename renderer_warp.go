@@ -83,8 +83,8 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 	minX, minY, maxX, maxY = minX-1.0, minY-1.0, maxX+1.0, maxY+1.0
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
-	sox, soy, sfx, sfy := rectPointsF32(srcBounds)
-	r.setSrcRectCoords(sox, soy, sfx, sfy)
+	so, sf := RectPointsF32(srcBounds)
+	r.setSrcRectCoords(so.X, so.Y, sf.X, sf.Y)
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))

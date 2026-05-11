@@ -296,7 +296,7 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	dkernHorz, _ := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendClear
-	r.StrokeIntRect(down, down.Bounds(), 0, 2, 0)
+	r.StrokeIntRect(down, down.Bounds(), 0, 2)
 	r.FillIntRect(dkern, clockwiseRightBorder(dkern.Bounds(), 1), 0) // *
 	r.FillIntRect(dkern, bottomBorder(dkern.Bounds(), 1), 0)
 	r.FillIntRect(dkernHorz, clockwiseRightBorder(dkernHorz.Bounds(), 1), 0)
