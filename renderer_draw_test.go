@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"math"
 	"testing"
@@ -18,24 +19,24 @@ func TestDrawShapes(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		lx, ly := ctx.LeftClickF64()
 		rx, ry := ctx.RightClickF64()
-		ctx.Renderer.DrawLine(canvas, lx, ly, rx, ry, 6.0)
-		ctx.Renderer.DrawCircle(canvas, 540, 80, 60)
+		ctx.Renderer.StrokeLine(canvas, lx, ly, rx, ry, 6.0)
+		ctx.Renderer.FillCircle(canvas, 540, 80, 60)
 
 		x, y := float64(160), float64(40)
 		var points [3]PointF32
 		points[0] = PointF32{X: float32(x), Y: float32(y)}
 		points[1] = points[0].AddXY(30, 10)
 		points[2] = points[0].AddXY(16, 50)
-		ctx.Renderer.DrawTriangle(canvas, points, 0)
+		ctx.Renderer.FillTriangle(canvas, points, 0)
 
 		x, y = float64(80), float64(260)
 		ctx.Renderer.SetColor(color.RGBA{240, 48, 48, 255})
 		points[0] = PointF32{X: float32(x), Y: float32(y)}
 		points[1] = points[0].AddXY(70, -20)
 		points[2] = points[0].AddXY(114, 80)
-		ctx.Renderer.DrawTriangle(canvas, points, 0)
+		ctx.Renderer.FillTriangle(canvas, points, 0)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawTriangle(canvas, points, -8)
+		ctx.Renderer.FillTriangle(canvas, points, -8)
 		x, y = float64(200), float64(300)
 		points[1] = PointF32{X: float32(x), Y: float32(y)}
 		points[0] = points[1].AddXY(70, -20)
@@ -46,13 +47,13 @@ func TestDrawShapes(t *testing.T) {
 		ctx.Renderer.StrokeTriangle(canvas, points, -4, 0)
 
 		rads := ctx.RadsAnim(1.0)
-		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, 0, float32(rads))
+		ctx.Renderer.FillHexagon(canvas, 80, 400, 60, 0, float32(rads))
 
 		rounding := float32(ctx.DistAnim(48.0, 1.0))
 		ctx.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
-		ctx.Renderer.DrawHexagon(canvas, 420, 400, 60, rounding, float32(rads))
+		ctx.Renderer.FillHexagon(canvas, 420, 400, 60, rounding, float32(rads))
 		ctx.Renderer.ScaleAlphaBy(0.5)
-		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, rounding, float32(rads))
+		ctx.Renderer.FillHexagon(canvas, 80, 400, 60, rounding, float32(rads))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -86,9 +87,9 @@ func TestStrokeTriangle(t *testing.T) {
 
 		r := float32(ctx.DistAnim(24.0, 1.0))
 		ctx.Renderer.SetColorF32(a, a, a, a)
-		ctx.Renderer.DrawTriangle(canvas, points[0], 0.0) // no rounding
-		ctx.Renderer.DrawTriangle(canvas, points[1], r)   // outer rounding
-		ctx.Renderer.DrawTriangle(canvas, points[2], -r)  // inner rounding
+		ctx.Renderer.FillTriangle(canvas, points[0], 0.0) // no rounding
+		ctx.Renderer.FillTriangle(canvas, points[1], r)   // outer rounding
+		ctx.Renderer.FillTriangle(canvas, points[2], -r)  // inner rounding
 		ctx.Renderer.SetColorF32(a, 0, a, a)
 		ctx.Renderer.StrokeTriangle(canvas, points[0], thick, 0.0)
 		ctx.Renderer.StrokeTriangle(canvas, points[1], thick, r)
@@ -101,8 +102,8 @@ func TestStrokeTriangle(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawCircLine$ . -count 1
-func TestDrawCircLine(t *testing.T) {
+// go test -run ^TestStrokeCircArc$ . -count 1
+func TestStrokeCircArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
 	var thickness, radius float64 = 16.0, 96.0
 
@@ -120,12 +121,12 @@ func TestDrawCircLine(t *testing.T) {
 		w, h := rectSizeF64(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircLine(canvas, cx, cy, radius, startRads, endRads, thickness)
+		ctx.Renderer.StrokeCircArc(canvas, cx, cy, radius, startRads, endRads, thickness)
 
 		ctx.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
-		ctx.Renderer.DrawCircSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)    // reference
-		ctx.Renderer.DrawLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
-		ctx.Renderer.DrawCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                        // for thickness
+		ctx.Renderer.FillCircSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)      // reference
+		ctx.Renderer.StrokeLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
+		ctx.Renderer.FillCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                          // for thickness
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -134,8 +135,8 @@ func TestDrawCircLine(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawTriangles$ . -count 1
-func TestDrawTriangles(t *testing.T) {
+// go test -run ^TestFillTriangles$ . -count 1
+func TestFillTriangles(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -155,14 +156,14 @@ func TestDrawTriangles(t *testing.T) {
 
 		// first row, filled
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.DrawTriangle(canvas, pointsL, outRounding)
+		ctx.Renderer.FillTriangle(canvas, pointsL, outRounding)
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
-		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.DrawTriangle(canvas, pointsM, inRounding)
+		ctx.Renderer.FillTriangle(canvas, pointsM, inRounding)
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, -3.0, inRounding)
 
@@ -174,9 +175,9 @@ func TestDrawTriangles(t *testing.T) {
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, 8.0, outRounding)
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
-		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
 
 		for i, p := range pointsM {
 			pointsM[i] = p.AddXY(0, -24+ch/2+CVOffset)
@@ -192,9 +193,9 @@ func TestDrawTriangles(t *testing.T) {
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, -8.0, outRounding)
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
-		ctx.Renderer.DrawCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
-		ctx.Renderer.DrawCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
 
 		for i, p := range pointsM {
 			pointsM[i] = p.AddXY(0, ch/2+LVOffset)
@@ -209,8 +210,8 @@ func TestDrawTriangles(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawHexagons$ . -count 1
-func TestDrawHexagons(t *testing.T) {
+// go test -run ^TestFillHexagons$ . -count 1
+func TestFillHexagons(t *testing.T) {
 	const Pad, MinRadius, MaxRadius = 16, 48, 64
 	const MinApothem = MinRadius * Sqrt3Div2
 	manRounding := float32(0.0)
@@ -232,67 +233,67 @@ func TestDrawHexagons(t *testing.T) {
 
 		// radius bounded hexagon, no roundness
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, Pad+MaxRadius, Pad+MaxRadius, radius)
+		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, Pad+MaxRadius, radius)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagon(canvas, Pad+MaxRadius, Pad+MaxRadius, radius, 0.0, rads)
+		ctx.Renderer.FillHexagon(canvas, Pad+MaxRadius, Pad+MaxRadius, radius, 0.0, rads)
 
 		// radius bounded hexagon with animated roundness
 		roundness := float32(ctx.DistAnim(MaxRadius+16, 0.5))
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, cw/2, Pad+MaxRadius, radius)
+		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, radius)
 		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, cw/2, Pad+MaxRadius, roundness)
+		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, roundness)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagon(canvas, cw/2, Pad+MaxRadius, radius, roundness, rads)
+		ctx.Renderer.FillHexagon(canvas, cw/2, Pad+MaxRadius, radius, roundness, rads)
 
 		// apothem bounded hexagon, no rounding
 		apothem := radius * Sqrt3Div2
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, Pad+MaxRadius, ch/2, apothem)
+		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, ch/2, apothem)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagonApothem(canvas, Pad+MaxRadius, ch/2, apothem, 0.0, rads)
+		ctx.Renderer.FillHexagonApothem(canvas, Pad+MaxRadius, ch/2, apothem, 0.0, rads)
 
 		// apothem bounded hexagon, outwards rounding
 		rounding := float32(ctx.DistAnim(24.0, 1.0))
 		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, apothem+rounding)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem+rounding)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, apothem)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem)
 		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, cw/2, ch/2, rounding)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, rounding)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
+		ctx.Renderer.FillHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
 
 		// apothem bounded hexagon, inwards rounding
 		inRounding := float32(ctx.DistAnim(MinApothem, 0.5))
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
+		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
 		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, cw-16-MaxRadius, ch/2, inRounding)
+		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, inRounding)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
+		ctx.Renderer.FillHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
+		ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
 		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		if manRounding < 0 {
-			ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, -manRounding)
+			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, -manRounding)
 		} else {
-			ctx.Renderer.DrawCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem+manRounding)
+			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem+manRounding)
 		}
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
+		ctx.Renderer.FillHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -302,7 +303,7 @@ func TestDrawHexagons(t *testing.T) {
 }
 
 // go test -run ^TestDrawArea$ . -count 1
-func TestDrawArea(t *testing.T) {
+func TestFillArea(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
@@ -311,27 +312,27 @@ func TestDrawArea(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		w1, h1 := float32(128), float32(48)
 		w2, h2 := float32(48), float32(128)
-		ctx.Renderer.DrawArea(canvas, lx-w1/2, ly-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
-		ctx.Renderer.DrawArea(canvas, rx-w2/2, ry-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.FillRect(canvas, lx-w1/2, ly-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.FillRect(canvas, rx-w2/2, ry-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 
 		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, max(w1, h1)/2.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, max(w2, h2)/2.0)
+		ctx.Renderer.FillCircle(canvas, lx, ly, max(w1, h1)/2.0)
+		ctx.Renderer.FillCircle(canvas, rx, ry, max(w2, h2)/2.0)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawArea(canvas, 16, ch-16, 128, -128, 0)
-		ctx.Renderer.DrawArea(canvas, 32, ch-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
+		ctx.Renderer.FillRect(canvas, 16, ch-16, 128, -128, 0)
+		ctx.Renderer.FillRect(canvas, 32, ch-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
 
-		ctx.Renderer.DrawCircle(canvas, 164+32, ch-16-32, 32)
-		ctx.Renderer.DrawCircle(canvas, 164+128-32, ch-16-128+32, 32)
-		ctx.Renderer.DrawArea(canvas, 164, ch-16, 128, -128, -float32(ctx.DistAnim(32, 1.0)))
+		ctx.Renderer.FillCircle(canvas, 164+32, ch-16-32, 32)
+		ctx.Renderer.FillCircle(canvas, 164+128-32, ch-16-128+32, 32)
+		ctx.Renderer.FillRect(canvas, 164, ch-16, 128, -128, -float32(ctx.DistAnim(32, 1.0)))
 
 		collapseRounding := -float32(ctx.DistAnim(196.0, 0.5))
 		const CRW, CRH = 128, 96
-		ctx.Renderer.DrawArea(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
+		ctx.Renderer.FillRect(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
 		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
-		ctx.Renderer.DrawCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
+		ctx.Renderer.FillCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -345,7 +346,7 @@ func TestDrawAreaPrecise(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
-		ctx.Renderer.DrawIntArea(canvas, 0, 0, 258, 258)
+		ctx.Renderer.FillIntRect(canvas, image.Rect(0, 0, 258, 258), 0)
 		ctx.DrawAtF32(canvas, ctx.Images[0], 1, 1)
 		ctx.DrawAtF32(canvas, ctx.Images[1], 2, 2)
 
@@ -355,17 +356,17 @@ func TestDrawAreaPrecise(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	box := ebiten.NewImage(256, 256)
-	app.Renderer.DrawArea(box, 1, 1, 254, 254, 0)
+	app.Renderer.FillRect(box, 1, 1, 254, 254, 0)
 	box2 := ebiten.NewImage(254, 254)
 	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
-	app.Renderer.DrawArea(box2, 1, 1, 252, 252, 0)
+	app.Renderer.FillRect(box2, 1, 1, 252, 252, 0)
 
 	box3 := ebiten.NewImage(256, 256)
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-	app.Renderer.DrawArea(box3, 1, 1, 254, 254, -6.0)
+	app.Renderer.FillRect(box3, 1, 1, 254, 254, -6.0)
 	box4 := ebiten.NewImage(254, 254)
 	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
-	app.Renderer.DrawArea(box4, 1, 1, 252, 252, -6.0)
+	app.Renderer.FillRect(box4, 1, 1, 252, 252, -6.0)
 
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 
@@ -381,25 +382,25 @@ func TestStrokeIntArea(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClick.X, ctx.LeftClick.Y
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawIntArea(canvas, lx, ly, 200, 50)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(lx, ly, 200, 50), 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeIntArea(canvas, lx-1, ly-1, 200+2, 50+2, 1, 0)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx-1, ly-1, 200+2, 50+2), 1, 0, 0)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 128, 0, 128})
-		ctx.Renderer.StrokeIntArea(canvas, lx, ly, 200, 50, 0, 1)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx, ly, 200, 50), 0, 1, 0)
 
 		rx, ry := ctx.RightClick.X, ctx.RightClick.Y
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeIntArea(canvas, rx, ry, 100, 50, 4, 4)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rx, ry, 100, 50), 4, 4, 0)
 
 		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
-		ctx.Renderer.DrawIntArea(canvas, rx, ry, 100, 50)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(rx, ry, 100, 50), 0)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-		ctx.Renderer.StrokeIntArea(canvas, lx, ry, 80, 50, 8, 8)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx, ry, 80, 50), 8, 8, 0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -414,20 +415,20 @@ func TestStrokeArea(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawArea(canvas, lx, ly, 200, 50, 16)
+		ctx.Renderer.FillRect(canvas, lx, ly, 200, 50, 16)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 0, 2, 16)
+		ctx.Renderer.StrokeRect(canvas, lx, ly, 200, 50, 0, 2, 16)
 
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 2, 0, 16)
+		ctx.Renderer.StrokeRect(canvas, lx, ly, 200, 50, 2, 0, 16)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeArea(canvas, rx, ry, 100, 50, 4, 4, 25)
+		ctx.Renderer.StrokeRect(canvas, rx, ry, 100, 50, 4, 4, 25)
 
 		a := uint8(ctx.DistAnim(144.0, 1.0))
 		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
-		ctx.Renderer.DrawIntArea(canvas, int(rx), int(ry), 100, 50)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(int(rx), int(ry), 100, 50), 0)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
@@ -435,18 +436,18 @@ func TestStrokeArea(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
 		extra := float32(ctx.DistAnim(16, 1.0))
 		subRounding := float32(ctx.DistAnim(20, 1.0))
-		ctx.Renderer.StrokeArea(canvas, lx, ry, 80+extra, 50, 8, 8, 25-subRounding)
+		ctx.Renderer.StrokeRect(canvas, lx, ry, 80+extra, 50, 8, 8, 25-subRounding)
 
 		w, h := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.StrokeArea(canvas, w-16, 16, -200, 64, 0, 8, 32)
+		ctx.Renderer.StrokeRect(canvas, w-16, 16, -200, 64, 0, 8, 32)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.DrawCircle(canvas, w-16-32+8, 16+32-8, 32)
+		ctx.Renderer.FillCircle(canvas, w-16-32+8, 16+32-8, 32)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.StrokeArea(canvas, 16, h-16, 96, -64, 0, 8, -32.0)
+		ctx.Renderer.StrokeRect(canvas, 16, h-16, 96, -64, 0, 8, -32.0)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.DrawCircle(canvas, 16+32, h-16-32, 32)
+		ctx.Renderer.FillCircle(canvas, 16+32, h-16-32, 32)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -473,8 +474,8 @@ func TestAreaRounding(t *testing.T) {
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		rounding := float32(-16.0 + ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.DrawArea(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
-		ctx.Renderer.StrokeArea(canvas, cw/2+16, ch/2-rh/2, rw, rh, inThick, outThick, rounding)
+		ctx.Renderer.FillRect(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
+		ctx.Renderer.StrokeRect(canvas, cw/2+16, ch/2-rh/2, rw, rh, inThick, outThick, rounding)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -494,14 +495,14 @@ func TestStrokeCircle(t *testing.T) {
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, Radius)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, Radius)
+		ctx.Renderer.FillCircle(canvas, lx, ly, Radius)
+		ctx.Renderer.FillCircle(canvas, rx, ry, Radius)
 
 		const MaxThickness = 16
 		thick := float32(ctx.DistAnim(MaxThickness, 1.0))
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, Radius-MaxThickness)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, Radius-MaxThickness)
+		ctx.Renderer.FillCircle(canvas, lx, ly, Radius-MaxThickness)
+		ctx.Renderer.FillCircle(canvas, rx, ry, Radius-MaxThickness)
 
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
@@ -527,16 +528,16 @@ func TestDrawEllipse(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 64.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 32.0)
+		ctx.Renderer.FillCircle(canvas, lx, ly, 64.0)
+		ctx.Renderer.FillCircle(canvas, rx, ry, 32.0)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawEllipse(canvas, lx, ly, 24.0, 64.0, ctx.RadsAnim(1.0))
-		ctx.Renderer.DrawEllipse(canvas, rx, ry, 32.0, 16.0, 0)
+		ctx.Renderer.FillEllipse(canvas, lx, ly, 24.0, 64.0, ctx.RadsAnim(1.0))
+		ctx.Renderer.FillEllipse(canvas, rx, ry, 32.0, 16.0, 0)
 
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 24.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 16.0)
+		ctx.Renderer.FillCircle(canvas, lx, ly, 24.0)
+		ctx.Renderer.FillCircle(canvas, rx, ry, 16.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -559,9 +560,9 @@ func TestDrawCircSector(t *testing.T) {
 		}
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
+		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
+		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -596,10 +597,10 @@ func TestDrawCircSectorRounding(t *testing.T) {
 
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), 0)
+			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), 0)
 		} else {
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-			ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), rounding)
+			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), rounding)
 		}
 	}
 
@@ -623,7 +624,7 @@ func TestStrokeCircSector(t *testing.T) {
 		if ctx.SpacePressed {
 			inRadius = 0.0
 		}
-		ctx.Renderer.DrawCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
+		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		thick := float32(ctx.DistAnim(8.0, 1.0))
@@ -638,8 +639,8 @@ func TestStrokeCircSector(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawCircWedge$ . -count 1
-func TestDrawCircWedge(t *testing.T) {
+// go test -run ^TestFillCircWedge$ . -count 1
+func TestFillCircWedge(t *testing.T) {
 	var inRate, outRate float64 = 0.2, 0.35
 	var rotate bool = true
 
@@ -678,12 +679,12 @@ func TestDrawCircWedge(t *testing.T) {
 		}
 		sin, cos := math.Sincos(centerDir)
 		r := outRadius + 32.0
-		ctx.Renderer.DrawLine(canvas, float64(cx), float64(cy), float64(cx)+r*cos, float64(cy)+r*sin, 3.0)
+		ctx.Renderer.StrokeLine(canvas, float64(cx), float64(cy), float64(cx)+r*cos, float64(cy)+r*sin, 3.0)
 
 		// draw wedge
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
-		ctx.Renderer.drawCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
+		ctx.Renderer.fillCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -692,8 +693,8 @@ func TestDrawCircWedge(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawQuad$ . -count 1
-func TestDrawQuad(t *testing.T) {
+// go test -run ^TestFillQuad$ . -count 1
+func TestFillQuad(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lx, ly := ctx.LeftClickF32()
@@ -707,7 +708,7 @@ func TestDrawQuad(t *testing.T) {
 			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.DrawQuad(canvas, quad, thickening)
+		ctx.Renderer.FillQuad(canvas, quad, thickening)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -731,7 +732,7 @@ func TestDrawQuadSoft(t *testing.T) {
 			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.DrawQuadSoft(canvas, quad, thickening, 64.0)
+		ctx.Renderer.FillQuadSoft(canvas, quad, thickening, 64.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -750,25 +751,25 @@ func TestDrawAreaSoft(t *testing.T) {
 		rounding2 := float32(-32 + ctx.DistAnim(48, 0.777))
 		soft := float32(-16.0 + ctx.DistAnim(32, 1.0))
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.DrawAreaSoft(canvas, cw/3-64, ch/3-32, 128, 64, rounding, soft)
-		ctx.Renderer.DrawAreaSoft(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2, 0.0)
+		ctx.Renderer.FillRectSoft(canvas, cw/3-64, ch/3-32, 128, 64, rounding, soft)
+		ctx.Renderer.FillRectSoft(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2, 0.0)
 
 		const brW, brH = 128, 96
 		ox, oy := cw-cw/3-64, ch/3-32
 		brSoft := float32(ctx.DistAnim(16.0, 1.0))
 		if ctx.SpacePressed {
 			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
-			ctx.Renderer.DrawArea(tmp, 96/2, 96/2, brW, brH, rounding)
+			ctx.Renderer.FillRect(tmp, 96/2, 96/2, brW, brH, rounding)
 			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
 		} else {
-			ctx.Renderer.DrawAreaBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
+			ctx.Renderer.FillRectBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
 		}
 
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(1, 0, 0, 1)
 			ctx.Renderer.ScaleAlphaBy(0.333)
-			ctx.Renderer.DrawArea(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
-			ctx.Renderer.DrawArea(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
+			ctx.Renderer.FillRect(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
+			ctx.Renderer.FillRect(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
 		}
 	}
 

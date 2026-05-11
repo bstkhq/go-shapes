@@ -34,12 +34,12 @@ func TestFlatPaint(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewRect(120, 80)
-	circ := app.Renderer.NewCircle(64.0)
+	rect := app.Renderer.NewFilledRect(120, 80)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.Options().Blend = ebiten.BlendDestinationOut
 	app.Renderer.SetColorF32(0.8, 0.8, 0.8, 0.8, 0, 1)
 	app.Renderer.SetColorF32(0.3, 0.3, 0.3, 0.3, 2, 3)
-	app.Renderer.DrawCircle(circ, 64.0, 64.0, 42.0)
+	app.Renderer.FillCircle(circ, 64.0, 64.0, 42.0)
 	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, rect, circ)
 	if err := ebiten.RunGame(app); err != nil {
@@ -93,16 +93,16 @@ func TestColorizeByLightness(t *testing.T) {
 	app.Renderer.Noise(base, 0.1, 0.26, 0.0)
 	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*2, Radius*4, Radius)
+	app.Renderer.FillCircle(base, Radius*2, Radius*4, Radius)
 	app.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*6, Radius*4, Radius)
+	app.Renderer.FillCircle(base, Radius*6, Radius*4, Radius)
 	app.Renderer.SetColorF32(1.0, 1.0, 0.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*4, Radius*2, Radius)
+	app.Renderer.FillCircle(base, Radius*4, Radius*2, Radius)
 	app.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*4, Radius*6, Radius)
+	app.Renderer.FillCircle(base, Radius*4, Radius*6, Radius)
 
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 	app.Images = append(app.Images, base)
@@ -132,7 +132,7 @@ func TestOklabShift(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.8, 0.5, 0.0, 1.0)
-	circ := app.Renderer.NewCircle(64.0)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Images = append(app.Images, circ)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -210,10 +210,10 @@ func TestColorMix(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circ := app.Renderer.NewCircle(64.0)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
 	circ2 := ebiten.NewImage(128+16, 128+16)
-	app.Renderer.DrawCircle(circ2, 64+16, 64+16, 64)
+	app.Renderer.FillCircle(circ2, 64+16, 64+16, 64)
 	circ2 = circ2.SubImage(image.Rect(16, 16, 16+128, 16+128)).(*ebiten.Image)
 	app.Images = append(app.Images, circ, circ2)
 	if err := ebiten.RunGame(app); err != nil {

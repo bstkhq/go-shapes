@@ -47,9 +47,9 @@ func TestGradient(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewRect(120, 80)
-	square := app.Renderer.NewRect(64, 64)
-	circ := app.Renderer.NewCircle(64.0)
+	rect := app.Renderer.NewFilledRect(120, 80)
+	square := app.Renderer.NewFilledRect(64, 64)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
 
 	opts := StepGradientOpts(color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, 4)
@@ -100,7 +100,7 @@ func TestGradientRadial(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circ := app.Renderer.NewCircle(48.0)
+	circ := app.Renderer.NewFilledCircle(48.0)
 	opts := GradientOpts(color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, true)
 	opts.Bias = +0.5
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn

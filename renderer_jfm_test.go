@@ -178,13 +178,13 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 	r.opts.Blend = ebiten.BlendSourceOver
 	r.SetColorF32(0.75, 0.5, 1.0, 1.0)
 	xSign := ebiten.NewImage(XW, XH)
-	r.DrawLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
-	r.DrawLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
+	r.StrokeLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
+	r.StrokeLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
 	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
 	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
-	r.DrawCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
+	r.FillCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
 	r.SetColorF32(1.0, 1.0, 1.0, 1.0)
-	rect := r.NewRect(256, 192)
+	rect := r.NewFilledRect(256, 192)
 	return []*ebiten.Image{circle, xSign, circ2, rect}
 }
 
@@ -206,9 +206,9 @@ func TestJFMExpand(t *testing.T) {
 		r := float32(ctx.DistAnim(16.0, 1.0))
 		if imgIndex == 2 {
 			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
-			ctx.Renderer.DrawCircle(canvas, bw/4, bh-bh/4, w/2+16.0)
-			ctx.Renderer.DrawCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, bw/4, bh-bh/4, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		}
 
@@ -325,8 +325,8 @@ func TestJFMHeat(t *testing.T) {
 		canvas.Clear()
 		px, py := ebiten.CursorPosition()
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.DrawCircle(canvas, float32(px), float32(py), 128.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 96.0)
+		ctx.Renderer.FillCircle(canvas, float32(px), float32(py), 128.0)
+		ctx.Renderer.FillCircle(canvas, rx, ry, 96.0)
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			return
 		}

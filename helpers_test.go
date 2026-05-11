@@ -31,7 +31,7 @@ func TestGoldenRatioGen(t *testing.T) {
 		oxF64 := float64(canvas.Bounds().Dx())/2.0 - (float64(len(values))*(BarWidth+Intersp)-Intersp)/2.0
 		oyF64 := float64(canvas.Bounds().Dy())/2.0 + BarHeight/2.0
 		for _, v := range values {
-			ctx.Renderer.DrawArea(canvas, float32(oxF64), float32(oyF64), BarWidth, -float32(v), 2.0)
+			ctx.Renderer.FillRect(canvas, float32(oxF64), float32(oyF64), BarWidth, -float32(v), 2.0)
 			oxF64 += BarWidth + Intersp
 		}
 	}

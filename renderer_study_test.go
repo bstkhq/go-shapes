@@ -34,10 +34,10 @@ func TestStudyRadians(t *testing.T) {
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
-		ctx.Renderer.DrawCircle(canvas, cx, cy, PointRadius)
+		ctx.Renderer.FillCircle(canvas, cx, cy, PointRadius)
 
 		sin, cos := math.Sincos(normURads(rads))
-		ctx.Renderer.DrawCircle(canvas, cx+float32(Dist*cos), cy+float32(Dist*sin), PointRadius)
+		ctx.Renderer.FillCircle(canvas, cx+float32(Dist*cos), cy+float32(Dist*sin), PointRadius)
 		ebiten.SetWindowTitle(fmt.Sprintf("%s [rads: %02f]", ctx.Title(), rads))
 	}
 

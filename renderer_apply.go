@@ -296,11 +296,11 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	dkernHorz, _ := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendClear
-	r.StrokeIntRect(down, down.Bounds(), 0, 2)
-	r.DrawRect(dkern, clockwiseRightBorder(dkern.Bounds(), 1), 0) // *
-	r.DrawRect(dkern, bottomBorder(dkern.Bounds(), 1), 0)
-	r.DrawRect(dkernHorz, clockwiseRightBorder(dkernHorz.Bounds(), 1), 0)
-	r.DrawRect(dkernHorz, bottomBorder(dkernHorz.Bounds(), 1), 0)
+	r.StrokeIntRect(down, down.Bounds(), 0, 2, 0)
+	r.FillIntRect(dkern, clockwiseRightBorder(dkern.Bounds(), 1), 0) // *
+	r.FillIntRect(dkern, bottomBorder(dkern.Bounds(), 1), 0)
+	r.FillIntRect(dkernHorz, clockwiseRightBorder(dkernHorz.Bounds(), 1), 0)
+	r.FillIntRect(dkernHorz, bottomBorder(dkernHorz.Bounds(), 1), 0)
 	// * Notice that technically dkern content could be overwritten by operations
 	//   on 'down' after the clear, but since kernels can't be zero and 'down' already
 	//   has 1 pixel margins, this won't happen in practice. Otherwise the clear should

@@ -43,15 +43,15 @@ func TestMask(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.5, 0.5, 0.5, 1.0)
-	circ := app.Renderer.NewCircle(72.0)
+	circ := app.Renderer.NewFilledCircle(72.0)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2) // right side to zero
-	bigRect := app.Renderer.NewRect(256, 128)
-	smallRect := app.Renderer.NewRect(16, 8) // being small creates an step effect automatically
+	bigRect := app.Renderer.NewFilledRect(256, 128)
+	smallRect := app.Renderer.NewFilledRect(16, 8) // being small creates an step effect automatically
 
-	longRect := app.Renderer.NewRect(640, 128)
+	longRect := app.Renderer.NewFilledRect(640, 128)
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
-	longImg := app.Renderer.NewRect(640, 128)
+	longImg := app.Renderer.NewFilledRect(640, 128)
 
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, circ, bigRect, smallRect, longRect, longImg)
@@ -77,12 +77,12 @@ func TestMaskAt(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circ := app.Renderer.NewCircle(32.0)
+	circ := app.Renderer.NewFilledCircle(32.0)
 	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2)
-	trans := app.Renderer.NewRect(256, 64)
-	longRect := app.Renderer.NewRect(640, 128)
+	trans := app.Renderer.NewFilledRect(256, 64)
+	longRect := app.Renderer.NewFilledRect(640, 128)
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
-	longImg := app.Renderer.NewRect(640-64, 128)
+	longImg := app.Renderer.NewFilledRect(640-64, 128)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, circ, trans, longImg, longRect)
 	if err := ebiten.RunGame(app); err != nil {
@@ -108,9 +108,9 @@ func TestMaskHorz(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewRect(256, 64)
+	rect := app.Renderer.NewFilledRect(256, 64)
 	app.Renderer.SetColorF32(0.2, 0.2, 0.2, 1.0)
-	rectDither := app.Renderer.NewRect(640, 96)
+	rectDither := app.Renderer.NewFilledRect(640, 96)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, rect, rectDither)
 	if err := ebiten.RunGame(app); err != nil {
@@ -137,7 +137,7 @@ func TestMaskCircle(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewRect(360, 360)
+	rect := app.Renderer.NewFilledRect(360, 360)
 	app.Images = append(app.Images, rect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestMaskThreshold(t *testing.T) {
 	maskTarget := ebiten.NewImage(Size, Size)
 	gradientOpts := StepGradientOpts(color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16)
 	app.Renderer.Gradient(maskTarget, gradientOpts, DirRadsLTR)
-	whiteRect := app.Renderer.NewRect(Size, Size)
+	whiteRect := app.Renderer.NewFilledRect(Size, Size)
 	app.Images = append(app.Images, whiteRect, maskTarget)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -213,7 +213,7 @@ func TestAlphaMaskCirc(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	maskTarget := ebiten.NewImage(Size, Size)
-	whiteRect := app.Renderer.NewRect(Size, Size)
+	whiteRect := app.Renderer.NewFilledRect(Size, Size)
 	app.Renderer.DrawAlphaMaskCirc(maskTarget, Size/2, Size/2, Size, randomness, MaskPatternDefault)
 	app.Images = append(app.Images, whiteRect, maskTarget)
 	if err := ebiten.RunGame(app); err != nil {

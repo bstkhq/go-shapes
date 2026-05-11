@@ -22,7 +22,7 @@ func TestApplyBlur(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColorF32(0, 0, 0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+fxRadius)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
 		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius)
@@ -35,7 +35,7 @@ func TestApplyBlur(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestApplyBlur2(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -118,10 +118,10 @@ func TestApplyDirBlur(t *testing.T) {
 	rect.Fill(color.RGBA{255, 0, 0, 255})
 	rect2 := ebiten.NewImage(80, 80)
 	app.Renderer.SetColorF32(1, 0, 0, 1)
-	app.Renderer.DrawIntArea(rect2, 0, 20, 80, 40)
-	app.Renderer.DrawIntArea(rect2, 20, 0, 40, 80)
+	app.Renderer.FillIntRect(rect2, RectWithSize(0, 20, 80, 40), 0)
+	app.Renderer.FillIntRect(rect2, RectWithSize(20, 0, 40, 80), 0)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)), rect, rect2)
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)), rect, rect2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestApplyBlurK(t *testing.T) {
 			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
 
 		rx, ry := ctx.RightClickF32()
 		k := GaussK9
@@ -175,7 +175,7 @@ func TestApplyBlurK(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestApplyBlurKernLoop(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(Radius))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(Radius))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -239,11 +239,11 @@ func TestApplyBlurKernBleed(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(1, 0, 1, 1)
-	img1 := app.Renderer.NewRect(33, 33)
+	img1 := app.Renderer.NewFilledRect(33, 33)
 	app.Renderer.SetColorF32(0, 1, 1, 1)
-	img2 := app.Renderer.NewRect(50, 50)
+	img2 := app.Renderer.NewFilledRect(50, 50)
 	app.Renderer.SetColorF32(1, 1, 0, 1)
-	img3 := app.Renderer.NewRect(67, 67)
+	img3 := app.Renderer.NewFilledRect(67, 67)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, img1, img2, img3)
 	if err := ebiten.RunGame(app); err != nil {
@@ -294,9 +294,9 @@ func TestApplyBlurVogel(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewCircle(float64(radius))
+	circle := app.Renderer.NewFilledCircle(float64(radius))
 	rect := ebiten.NewImage(120, 80)
-	app.Renderer.StrokeIntRect(rect, rect.Bounds(), 0, 16)
+	app.Renderer.StrokeIntRect(rect, rect.Bounds(), 0, 16, 0)
 	app.Images = append(app.Images, circle, rect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -325,7 +325,7 @@ func TestApplyBlurVogelFull(t *testing.T) {
 		rand.Float64()
 		app.Renderer.SetColorF32(rand.Float32(), rand.Float32(), rand.Float32(), 1.0)
 		app.Renderer.ScaleAlphaBy(0.5)
-		app.Renderer.DrawCircle(full, rand.Float32()*1920, rand.Float32()*1080, 16+rand.Float32()*64)
+		app.Renderer.FillCircle(full, rand.Float32()*1920, rand.Float32()*1080, 16+rand.Float32()*64)
 	}
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	if err := ebiten.RunGame(app); err != nil {

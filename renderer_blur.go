@@ -254,8 +254,8 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 		b := tmp.Bounds()
 		preBlend := r.opts.Blend
 		r.opts.Blend = ebiten.BlendClear
-		r.DrawRect(tmp, clockwiseRightBorder(b, 1), 0)
-		r.DrawRect(tmp, bottomBorder(b, 1), 0)
+		r.FillIntRect(tmp, clockwiseRightBorder(b, 1), 0)
+		r.FillIntRect(tmp, bottomBorder(b, 1), 0)
 		r.opts.Blend = preBlend
 	}
 

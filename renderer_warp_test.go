@@ -25,7 +25,7 @@ func TestWarpBarrel(t *testing.T) {
 	app.Renderer.SetColor(color.RGBA{255, 255, 0, 255}, 1)
 	app.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 2)
 	app.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-	app.Renderer.DrawIntArea(img, 0, 0, w, h)
+	app.Renderer.FillIntRect(img, image.Rect(0, 0, w, h), 0)
 
 	app.Images = append(app.Images, img)
 	if err := ebiten.RunGame(app); err != nil {
@@ -53,9 +53,9 @@ func TestWarpArc(t *testing.T) {
 	app.Renderer.Gradient(mask, gradientOpts, DirRadsRTL)
 	app.Renderer.DitherMat4(img, mask, 0, 0, 0, 0, PaletteBW, DitherGlitch, 0.0, 0.0)
 	app.Renderer.SetColorF32(0, 0.5, 0, 0.5)
-	app.Renderer.DrawRect(img, img.Bounds(), 0)
+	app.Renderer.FillIntRect(img, img.Bounds(), 0)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
-	app.Renderer.DrawRect(img, image.Rect(0, 0, W/8, H/16), 0)
+	app.Renderer.FillIntRect(img, image.Rect(0, 0, W/8, H/16), 0)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, img)
 

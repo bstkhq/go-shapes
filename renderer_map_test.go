@@ -46,15 +46,15 @@ func TestMap(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
-	app.Renderer.DrawArea(img, 1, 1, CardWidth, CardHeight, -6.0)
+	app.Renderer.FillRect(img, 1, 1, CardWidth, CardHeight, -6.0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 	app.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
-	app.Renderer.StrokeArea(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
+	app.Renderer.StrokeRect(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
 	app.Renderer.opts.Blend = ebiten.BlendClear
-	app.Renderer.DrawArea(img, 8, 0, 32, 64, 0)
+	app.Renderer.FillRect(img, 8, 0, 32, 64, 0)
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 
@@ -111,14 +111,14 @@ func TestMapProjectiveTilt(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth, CardHeight)
-	app.Renderer.DrawArea(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
+	app.Renderer.FillRect(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	gradientOpts := GradientOpts(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, true)
 	app.Renderer.Gradient(img, gradientOpts, DirRadsTTB)
 	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
 	sr, er := RadsSpan(DirRadsTTB, 0.15)
-	app.Renderer.DrawCircSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
+	app.Renderer.FillCircSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 
@@ -170,9 +170,9 @@ func TestMapProjectiveStress(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
 	img2 := ebiten.NewImage(CardWidth+2, CardHeight+2)
-	app.Renderer.DrawRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
+	app.Renderer.FillIntRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
 	app.Renderer.SetColorF32(1, 0.3, 1, 1)
-	app.Renderer.DrawRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
+	app.Renderer.FillIntRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)

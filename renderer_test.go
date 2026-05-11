@@ -106,7 +106,7 @@ func TestDrawAt(t *testing.T) {
 	rect := ebiten.NewImage(RW, RH)
 	gradientOpts := GradientOpts(color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, false)
 	app.Renderer.Gradient(rect, gradientOpts, DirRadsBLTR)
-	circ := app.Renderer.NewCircle(CR)
+	circ := app.Renderer.NewFilledCircle(CR)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
 	gradientOpts = GradientOpts(color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, false)
 	app.Renderer.Gradient(circ, gradientOpts, DirRadsTTB)
@@ -159,7 +159,7 @@ func TestDrawImgShader(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewRect(64, 48)
+	rect := app.Renderer.NewFilledRect(64, 48)
 	rectO := ebiten.NewImageWithOptions(image.Rect(16, 16, 16+64, 16+48), nil)
 	rectO.Fill(color.White)
 	app.Images = append(app.Images, rect, rectO)

@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -29,9 +30,9 @@ func TestHalftoneTri(t *testing.T) {
 	img := ebiten.NewImage(640, 480)
 	app.Renderer.SetColorF32(0.2, 0.2, 0.2, 0.2, 0, 1)
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0, 2, 3)
-	app.Renderer.DrawIntArea(img, 0, 0, 640, 480)
+	app.Renderer.FillIntRect(img, image.Rect(0, 0, 640, 480), 0)
 	app.Renderer.SetColorF32(0.666, 0.666, 0.666, 0.666)
-	app.Renderer.DrawCircle(img, 640/2, 480/3, 64)
+	app.Renderer.FillCircle(img, 640/2, 480/3, 64)
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 
 	app.Images = append(app.Images, img)

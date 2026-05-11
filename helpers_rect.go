@@ -4,6 +4,13 @@ import (
 	"image"
 )
 
+// RectWithSize is a helper for image.Rectangle initialization
+// which receives the rect origin and size (unlike image.Rect, which
+// takes origin and end).
+func RectWithSize(ox, oy int, w, h int) image.Rectangle {
+	return image.Rect(ox, oy, ox+w, oy+h)
+}
+
 func rectSize(bounds image.Rectangle) (w, h int) {
 	return bounds.Dx(), bounds.Dy()
 }

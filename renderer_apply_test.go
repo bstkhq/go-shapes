@@ -18,14 +18,14 @@ func TestApplyExpansion(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 128, 128, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+expansion)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius+expansion)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		x := float32(ctx.DistAnim(float64(expansion), 1.0))
 		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -55,10 +55,10 @@ func TestApplyExpansionRect(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	img1 := app.Renderer.NewRect(int(Radius*2), int(Radius*2))
-	img4 := app.Renderer.NewRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
-	img2 := app.Renderer.NewCircle(float64(Radius))
-	img3 := app.Renderer.NewCircle(float64(Radius + Expansion))
+	img1 := app.Renderer.NewFilledRect(int(Radius*2), int(Radius*2))
+	img4 := app.Renderer.NewFilledRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
+	img2 := app.Renderer.NewFilledCircle(float64(Radius))
+	img3 := app.Renderer.NewFilledCircle(float64(Radius + Expansion))
 	app.Images = append(app.Images, img1, img2, img3, img4)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -75,10 +75,10 @@ func TestApplyErosion(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius-erosion)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius-erosion)
 
 		r := float32(ctx.DistAnim(float64(erosion), 1.0))
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
@@ -90,7 +90,7 @@ func TestApplyErosion(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewCircle(float64(radius))
+	circle := app.Renderer.NewFilledCircle(float64(radius))
 	triangle := ebiten.NewImage(256, 164)
 	var points [3]PointF32
 	points[0] = PointF32{X: 16, Y: 16}
@@ -113,9 +113,9 @@ func TestApplyOutline(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius+thick/2+1.0)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius+thick/2+1.0)
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.DrawCircle(canvas, lx, ly, radius-thick/2-1.0)
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius-thick/2-1.0)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], lx-radius, ly-radius, thick)
@@ -130,7 +130,7 @@ func TestApplyOutline(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewCircle(float64(radius)))
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +159,8 @@ func TestApplyGlow2(t *testing.T) {
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
-	app.Renderer.DrawLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.DrawLine(cross, s-m, m, m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
 	app.Images = append(app.Images, cross)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -190,8 +190,8 @@ func TestApplyHorzGlow(t *testing.T) {
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
-	app.Renderer.DrawLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.DrawLine(cross, s-m, m, m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
 	app.Images = append(app.Images, cross)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -225,8 +225,8 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{0, 0, 128, 255})
-	app.Renderer.DrawLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.DrawLine(cross, s-m, m, m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
 	img := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{0, 0, 0, 255})
 	gradientOpts := GradientOpts(color.RGBA{255, 255, 255, 255}, color.RGBA{128, 0, 0, 255}, false)
@@ -278,7 +278,7 @@ func TestApplyGlowK(t *testing.T) {
 	tri := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
 	var points = [3]PointF32{{X: m, Y: s - m}, {X: s / 2, Y: m}, {X: s - m, Y: s - m}}
-	app.Renderer.DrawTriangle(tri, points, 0)
+	app.Renderer.FillTriangle(tri, points, 0)
 	app.Images = append(app.Images, tri)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -310,11 +310,11 @@ func TestApplyGlowKBleed(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(1, 0, 1, 1)
-	img1 := app.Renderer.NewRect(33, 33)
+	img1 := app.Renderer.NewFilledRect(33, 33)
 	app.Renderer.SetColorF32(0, 1, 1, 1)
-	img2 := app.Renderer.NewRect(50, 50)
+	img2 := app.Renderer.NewFilledRect(50, 50)
 	app.Renderer.SetColorF32(1, 1, 0, 1)
-	img3 := app.Renderer.NewRect(67, 67)
+	img3 := app.Renderer.NewFilledRect(67, 67)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 	app.Images = append(app.Images, img1, img2, img3)
 	if err := ebiten.RunGame(app); err != nil {
@@ -338,7 +338,7 @@ func TestApplyColorGlowK(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	circ := app.Renderer.NewCircle(96.0)
+	circ := app.Renderer.NewFilledCircle(96.0)
 	gradientOpts := GradientOpts(color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, false)
 	app.Renderer.Options().Blend = ebiten.BlendSourceIn
 	app.Renderer.Gradient(circ, gradientOpts, DirRadsLTR)

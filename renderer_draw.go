@@ -7,37 +7,57 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// NewRect returns a new image filled with the renderer's current color.
-func (r *Renderer) NewRect(width, height int) *ebiten.Image {
+// TODO: split into poly (rects, quad, hex) and circ (circ, arcs, wedges, ellipses)
+
+// NewFilledRect returns a new image filled with the renderer's current color.
+func (r *Renderer) NewFilledRect(width, height int) *ebiten.Image {
 	img := ebiten.NewImage(width, height)
-	r.DrawIntArea(img, 0, 0, width, height)
+	r.internalFillIntRect(img, 0, 0, width, height)
 	return img
 }
 
-// NewRect returns a new image with circle of the given radius, drawn
+// NewFilledCircle returns a new image with circle of the given radius, drawn
 // with the renderer's current color.
-func (r *Renderer) NewCircle(radius float64) *ebiten.Image {
+func (r *Renderer) NewFilledCircle(radius float64) *ebiten.Image {
 	side := float32(math.Ceil(radius * 2))
 	img := ebiten.NewImage(int(side), int(side))
-	r.DrawCircle(img, side/2, side/2, float32(radius))
+	r.FillCircle(img, side/2, side/2, float32(radius))
 	return img
 }
 
-// DrawRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
-func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
+// FillRect is the [image.Rectangle]-compatible equivalent of [Renderer.FillRect]().
+//
+// For rectangle creation, consider [image.Rect]() and [RectWithSize]().
+func (r *Renderer) FillIntRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
 	if rounding == 0 {
-		r.DrawIntArea(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
+		r.internalFillIntRect(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
 	} else {
-		r.DrawArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
+		r.FillRect(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
 	}
 }
 
-// DrawArea draws a rectangle with the given properties. Rounding can be zero,
+func (r *Renderer) internalFillIntRect(target *ebiten.Image, ox, oy, w, h int) {
+	if w == 0 || h == 0 {
+		return
+	}
+	if w < 0 {
+		w = -w
+		ox -= w
+	}
+	if h < 0 {
+		h = -h
+		oy -= h
+	}
+	r.setDstRectCoords(float32(ox), float32(oy), float32(ox+w), float32(oy+h))
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDefault.Load(), &r.opts)
+}
+
+// FillRect draws a filled rectangle with the given properties. Rounding can be zero,
 // positive for outwards rounding, or negative for inwards rounding.
 //
 // If you need shadows for rects or capsules drawn with this method, consider
-// [Renderer.DrawAreaSoft]().
-func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32) {
+// [Renderer.FillRectSoft]().
+func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -77,8 +97,8 @@ func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32
 	clear(r.opts.Uniforms)
 }
 
-// DrawLine draws a smooth line between the given two points, with rounded ends.
-func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickness float64) {
+// StrokeLine draws a smooth line between the given two points, with rounded ends.
+func (r *Renderer) StrokeLine(target *ebiten.Image, ox, oy, fx, fy float64, thickness float64) {
 	vdx, vdy := fx-ox, fy-oy // non-normalized vector
 	vpx, vpy := -vdy, vdx    // perpendicular vector
 	length := math.Hypot(vdx, vdy)
@@ -111,10 +131,9 @@ func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickn
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
 }
 
-// TODO: StrokeCircArc?
-// DrawCircLine draws an arc of the given radius. For stroking full circles,
+// StrokeCircArc draws an arc of the given radius. For stroking full circles,
 // consider [Renderer.StrokeCircle]() instead.
-func (r *Renderer) DrawCircLine(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
+func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
 	if thickness <= 0 {
 		if thickness < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
@@ -159,9 +178,9 @@ func (r *Renderer) DrawCircLine(target *ebiten.Image, cx, cy, radius, startRads,
 	clear(r.opts.Uniforms)
 }
 
-// DrawCircle draws a filled circle. Radius can't be negative.
-// See also [Renderer.StrokeCircle](), [Renderer.DrawCircSector]().
-func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
+// FillCircle draws a filled circle. Radius can't be negative.
+// See also [Renderer.StrokeCircle](), [Renderer.FillCircSector]().
+func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32) {
 	if radius == 0 {
 		return
 	}
@@ -178,7 +197,7 @@ func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
 // StrokeCircle draws a circle outline. If thickness > 0, the outline expands [-thickness/2, thickness/2]
 // around the radius. If thickness < 0, the outline goes from [-thickness, 0].
 //
-// For arcs, see [Renderer.DrawCircLine]().
+// For arcs, see [Renderer.StrokeCircArc]().
 func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
 	if thickness == 0 {
 		return // nothing to draw
@@ -192,7 +211,7 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		if radius < 0 {
 			return
 		}
-		r.DrawCircle(target, cx, cy, radius)
+		r.FillCircle(target, cx, cy, radius)
 		return
 	}
 
@@ -203,11 +222,11 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
 }
 
-// drawCircWedge draws a circular sector with the contact points at the inner and
+// fillCircWedge draws a circular sector with the contact points at the inner and
 // outer radius being controlled by inAperture and outAperture, which must be in
 // [0..2*Pi]. inner rounding is not implemented because of analytical geometry skill
 // issue with the many edge cases.
-func (r *Renderer) drawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
+func (r *Renderer) fillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
 	if inRadius < 0 {
 		r.Warnings.report(WarnRadiusClamped, inRadius)
 		inRadius = 0.0
@@ -243,11 +262,11 @@ func (r *Renderer) drawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadi
 	inX, inY = lineCircIntersect(inRadius, inX, inY, outX, outY)
 
 	centerDirSin, centerDirCos := math.Sincos(centerDir)
-	r.innerDrawCircWedge(target, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding)
+	r.innerFillCircWedge(target, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding)
 }
 
 // precondition: inX, inY, outX and outY given relative to centerDir = 0 (right), distances match inRadius and outRadius
-func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding float64) {
+func (r *Renderer) innerFillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding float64) {
 	// TODO: bounding can use min(inX, outX), min(-inY, -outY), max(inX, outX), max(inY, outY) probably?
 	// minX, maxX := min(inX, outX), max(inX, outX)
 	// minY, maxY := min(-inY, -outY), max(inY, outY)
@@ -265,7 +284,7 @@ func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, ou
 	clear(r.opts.Uniforms)
 }
 
-// DrawCircSector draws a smooth circular sector. Use inRadius = 0 for pie shapes, inRadius > 0 for
+// FillCircSector draws a smooth circular sector. Use inRadius = 0 for pie shapes, inRadius > 0 for
 // rings. Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice
 // that inwards rounding requires non-trivial CPU precalculations and a different shader from outwards
 // or no rounding.
@@ -273,7 +292,7 @@ func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, ou
 // Consider [RadsSpan]() if you need to derive (startRads, endRads) from a central direction.
 //
 // See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) DrawCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
+func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads {
 		return // skip empty draws
 	}
@@ -300,18 +319,18 @@ func (r *Renderer) DrawCircSector(target *ebiten.Image, cx, cy, inRadius, outRad
 	}
 
 	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalDrawCircSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
+	r.internalFillCircSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
 }
 
 // precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalDrawCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
+func (r *Renderer) internalFillCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
 	delta := uradsDeltaCW(startRads, endRads)
 	halfDelta := delta * 0.5
 	centerDir := uradsAddCW(startRads, halfDelta)
 	ws, wc := math.Sincos(halfDelta)
 
 	if rounding < 0 {
-		r.innerRoundingDrawCircSector(target, float64(cx), float64(cy), centerDir, halfDelta, ws, wc, float64(inRadius), float64(outRadius), startRads, endRads, float64(-rounding))
+		r.innerRoundingFillCircSector(target, float64(cx), float64(cy), centerDir, halfDelta, ws, wc, float64(inRadius), float64(outRadius), startRads, endRads, float64(-rounding))
 		return
 	}
 
@@ -334,7 +353,7 @@ func (r *Renderer) internalDrawCircSector(target *ebiten.Image, cx, cy, inRadius
 }
 
 // precondition: rounding must be > 0. ws, wc are sin and cos of halfDelta
-func (r *Renderer) innerRoundingDrawCircSector(target *ebiten.Image, cx, cy, centerDir, halfDelta, ws, wc, inRadius, outRadius, startRads, endRads, rounding float64) {
+func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, centerDir, halfDelta, ws, wc, inRadius, outRadius, startRads, endRads, rounding float64) {
 	if rounding <= 0 {
 		panic("rounding <= 0")
 	}
@@ -370,7 +389,7 @@ func (r *Renderer) innerRoundingDrawCircSector(target *ebiten.Image, cx, cy, cen
 
 		// cone collapse
 		cutCX, cutCY := cx+cdc*dirOffset, cy+cds*dirOffset
-		r.internalDrawCircSector(target, float32(cutCX), float32(cutCY), 0, float32(outRadius-dirOffset), startRads, endRads, float32(rounding-arcCollapse))
+		r.internalFillCircSector(target, float32(cutCX), float32(cutCY), 0, float32(outRadius-dirOffset), startRads, endRads, float32(rounding-arcCollapse))
 		return
 	}
 
@@ -382,7 +401,7 @@ func (r *Renderer) innerRoundingDrawCircSector(target *ebiten.Image, cx, cy, cen
 	}
 
 	relOutCut, _, _ = circIntersect(0, 0, outRadius, wc*outRadius, ws*outRadius, rounding)
-	r.innerDrawCircWedge(target, cx, cy, inRadius, outRadius, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
+	r.innerFillCircWedge(target, cx, cy, inRadius, outRadius, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
 }
 
 // StrokeCircSector draws the outline of a circular sector. Thickness must be >= 0.
@@ -437,9 +456,11 @@ func (r *Renderer) internalStrokeCircSector(target *ebiten.Image, cx, cy, inRadi
 	clear(r.opts.Uniforms)
 }
 
+// FillEllipse draws a smooth filled ellipse.
+//
 // Notice: ellipses don't have a perfect SDF, so approximations can be very slightly
 // bigger or smaller than the requested radiuses.
-func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRadius float32, rads float64) {
+func (r *Renderer) FillEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRadius float32, rads float64) {
 	if horzRadius < 0 {
 		r.Warnings.report(WarnNegativeValueOpSkipped, horzRadius)
 		horzRadius = 0
@@ -466,33 +487,10 @@ func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRad
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, horzRadius, vertRadius)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderEllipse.Load(), &r.opts)
+	clear(r.opts.Uniforms)
 }
 
-// DrawIntArea is a simpler version of [Renderer.DrawArea]() that uses integer coordinates.
-//
-// See also [Renderer.DrawRect]() when working with image.Rectangle.
-func (r *Renderer) DrawIntArea(target *ebiten.Image, ox, oy, w, h int) {
-	if w == 0 || h == 0 {
-		return
-	}
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-	r.setDstRectCoords(float32(ox), float32(oy), float32(ox+w), float32(oy+h))
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDefault.Load(), &r.opts)
-}
-
-// StrokeIntRect is the image.Rectangle compatible equivalent of [Renderer.StrokeIntArea]().
-func (r *Renderer) StrokeIntRect(target *ebiten.Image, area image.Rectangle, outThickness, inThickness int) {
-	r.StrokeIntArea(target, area.Min.X, area.Min.Y, area.Dx(), area.Dy(), outThickness, inThickness)
-}
-
-func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness int) {
+func (r *Renderer) internalStrokeIntRect(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness int) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -515,10 +513,10 @@ func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThicknes
 
 	if outThickness == 0 {
 		if inThickness != 0 {
-			r.strokeIntInnerArea(target, ox, oy, w, h, inThickness)
+			r.strokeIntInnerRect(target, ox, oy, w, h, inThickness)
 		}
 	} else {
-		r.strokeIntInnerArea(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness)
+		r.strokeIntInnerRect(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness)
 	}
 }
 
@@ -533,7 +531,7 @@ var strokeIndices = []uint32{
 	0, 4, 7,
 }
 
-func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickness int) {
+func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickness int) {
 	oox, ooy := float32(ox), float32(oy)
 	ofx, ofy := float32(ox+w), float32(oy+h)
 	r.setDstRectCoords(oox, ooy, ofx, ofy)
@@ -606,16 +604,26 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 	r.vertices = r.vertices[:4]
 }
 
-// StrokeRect is the image.Rectangle compatible equivalent of [Renderer.StrokeArea]().
-func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness, rounding float32) {
-	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), inThickness, outThickness, rounding)
+// StrokeRect is the [image.Rectangle]-compatible equivalent of [Renderer.StrokeRect]().
+//
+// When rounding is 0, StrokeIntRect draws the rect edges using multiple triangles, which can
+// be used for unique effects with varying vertex colors. If this effect is not desired,
+// [Renderer.StrokeRect] can be used instead.
+//
+// For rectangle creation, consider [image.Rect]() and [RectWithSize]().
+func (r *Renderer) StrokeIntRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness int, rounding float32) {
+	if rounding == 0 {
+		r.internalStrokeIntRect(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy(), outThickness, inThickness)
+	} else {
+		r.StrokeRect(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), float32(inThickness), float32(outThickness), rounding)
+	}
 }
 
-// StrokeArea draws an outline on the given area's boundary, with explicit controls for in/out
+// StrokeRect draws an outline on the given area's boundary, with explicit controls for in/out
 // border thickness. Rounding controls the outer edge rounding radius (inner radius if negative).
 //
-// If you have an image.Rectangle for the rect, consider [Renderer.StrokeRect]() instead.
-func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32) {
+// If you have an image.Rectangle for the rect, consider [Renderer.StrokeIntRect]() instead.
+func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -631,14 +639,14 @@ func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, inThickness, o
 
 	if outThickness == 0 {
 		if inThickness != 0 {
-			r.strokeInnerArea(target, ox, oy, w, h, inThickness, rounding)
+			r.strokeInnerRect(target, ox, oy, w, h, inThickness, rounding)
 		}
 	} else {
-		r.strokeInnerArea(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness, rounding)
+		r.strokeInnerRect(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness, rounding)
 	}
 }
 
-func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32) {
+func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32) {
 	if rounding < 0 {
 		// adjust for inner boundary
 		rounding = -(rounding - inThickness)
@@ -657,12 +665,11 @@ func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickne
 	clear(r.opts.Uniforms)
 }
 
-// DrawTriangle draws a smooth triangle using the given vertices and an optional rounding factor.
+// FillTriangle draws a smooth filled triangle using the given vertices and an optional rounding factor.
 //
 // Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice that
-// inwards rounding requires non-trivial CPU precalculations (two dozen f64 products and 3 square
-// roots).
-func (r *Renderer) DrawTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
+// inwards rounding requires non-trivial CPU precalculations.
+func (r *Renderer) FillTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
 	r.drawTriangle(target, points, 0.0, rounding)
 }
 
@@ -706,7 +713,7 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 				if radius <= 0 {
 					return
 				}
-				r.DrawCircle(target, cx, cy, radius)
+				r.FillCircle(target, cx, cy, radius)
 			} else {
 				if thickness < 0 {
 					thickness = -thickness
@@ -748,7 +755,7 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 // viceversa (apothem = radius*Sqrt3Div2).
 const Sqrt3Div2 = 0.86602540378443864676372317075293618347140262690519031402790348 // https://oeis.org/A010527
 
-// DrawHexagon renders an hexagon that can be fully contained within the given radius.
+// FillHexagon renders an hexagon that can be fully contained within the given radius.
 // Roundness can be used to round the corners. Rads can be used to rotate the hexagon,
 // in radians.
 //
@@ -757,7 +764,7 @@ const Sqrt3Div2 = 0.866025403784438646763723170752936183471402626905190314027903
 // >= 'radius' will turn the hexagon into a perfect circle and start increasing the
 // effective radius. For inwards/outwards rounding, consider [Renderer.DrawHexagonApothem]()
 // instead.
-func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
+func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
 	if roundness < 0 {
 		r.Warnings.report(WarnNegativeValueZeroed, roundness)
 		roundness = 0.0
@@ -771,7 +778,7 @@ func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	}
 
 	if roundness >= radius {
-		r.DrawCircle(target, cx, cy, roundness)
+		r.FillCircle(target, cx, cy, roundness)
 		return
 	}
 
@@ -781,15 +788,16 @@ func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	r.setFlatCustomVAs(cx-tox, cy-toy, apothem, rads)
 	r.opts.Uniforms["Rounding"] = roundness
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
+	clear(r.opts.Uniforms)
 }
 
-// DrawHexagonApothem is an alternative form to [Renderer.DrawHexagon]() that requires the apothem
+// FillHexagonApothem is an alternative form to [Renderer.FillHexagon]() that requires the apothem
 // of the hexagon instead of its radius and supports signed rounding.
 //
 // Rounding values above 0 will increase the effective apothem by that amount while rounding corners
 // outwards. Values between 0 and -apothem will preserve the apothem while rounding corners inwards.
 // Values between -apothem and -2*apothem draw a perfect circle.
-func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rounding, rads float32) {
+func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rounding, rads float32) {
 	if apothem == 0 {
 		return
 	}
@@ -799,7 +807,7 @@ func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	}
 	inset := -(apothem + rounding)
 	if inset >= 0 {
-		r.DrawCircle(target, ox, oy, apothem-inset)
+		r.FillCircle(target, ox, oy, apothem-inset)
 		return
 	}
 	boundingApothem := apothem + max(rounding, 0)
@@ -809,21 +817,23 @@ func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	r.setFlatCustomVAs(ox-tox, oy-toy, apothem, rads)
 	r.opts.Uniforms["Rounding"] = rounding
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
+	clear(r.opts.Uniforms)
 }
 
-// DrawQuad renders a convex quad with the current renderer colors.
+// TODO: inner and outer rounding instead of thickening
+// FillQuad renders a convex quad with the current renderer colors.
 // The thickening acts as a rounding parameter, but it extends the shape outwards
 // instead of "cutting" the corners. Notice that non-zero thickening involves
 // additional CPU-side precomputations.
 //
 // quad must be given in clockwise order starting from top-left.
-func (r *Renderer) DrawQuad(target *ebiten.Image, quad [4]PointF32, thickening float32) {
-	r.DrawQuadSoft(target, quad, thickening, 1.3333)
+func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, thickening float32) {
+	r.FillQuadSoft(target, quad, thickening, 1.3333)
 }
 
-// DrawQuadSoft draws a quad like [Renderer.DrawQuad]() but with an extra softEdge, which
-// creates a shadow-like soft edge. TODO: inconsistent softEdge between DrawAreaSoft and this?
-func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
+// FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
+// creates a shadow-like soft edge. TODO: inconsistent softEdge between FillRectSoft and this?
+func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
 	for i, pt := range expandQuad(quad, thickening) {
 		r.vertices[i].DstX = pt.X
 		r.vertices[i].DstY = pt.Y
@@ -839,14 +849,13 @@ func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickeni
 	clear(r.opts.Uniforms)
 }
 
-// TODO: feathering? just Soft*? refactor to separate file?
-// DrawAreaSoft draws a rect like [Renderer.DrawArea]() but with an extra softRadius, which
-// creates a shadow-like soft edge. This is ideal for rendering rect shadows in UIs avoiding
-// the more expensive raster-based blurs.
+// FillRectSoft draws a rect like [Renderer.FillRect]() but with an extra softRadius,
+// which creates a shadow-like soft edge. This is ideal for batch rendering rect shadows
+// in UIs avoiding the more expensive raster-based blurs.
 //
 // Rounding can be zero, positive for outwards rounding, or negative for inwards rounding.
-// SoftRadius extends beyond the boundary.
-func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {
+// SoftRadius extends beyond the boundary based on its sign.
+func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -877,9 +886,9 @@ func (r *Renderer) DrawAreaSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	clear(r.opts.Uniforms)
 }
 
-// DrawAreaBlur behaves very similarly to [Renderer.DrawAreaSoft](), but accepts only non-negative
-// blur radiuses, and "blurs" around the boundary instead of before or after it.
-func (r *Renderer) DrawAreaBlur(target *ebiten.Image, ox, oy, w, h, rounding, blurRadius float32) {
+// FillRectBlur behaves similarly to [Renderer.FillRectSoft](), but accepts only non-negative
+// blur radiuses, and blurs around the boundary instead of before or after it.
+func (r *Renderer) FillRectBlur(target *ebiten.Image, ox, oy, w, h, rounding, blurRadius float32) {
 	if w < 0 {
 		w = -w
 		ox -= w

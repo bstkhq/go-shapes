@@ -160,11 +160,11 @@ func TestCircIntersect(t *testing.T) {
 
 		if numSolutions > 0 {
 			ctx.Renderer.SetColorF32(0.8, 0.0, 0.8, 0.8)
-			ctx.Renderer.DrawCircle(canvas, float32(xy1[0]), float32(xy1[1]), 3.0)
+			ctx.Renderer.FillCircle(canvas, float32(xy1[0]), float32(xy1[1]), 3.0)
 		}
 		if numSolutions > 1 {
 			ctx.Renderer.SetColorF32(0.0, 0.8, 0.8, 0.8)
-			ctx.Renderer.DrawCircle(canvas, float32(xy2[0]), float32(xy2[1]), 3.0)
+			ctx.Renderer.FillCircle(canvas, float32(xy2[0]), float32(xy2[1]), 3.0)
 		}
 	}
 
