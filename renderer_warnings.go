@@ -31,8 +31,9 @@ const (
 	WarnInvalidTintClamped     // out of [0, 1] range
 	WarnInvalidRateClamped     // out of [0, 1] range
 	WarnInvalidBiasClamped     // out of [-1, 1] range
-	WarnLowToleranceRaised     // below 0.1
+	WarnInvalidTextAlign
 	WarnInvalidFlag
+	WarnLowToleranceRaised // below 0.1
 	WarnRepeatedFlag
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
@@ -74,10 +75,12 @@ func (w Warning) Message() string {
 		return "bias value out of [-1, 1] range, clamped"
 	case WarnInvalidTintClamped:
 		return "tint value out of [0, 1] range, clamped"
-	case WarnLowToleranceRaised:
-		return "CircleShaderOptions.Tolerance != 0 but below minimum of 0.1, raised to 0.1"
+	case WarnInvalidTextAlign:
+		return "invalid text align"
 	case WarnInvalidFlag:
 		return "invalid Flag in context"
+	case WarnLowToleranceRaised:
+		return "CircleShaderOptions.Tolerance != 0 but below minimum of 0.1, raised to 0.1"
 	case WarnRepeatedFlag:
 		return "redundant repeated Flag"
 	case WarnInconsistentRangeOpSkipped:

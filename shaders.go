@@ -310,6 +310,10 @@ var shaderJFMExpansion = shaderRef{src: shaderJFMExpansionSrc}
 var shaderJFMErosionSrc []byte
 var shaderJFMErosion = shaderRef{src: shaderJFMErosionSrc}
 
+//go:embed shaders/text_bilinear.kage
+var shaderTextBilinearSrc []byte
+var shaderTextBilinear = shaderRef{src: shaderTextBilinearSrc}
+
 //go:embed shaders/study_wave_funcs.kage
 var shaderStudyWaveFuncsSrc []byte
 var shaderStudyWaveFuncs = shaderRef{src: shaderStudyWaveFuncsSrc}

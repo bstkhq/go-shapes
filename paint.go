@@ -91,6 +91,17 @@ func setVertDstCoords(verts []ebiten.Vertex, minX, minY, maxX, maxY float32) {
 	verts[3].DstY = maxY // BL
 }
 
+func setVertDstCoordsIdx(verts []ebiten.Vertex, idx int, minX, minY, maxX, maxY float32) {
+	verts[idx+0].DstX = minX // TL
+	verts[idx+0].DstY = minY // TL
+	verts[idx+1].DstX = maxX // TR
+	verts[idx+1].DstY = minY // TR
+	verts[idx+2].DstX = maxX // BR
+	verts[idx+2].DstY = maxY // BR
+	verts[idx+3].DstX = minX // BL
+	verts[idx+3].DstY = maxY // BL
+}
+
 func setVertSrcCoords(verts []ebiten.Vertex, minX, minY, maxX, maxY float32) {
 	verts[0].SrcX = minX // TL
 	verts[0].SrcY = minY // TL
@@ -100,4 +111,15 @@ func setVertSrcCoords(verts []ebiten.Vertex, minX, minY, maxX, maxY float32) {
 	verts[2].SrcY = maxY // BR
 	verts[3].SrcX = minX // BL
 	verts[3].SrcY = maxY // BL
+}
+
+func setVertSrcCoordsIdx(verts []ebiten.Vertex, idx int, minX, minY, maxX, maxY float32) {
+	verts[idx+0].SrcX = minX // TL
+	verts[idx+0].SrcY = minY // TL
+	verts[idx+1].SrcX = maxX // TR
+	verts[idx+1].SrcY = minY // TR
+	verts[idx+2].SrcX = maxX // BR
+	verts[idx+2].SrcY = maxY // BR
+	verts[idx+3].SrcX = minX // BL
+	verts[idx+3].SrcY = maxY // BL
 }
