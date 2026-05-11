@@ -90,7 +90,7 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))
 	r.opts.Images[0] = source
 	r.opts.Uniforms["Center"] = [2]float32{cx - tox, cy - toy}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

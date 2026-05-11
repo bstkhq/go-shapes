@@ -1,6 +1,8 @@
 package shapes
 
 import (
+	"slices"
+
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -16,7 +18,7 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
 	r.setFlatCustomVAs01(1.0, 1.0)
 	r.opts.Images[0] = source
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBilinear.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBilinear.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -48,13 +50,22 @@ func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
 	r.setFlatCustomVAs01(1.0, 1.0)
 	r.opts.Images[0] = source
-	indices := []uint16{
-		0, 1, 4,
-		1, 2, 4,
-		2, 3, 4,
-		3, 0, 4,
-	}
-	target.DrawTrianglesShader(r.vertices[:], indices, shaderMapQuad4.Load(), &r.opts)
+	r.indices = r.indices[:0]
+	r.indices = slices.Grow(r.indices, 12)[:12]
+	r.indices[0] = 0
+	r.indices[1] = 1
+	r.indices[2] = 4
+	r.indices[3] = 1
+	r.indices[4] = 2
+	r.indices[5] = 4
+	r.indices[6] = 2
+	r.indices[7] = 3
+	r.indices[8] = 4
+	r.indices[9] = 3
+	r.indices[10] = 0
+	r.indices[11] = 4
+	target.DrawTrianglesShader32(r.vertices[:], r.indices, shaderMapQuad4.Load(), &r.opts)
+	r.restoreIndices()
 	r.opts.Images[0] = nil
 	r.vertices = r.vertices[:4]
 }
@@ -105,7 +116,7 @@ func (r *Renderer) MapProjective(target, source *ebiten.Image, quad [4]PointF32,
 	} else {
 		shader = shaderMapProjective.Load()
 	}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

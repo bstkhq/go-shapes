@@ -51,7 +51,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.setDstRectCoords(0, 0, sw32, sh32+thickCeil*2)
 	r.setFlatCustomVA0(thickness)
 	r.opts.Images[0] = mask
-	temp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionVert.Load(), &r.opts)
+	temp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderExpansionVert.Load(), &r.opts)
 	r.opts.Images[0] = nil
 
 	// second pass (horz)
@@ -59,7 +59,7 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.setSrcRectCoords(-thickCeil, 0, sw32+thickCeil, sh32+thickCeil*2.0)
 	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
 	r.opts.Images[0] = temp
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderExpansionHorz.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderExpansionHorz.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -139,7 +139,7 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	tmp.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGlowFirstPass.Load(), &r.opts)
+	tmp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowFirstPass.Load(), &r.opts)
 	r.opts.Images[0] = nil
 
 	// second pass
@@ -176,7 +176,7 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendLighter
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlow.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzGlow.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -211,7 +211,7 @@ func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 	preBlend := r.opts.Blend
 	r.opts.Blend = BlendMultiply
 	//r.opts.Blend = BlendSubtract // also possible with a shader flag, but multiply feels more natural
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderDarkHorzGlow.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDarkHorzGlow.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -231,7 +231,7 @@ func (r *Renderer) ApplyGlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 
 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzGlowKern.Load(), &r.opts)
+		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzGlowKern.Load(), &r.opts)
 	}, true)
 }
 
@@ -251,7 +251,7 @@ func (r *Renderer) ApplyColorGlowK(target *ebiten.Image, mask *ebiten.Image, ox,
 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
 		r.opts.Uniforms["RGB"] = rgb
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzColorGlow.Load(), &r.opts)
+		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzColorGlow.Load(), &r.opts)
 		clear(r.opts.Uniforms)
 	}, true)
 }
@@ -358,7 +358,7 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	r.opts.Uniforms["KernelLen"] = opts.VertKernel.Size()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
 	r.opts.Images[0] = tmp
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.opts.Blend = preBlend
@@ -382,7 +382,7 @@ func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64,
 	r.setDstRectCoords(0, 0, float32(dkernW64)+2, float32(dkernH64)+2)
 	r.setSrcRectCoords(0, float32(-halfVertMargin), float32(dkernW64)+2, float32(downH64+halfVertMargin)+2)
 	r.opts.Images[0] = dkernHorz
-	dkern.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
+	dkern.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

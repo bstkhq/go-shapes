@@ -45,7 +45,7 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -110,7 +110,7 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderVertBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -143,7 +143,7 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzBlur.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -155,7 +155,7 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(r.tint)
-		downHorzTarget.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
+		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
 	}
 	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
 }
@@ -234,7 +234,7 @@ func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radi
 	r.opts.Images[0] = mask
 	r.opts.Uniforms["NumSamples"] = numSamples
 	r.opts.Uniforms["Disk"] = r.vogelMemo.Points
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderBlurVogel.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurVogel.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

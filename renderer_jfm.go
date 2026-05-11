@@ -69,7 +69,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	r.opts.Images[0] = seeds
 	r.setDstRectCoords(mapCoords[0][0], mapCoords[0][1], mapCoords[0][2], mapCoords[0][3])
 	r.setSrcRectCoords(mapCoords[1][0], mapCoords[1][1], mapCoords[1][2], mapCoords[1][3])
-	jfmap.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	jfmap.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
@@ -83,7 +83,7 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 		newIndex := 1 - mapIndex
 		r.setSrcRectCoords(mapCoords[newIndex][0], mapCoords[newIndex][1], mapCoords[newIndex][2], mapCoords[newIndex][3])
 		r.opts.Images[0] = maps[newIndex]
-		maps[mapIndex].DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+		maps[mapIndex].DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 		mapIndex = newIndex
 		jumpSize /= 2
 	}
@@ -194,7 +194,7 @@ func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initSha
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 	r.opts.Images[0] = source
-	seeds.DrawTrianglesShader(r.vertices[:], r.indices[:], initShader, &r.opts)
+	seeds.DrawTrianglesShader32(r.vertices[:], r.indices[:], initShader, &r.opts)
 	r.opts.Blend = memoBlend
 
 	r.JFMapCompute(jfmap, seeds, maxDistance)

@@ -24,7 +24,7 @@ import (
 //     expected to be [ebiten.BlendSourceOver].
 type Renderer struct {
 	vertices []ebiten.Vertex
-	indices  []uint16
+	indices  []uint32
 	opts     ebiten.DrawTrianglesShaderOptions
 
 	lastBlend           ebiten.Blend
@@ -46,7 +46,7 @@ func NewRenderer() *Renderer {
 	var renderer Renderer
 	renderer.vertices = make([]ebiten.Vertex, 4)
 	renderer.SetColor(color.RGBA{255, 255, 255, 255})
-	renderer.indices = []uint16{0, 1, 2, 0, 2, 3}
+	renderer.indices = []uint32{0, 1, 2, 0, 2, 3}
 	renderer.lastBlendSafeToCrop = true
 	renderer.lastBlend = ebiten.BlendSourceOver
 	renderer.opts.Blend = ebiten.BlendSourceOver
@@ -157,7 +157,7 @@ func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, m
 	r.setSrcRectCoords(srcOX-margins.Left, srcOY-margins.Top, srcOX+srcWidthF32+margins.Right, srcOY+srcHeightF32+margins.Bottom)
 
 	r.opts.Images[0] = source
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -170,7 +170,7 @@ func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, m
 func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, shader *ebiten.Shader) {
 	r.setDstRectCoords(ox-margins.Left, oy-margins.Top, ox+w+margins.Right, oy+h+margins.Bottom)
 	r.setSrcRectCoords(-margins.Left, -margins.Top, w+margins.Right, h+margins.Bottom)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 }
 
 // DrawCircShader draws a shader within a circular triangle strip. This is particularly
@@ -217,12 +217,21 @@ func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts Cir
 	}
 
 	r.indices = r.indices[:0]
-	for i := range uint16(len(r.vertices)/2 - 1) {
-		s := i << 1
-		r.indices = append(r.indices, s+0, s+1, s+2, s+2, s+1, s+3)
+	numQuads := len(r.vertices)/2 - 1
+	numIndices := numQuads * 6
+	r.indices = slices.Grow(r.indices, numIndices)[:numIndices]
+	i := 0
+	for q := range uint32(numQuads) {
+		vertIndex := q << 1
+		r.indices[i+0] = vertIndex + 0
+		r.indices[i+1] = vertIndex + 1
+		r.indices[i+2] = vertIndex + 2
+		r.indices[i+3] = vertIndex + 2
+		r.indices[i+4] = vertIndex + 1
+		r.indices[i+5] = vertIndex + 3
+		i += 6
 	}
-
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 
 	r.restoreIndices()
 	r.setColors(memo)
@@ -330,7 +339,7 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, op
 	}
 
 	r.setFlatCustomVAs(sampling, sampling, clamp, 0)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shader, &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }
 

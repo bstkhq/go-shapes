@@ -108,9 +108,10 @@ func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickn
 	r.opts.Uniforms["Thickness"] = float32(thickness)
 
 	// draw shader
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
 }
 
+// TODO: StrokeCircArc?
 // DrawCircLine draws an arc of the given radius. For stroking full circles,
 // consider [Renderer.StrokeCircle]() instead.
 func (r *Renderer) DrawCircLine(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
@@ -154,7 +155,7 @@ func (r *Renderer) DrawCircLine(target *ebiten.Image, cx, cy, radius, startRads,
 	r.opts.Uniforms["Center"] = [2]float32{cx32 - tox, cy32 - toy}
 	s, c = math.Sincos(uradsAddCW(startRads, delta*0.5))
 	r.opts.Uniforms["Rotation"] = [2]float32{float32(c), float32(s)}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircLine.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircLine.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -171,7 +172,7 @@ func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
 	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
 }
 
 // StrokeCircle draws a circle outline. If thickness > 0, the outline expands [-thickness/2, thickness/2]
@@ -199,7 +200,7 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	r.setDstRectCoords(cx-radius-hthickCeil, cy-radius-hthickCeil, cx+radius+hthickCeil, cy+radius+hthickCeil)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
 }
 
 // drawCircWedge draws a circular sector with the contact points at the inner and
@@ -260,7 +261,7 @@ func (r *Renderer) innerDrawCircWedge(target *ebiten.Image, cx, cy, inRadius, ou
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(rounding), 0)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -328,7 +329,7 @@ func (r *Renderer) internalDrawCircSector(target *ebiten.Image, cx, cy, inRadius
 	r.opts.Uniforms["Rounding"] = rounding
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircSector.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircSector.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -432,7 +433,7 @@ func (r *Renderer) internalStrokeCircSector(target *ebiten.Image, cx, cy, inRadi
 	r.opts.Uniforms["Thickness"] = thickness
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircSector.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircSector.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -464,7 +465,7 @@ func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRad
 	}
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, horzRadius, vertRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderEllipse.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderEllipse.Load(), &r.opts)
 }
 
 // DrawIntArea is a simpler version of [Renderer.DrawArea]() that uses integer coordinates.
@@ -483,7 +484,7 @@ func (r *Renderer) DrawIntArea(target *ebiten.Image, ox, oy, w, h int) {
 		oy -= h
 	}
 	r.setDstRectCoords(float32(ox), float32(oy), float32(ox+w), float32(oy+h))
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderDefault.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDefault.Load(), &r.opts)
 }
 
 // StrokeIntRect is the image.Rectangle compatible equivalent of [Renderer.StrokeIntArea]().
@@ -521,7 +522,7 @@ func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThicknes
 	}
 }
 
-var strokeIndices = []uint16{
+var strokeIndices = []uint32{
 	0, 1, 4,
 	4, 1, 5,
 	5, 1, 2,
@@ -601,7 +602,7 @@ func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickn
 		r.vertices[bri].ColorA = lerp(bA, tA, iov)
 	}
 
-	target.DrawTrianglesShader(r.vertices[:], strokeIndices[:], shaderDefault.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], strokeIndices[:], shaderDefault.Load(), &r.opts)
 	r.vertices = r.vertices[:4]
 }
 
@@ -739,7 +740,7 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 	r.opts.Uniforms["P1"] = [2]float32{p1.X - tox, p1.Y - toy}
 	r.opts.Uniforms["P2"] = [2]float32{p2.X - tox, p2.Y - toy}
 	r.setFlatCustomVAs01(abs(rounding), thickness)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -779,7 +780,7 @@ func (r *Renderer) DrawHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, apothem, rads)
 	r.opts.Uniforms["Rounding"] = roundness
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
 }
 
 // DrawHexagonApothem is an alternative form to [Renderer.DrawHexagon]() that requires the apothem
@@ -807,7 +808,7 @@ func (r *Renderer) DrawHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(ox-tox, oy-toy, apothem, rads)
 	r.opts.Uniforms["Rounding"] = rounding
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHexagon.Load(), &r.opts)
 }
 
 // DrawQuad renders a convex quad with the current renderer colors.
@@ -834,10 +835,11 @@ func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickeni
 		quad[0].X - tox, quad[0].Y - toy, quad[1].X - tox, quad[1].Y - toy,
 		quad[2].X - tox, quad[2].Y - toy, quad[3].X - tox, quad[3].Y - toy,
 	}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
+// TODO: feathering? just Soft*? refactor to separate file?
 // DrawAreaSoft draws a rect like [Renderer.DrawArea]() but with an extra softRadius, which
 // creates a shadow-like soft edge. This is ideal for rendering rect shadows in UIs avoiding
 // the more expensive raster-based blurs.

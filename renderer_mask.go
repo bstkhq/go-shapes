@@ -25,7 +25,7 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 	r.setFlatCustomVAs01(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMask.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMask.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 	r.opts.Images[2] = nil
@@ -52,7 +52,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	r.setFlatCustomVAs01(ox-oxMask, oy-oyMask)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskAt.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMaskAt.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 	r.opts.Images[2] = nil
@@ -83,7 +83,7 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 	r.setFlatCustomVAs(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32, reveal, 0.0)
 	r.opts.Images[0] = source
 	r.opts.Images[1] = mask
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskThreshold.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMaskThreshold.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 	clear(r.opts.Uniforms)
@@ -157,7 +157,7 @@ func (r *Renderer) MaskCircle(target, source *ebiten.Image, ox, oy, circCX, circ
 	r.opts.Images[0] = source
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(circCX-tox, circCY-toy, hardRadius, softEdge)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMaskCircle.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	r.opts.Images[1] = nil
 	clear(r.opts.Uniforms)

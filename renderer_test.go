@@ -179,18 +179,9 @@ func TestDrawCircShader(t *testing.T) {
 			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f]",
 			ctx.Title(), startDegs, degs, tolerance,
 		))
-		sign := mapBool(!ebiten.IsKeyPressed(ebiten.KeyShift), float32(-1.0), float32(1.0))
-		switch {
-		case inpututil.IsKeyJustPressed(ebiten.KeyS):
-			startDegs = wrap(startDegs+15*sign, 0, 360)
-		case inpututil.IsKeyJustPressed(ebiten.KeyD):
-			degs = wrap(degs+15*sign, 0, 360)
-		case inpututil.IsKeyJustPressed(ebiten.KeyT):
-			tolerance = wrap(tolerance+0.2*sign, 0, 10.0)
-			if tolerance < 0.00001 {
-				tolerance = 0.0
-			}
-		}
+		startDegs = updateParam(ctx, ebiten.KeyS, startDegs, 0, 360, 15)
+		degs = updateParam(ctx, ebiten.KeyD, degs, 0, 360, 15)
+		tolerance = updateParam(ctx, ebiten.KeyT, tolerance, 0, 10.0, 0.2)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
