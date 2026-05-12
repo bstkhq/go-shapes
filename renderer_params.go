@@ -261,8 +261,13 @@ func mapBool[T any](b bool, falseValue, trueValue T) T {
 
 // CircShaderOptions are used for [Renderer.DrawCircShader]().
 type CircShaderOptions struct {
+	// Radius defines the radius of the circular region.
 	Radius float32
 
+	// Thickness defines the width of the circular outline:
+	//  - If thickness > 0, outline expands [-thickness/2, thickness/2]
+	//    around the radius.
+	//  - If thickness < 0, the outline goes from [-thickness, 0].
 	Thickness float32
 
 	// See [RadsRight] constants for angle conventions and docs.

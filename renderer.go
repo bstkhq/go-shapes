@@ -182,26 +182,25 @@ func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, ma
 //   - You shouldn't rely on blends like BlendSourceIn or BlendClear that aren't "safe
 //     to crop".
 func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts CircShaderOptions, shader *ebiten.Shader) {
+	if opts.Thickness == 0 {
+		return // ignore blends, this is already a crop operation
+	}
 	if opts.Tolerance == 0.0 {
 		opts.Tolerance = 7.5 // default tolerance, update opts.Tolerance docs if changed
 	}
 	if opts.Radius < 0.0 {
-		r.Warnings.report(WarnNegativeValueOpSkipped, opts.Radius)
-		return
+		r.Warnings.report(WarnRadiusClamped, opts.Radius)
+		opts.Radius = 0.0
 	}
-	if opts.Radius == 0 {
-		return // ignore blends, this is already a crop operation
-	}
-
 	if opts.Tolerance < 0.1 {
 		r.Warnings.report(WarnLowToleranceRaised, opts.Tolerance)
 		opts.Tolerance = 0.1
 	}
-
 	if opts.StartAngle == opts.EndAngle {
 		return
 	}
 
+	// prepare vertices and indices
 	memo := r.memorizeColors()
 	r.vertices = r.vertices[:0]
 	rads := uradsDeltaCW(opts.StartAngle, opts.EndAngle)
@@ -231,8 +230,11 @@ func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts Cir
 		r.indices[i+5] = vertIndex + 3
 		i += 6
 	}
+
+	// draw and restore state
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 
+	r.vertices = r.vertices[:4]
 	r.restoreIndices()
 	r.setColors(memo)
 }

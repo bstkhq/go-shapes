@@ -173,27 +173,32 @@ func TestDrawCircShader(t *testing.T) {
 	var startDegs float32
 	var degs float32 = 360
 	var tolerance float32
+	var radius float32 = 200.0
+	var thickness float32 = 25.0
 
 	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
-			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f]",
-			ctx.Title(), startDegs, degs, tolerance,
+			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f, T[H]ickness: %.02f, [R]adius: %.02f]",
+			ctx.Title(), startDegs, degs, tolerance, thickness, radius,
 		))
 		startDegs = updateParam(ctx, ebiten.KeyS, startDegs, 0, 360, 15)
 		degs = updateParam(ctx, ebiten.KeyD, degs, 0, 360, 15)
 		tolerance = updateParam(ctx, ebiten.KeyT, tolerance, 0, 10.0, 0.2)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 600.0, 15.0)
+		thickness = updateParam(ctx, ebiten.KeyH, thickness, -40.0, 80.0, 5.0)
+		if thickness < 0.1 && thickness > 0 {
+			thickness = 0.0 // floating point error correction
+		}
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
-		r := min(w, h) * 0.333
-		th := r * 0.1
 
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.StrokeCircle(canvas, w/2, h/2, r, th)
+		ctx.Renderer.StrokeCircle(canvas, w/2, h/2, radius, thickness)
 
 		ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
-		opts := CircShaderOpts(r, th)
+		opts := CircShaderOpts(radius, thickness)
 		opts.StartAngle = startDegs * math.Pi / 180
 		if degs >= 359.999 {
 			opts.EndAngle = opts.StartAngle + degs*math.Pi/180
@@ -201,7 +206,9 @@ func TestDrawCircShader(t *testing.T) {
 			opts.EndAngle = uradsAddCW(opts.StartAngle, degs*math.Pi/180)
 		}
 		opts.Tolerance = tolerance
-		ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
+		if !ctx.SpacePressed {
+			ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
+		}
 	}
 
 	app := NewTestApp(updater, drawer)
