@@ -64,7 +64,7 @@ func (ctx *TestAppCtx) Title() string {
 	)
 }
 
-func updateParam[T float32 | float64 | ~int | ~uint8](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
+func updateParam[T float32 | float64 | ~int | ~uint8 | ~int8](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
 	if !inpututil.IsKeyJustPressed(key) {
 		return value
 	}
@@ -194,7 +194,7 @@ func (l flagList) Flip(f Flag) {
 	l[f] = -(l[f] - f)
 }
 
-func wrap[Float ~float32 | ~float64 | ~int | ~uint8](x, lo, hi Float) Float {
+func wrap[Float ~float32 | ~float64 | ~int | ~uint8 | ~int8](x, lo, hi Float) Float {
 	if x < lo {
 		return hi
 	} else if x > hi {

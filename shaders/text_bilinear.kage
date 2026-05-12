@@ -9,7 +9,11 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	bl := imageSrc0UnsafeAt(sourceCoords + vec2(-halfPercent.x, +halfPercent.y)).a
 	br := imageSrc0UnsafeAt(sourceCoords + vec2(+halfPercent.x, +halfPercent.y)).a
 	delta := min(fract(sourceCoords+vec2(+halfPercent.x, +halfPercent.y)), percent) / percent
+
+	// hermite filtering is more resistant to blurriness, but less smooth with movement
+	// delta = smoothstep(vec2(0), vec2(1), delta)
+
 	alpha := mix(mix(tl, tr, delta.x), mix(bl, br, delta.x), delta.y)
-	alpha = pow(alpha, 1.0/1.8) // note: 1.8 looks perceptually better than 2.2 to me
+	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }

@@ -212,6 +212,10 @@ const (
 	BottomRight  TextAlign = vertEnd | horzEnd | TextAlign(Bottom)
 )
 
+const (
+	textFlagSmoothAnim = 0b0000_0001
+)
+
 // TextOptions are used in [Renderer.Text]() and [Renderer.TextSize]().
 type TextOptions struct {
 	// Scale controls the text scale.
@@ -222,7 +226,10 @@ type TextOptions struct {
 	// coordinates. If unset, [TopLeft] will be used as the default.
 	Align TextAlign
 
-	_ uint8 // unused, potentially flags (monospace, font selection, ...)
+	// 0b0000_000S
+	//  - S: smooth animation flag. When set, line origin should not be quantized.
+	// Other flags might include monospace, font, nearest, etc.
+	flags uint8
 
 	// SpaceWidth controls the text logical space size.
 	// A sensible default is used when the value is zero.
@@ -234,7 +241,7 @@ type TextOptions struct {
 	// A sensible default is used when the value is zero.
 	//
 	// This is a low-level control intended for advanced usage.
-	LineGap uint8
+	LineGap int8
 }
 
 func TextOpts(scale float32, align TextAlign) TextOptions {
@@ -244,11 +251,26 @@ func TextOpts(scale float32, align TextAlign) TextOptions {
 	}
 }
 
-func (opts TextOptions) lineGap() uint8 {
+// SmoothAnim returns a copy of TextOptions with the smooth animation flag set. By default,
+// this flag is not set, and line positions are quantized to the nearest pixel.
+func (opts TextOptions) SmoothAnim() TextOptions {
+	opts.flags |= textFlagSmoothAnim
+	return opts
+}
+
+// if smooth animation flag is not set, the given float is quantized to the nearest integer.
+func (opts TextOptions) quantize(f float32) float32 {
+	if opts.flags&textFlagSmoothAnim == textFlagSmoothAnim {
+		return f
+	}
+	return float32(math.Round(float64(f)))
+}
+
+func (opts TextOptions) lineGap() int8 {
 	if opts.LineGap != 0 {
 		return opts.LineGap
 	}
-	return ark10pxMap[fontMapIdxLineGap]
+	return int8(ark10pxMap[fontMapIdxLineGap])
 }
 
 func (opts TextOptions) spaceWidth() uint8 {
@@ -324,6 +346,7 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 	textHeight := lineCount*int(ascent+descent) + int(opts.lineGap())*(lineCount-1)
 	horzShiftRate, horzAlignOk := opts.Align.horzShiftRate()
 	y, vertAlignOk := opts.Align.oyAdjust(y, textHeight, scale)
+	y = opts.quantize(y)
 	if !horzAlignOk || !vertAlignOk {
 		r.Warnings.report(WarnInvalidTextAlign, opts.Align)
 		if !horzAlignOk {
@@ -350,7 +373,7 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 			dx += spaceWidth
 			pendingLetterGap = 0
 		case '\n':
-			r.lineApplyHorzShift(horzShiftRate, dx, glyphCount-lineGlyphCount, lineGlyphCount)
+			r.lineApplyHorzShift(opts.quantize(horzShiftRate*dx), glyphCount-lineGlyphCount, lineGlyphCount)
 			pendingLetterGap = 0
 			dy += glyphFrameHeight*scale + lineGap
 			dx = 0
@@ -376,7 +399,7 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 			}
 		}
 	}
-	r.lineApplyHorzShift(horzShiftRate, dx, glyphCount-lineGlyphCount, lineGlyphCount)
+	r.lineApplyHorzShift(opts.quantize(horzShiftRate*dx), glyphCount-lineGlyphCount, lineGlyphCount)
 
 	// draw
 	r.opts.Images[0] = loadArk10pxAtlas()
@@ -388,12 +411,11 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 	r.restoreIndices()
 }
 
-func (r *Renderer) lineApplyHorzShift(shiftRate, lineWidth float32, startLineGlyph, lineGlyphCount int) {
-	if shiftRate == 0 || lineWidth == 0 || lineGlyphCount == 0 {
+func (r *Renderer) lineApplyHorzShift(shift float32, startLineGlyph, lineGlyphCount int) {
+	if shift == 0 || lineGlyphCount == 0 {
 		return
 	}
 
-	shift := float32(math.Round(float64(lineWidth * shiftRate)))
 	for i := range lineGlyphCount * 4 {
 		r.vertices[startLineGlyph*4+i].DstX += shift
 	}
