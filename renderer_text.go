@@ -9,9 +9,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// LineAnchor is one of the components of the [TextAlign], which
-// allows fine grained adjustment of the vertical origin for the
-// first or last line during text rendering operations.
+// LineAnchor is one of the components of the [TextAlign], which allows fine grained
+// adjustment of the vertical origin for the first or last line during text rendering
+// operations.
 type LineAnchor uint8
 
 func (a LineAnchor) String() string {
@@ -49,24 +49,24 @@ const (
 	Bottom   LineAnchor = 0b0001
 )
 
-// TextAlign defines the horizontal and vertical text alignment during
-// text rendering operations.
+// TextAlign defines the horizontal and vertical text alignment during text rendering
+// operations.
 //
-// A single constant we be used to control the horizontal and vertical
-// alignment of the "text container". Given a drawing position (x, y):
+// A single constant we be used to control the horizontal and vertical alignment of the
+// "text container". Given a drawing position (x, y):
 //   - [TopLeft] aligns the text's top-left corner to (x, y)
 //   - [Center] aligns the text's center to (x, y)
 //   - [BottomCenter] aligns the text's bottom-center to (x, y)
 //
-// For even finer-grained vertical adjustment on Top* and Bottom* aligns,
-// a line anchor can also be specified. Given a drawing position (x, y):
+// For even finer-grained vertical adjustment on Top* and Bottom* aligns, a line anchor
+// can also be specified. Given a drawing position (x, y):
 //   - TopLeft.Snap([Baseline]) aligns the first line's baseline
 //     to (x, y)
 //   - BottomRight.Snap([Top]) aligns the last line's top to (x, y)
 //   - TopCenter.Snap([Top]) is the same as TopCenter
 //
-// Notice that line anchors are ignored for Center* aligns, and they
-// are completely optional otherwise.
+// Notice that line anchors are ignored for Center* aligns, and they are completely
+// optional otherwise.
 type TextAlign uint8
 
 // Snap returns a new align with the given [LineAnchor] applied.
@@ -265,14 +265,13 @@ func (opts TextOptions) scale() float32 {
 	return 1.0
 }
 
-// Text is a utility method to draw ASCII text with the proportional 10px
-// [Ark pixel font]. This is very similar to what ebiten/inpututil does,
-// but this is the proportional version, slightly smaller by default, but
-// [TextOptions] can be used to control the text scale and align.
+// Text is a utility method to draw ASCII text with the proportional 10px [Ark pixel
+// font]. This is very similar to what ebiten/inpututil does, but this is the proportional
+// version and slightly smaller by default. [TextOptions] can be used to control the text
+// scale and align.
 //
-// Unknown glyphs are drawn as a notdef dotted rectangle. The text data is
-// stored in binary format, and the atlas image is not initialized unless
-// text functions are used.
+// Unknown glyphs are silently skipped. The text data is stored in binary format, and the
+// atlas image is not initialized unless text functions are used.
 //
 // [Ark pixel font]: https://ark-pixel-font.takwolf.com/
 func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts TextOptions) {
@@ -373,6 +372,7 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 				pendingLetterGap = scale
 			} else {
 				// missing glyph (should use notdef), or control (should skip)
+				// TODO: map notdef explicitly?
 			}
 		}
 	}

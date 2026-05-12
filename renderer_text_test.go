@@ -63,7 +63,7 @@ func TestText(t *testing.T) {
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(cx, 0, 1, ch), 0)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 1.0, 1.0, 2, 3)
-		ctx.Renderer.Text(canvas, "Hello World!\nHELLO WORLD!\nMORE CONTENT", float32(cx), float32(cy), opts)
+		ctx.Renderer.Text(canvas, "Hellö World!\n¡HELLO WORLD!\nMORE CONTENT", float32(cx), float32(cy), opts)
 
 		abounds := ark10pxAtlas.Bounds()
 		ctx.DrawAtF32(canvas, ark10pxAtlas, float32(cbounds.Max.X-8-abounds.Dx()), float32(cbounds.Max.Y-8-abounds.Dy()))
