@@ -416,7 +416,7 @@ func (r *Renderer) TextSize(text string, opts TextOptions) (width, height float3
 		return 0, 0
 	}
 
-	var w, h int32
+	var w, lw, h int32
 	spaceWidth := int32(opts.spaceWidth())
 	lineGap := int32(opts.lineGap())
 	ascent := int32(ark10pxMap[fontMapIdxAscent])
@@ -429,17 +429,19 @@ func (r *Renderer) TextSize(text string, opts TextOptions) (width, height float3
 
 		switch codePoint {
 		case ' ':
-			w += spaceWidth
+			lw += spaceWidth
 			pendingLetterGap = 0
 		case '\n':
 			pendingLetterGap = 0
 			h += ascent + descent
+			w = max(w, lw)
+			lw = 0
 			pendingLineGap = lineGap
 		default:
 			index := runeRefIndex(codePoint)
 			if index >= 0 {
-				w += pendingLetterGap
-				w += int32(ark10pxMap[fontMapIdxFirstGlyphWidth+index])
+				lw += pendingLetterGap
+				lw += int32(ark10pxMap[fontMapIdxFirstGlyphWidth+index])
 				pendingLetterGap = 1
 			} else {
 				// missing glyph (should use notdef), or control (should skip)
@@ -447,7 +449,8 @@ func (r *Renderer) TextSize(text string, opts TextOptions) (width, height float3
 		}
 	}
 
-	if r, _ := utf8.DecodeLastRuneInString(text); r != '\n' {
+	w = max(w, lw)
+	if w != 0 {
 		h += pendingLineGap
 		h += ascent + descent
 	}
