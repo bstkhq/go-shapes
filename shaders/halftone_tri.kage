@@ -13,10 +13,11 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	outTriBase, minInTriBase, maxInTriBase := customVAs.x, customVAs.y, customVAs.z
 	tint := customVAs[3]
 	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
-	relCoords := targetCoords.xy - imageDstOrigin() - offset
+	relCoords := targetCoords.xy - imageDstOrigin()
 	cellSize := vec2(outTriSize.x*0.5, outTriSize.y)
-	cell := floor(relCoords / cellSize)
-	triCenter := cell * cellSize // adjusted later
+	offset = mod(offset, cellSize*2)
+	cell := floor((relCoords - offset) / cellSize)
+	triCenter := cell*cellSize + offset // adjusted later
 	posInCell := relCoords - triCenter
 
 	var flip bool
