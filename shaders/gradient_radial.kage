@@ -19,6 +19,8 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 		progress = 0
 	} else if Bias >= 1.0-0.001 {
 		progress = 1
+	} else if NumSteps == 1 {
+		progress = 0.5
 	} else if NumSteps > 1 && progress > 0 && progress < 1 {
 		// notice that unlike most AAMargin values in other shaders,
 		// this code uses a linear mix, not a smoothstep

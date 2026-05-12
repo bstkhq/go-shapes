@@ -9,10 +9,11 @@ import (
 )
 
 // Renderer is the heart of the go-shapes package and provides access to most of
-// its operations. It stores offscreens and reused data across rendering methods.
+// its operations. It stores offscreens, vertices and other data reused across rendering
+// methods.
 //
 // Valid renderers must be created through [NewRenderer](). Once created, most
-// users should consider setting a logger for warnings, e.g.[NewWarningLogOnceHandler]().
+// users should consider setting a logger for warnings, e.g. [NewWarningLogOnceHandler]().
 //
 // Unless stated otherwise, renderer state management should respect the following
 // conventions:

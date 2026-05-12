@@ -1,8 +1,7 @@
 //kage:unit pixels
 package main
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const Multiply = true // if false, subtractive blending is assumed
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
 	radius := customVAs[0]
@@ -36,13 +35,6 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 		}
 	}
 
-	if Multiply {
-		accColor /= accWeight
-		return mix(color*accColor.a, accColor*color.a, customVAs[3])
-	} else { // assume Subtract
-		accColor /= accWeight
-		accColor = vec4(vec3(accColor.a)-accColor.rgb, accColor.a)
-		negColor := vec4(vec3(color.a)-color.rgb, color.a)
-		return mix(negColor*accColor.a, accColor*color.a, customVAs[3])
-	}
+	accColor /= accWeight
+	return mix(color*accColor.a, accColor*color.a, customVAs[3])
 }

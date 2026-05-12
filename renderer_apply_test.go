@@ -151,7 +151,11 @@ func TestApplyGlow2(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		ctx.Renderer.SetTint(1)
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 16, 0.5, 0.6)
+		vertRadius := float32(16.0)
+		if ctx.SpacePressed {
+			vertRadius = float32(ctx.DistAnim(16.0, 0.5))
+		}
+		ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius, 0.5, 0.6)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -175,14 +179,18 @@ func TestApplyHorzGlow(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.4, 0.5)
+		ctx.Renderer.applyHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.4, 0.5)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		ctx.Renderer.SetTint(1)
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		ctx.Renderer.ApplyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6)
+		if ctx.SpacePressed {
+			ctx.Renderer.ApplyGlow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0, 0.5, 0.6)
+		} else {
+			ctx.Renderer.applyHorzGlow(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6)
+		}
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -206,7 +214,7 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.5, 0.01)
+		ctx.Renderer.applyDarkHorzGlow(canvas, ctx.Images[0], lx, ly, 16, 0.5, 0.01)
 		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly+120)
 
 		rx, ry := ctx.RightClickF32()
@@ -214,10 +222,10 @@ func TestApplyDarkHorzGlow(t *testing.T) {
 		dynRadius := float32(ctx.DistAnim(16, 4.0))
 		ctx.Renderer.SetColor(color.RGBA{64, 0, 0, 255})
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.ApplyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5)
+		ctx.Renderer.applyDarkHorzGlow(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5)
 		ctx.Renderer.SetTint(0)
 		_, h := rectSizeF32(ctx.Images[1].Bounds())
-		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius)
+		ctx.Renderer.applyHorzBlur(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius)
 		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry-h-h/16)
 	}
 
@@ -380,13 +388,20 @@ func TestWaveLines(t *testing.T) {
 		if ctx.SpacePressed {
 			radsOffset = 0.0
 		}
-		ctx.Renderer.ApplyWaveLines(canvas, LineThick, minFillRate, maxFillRate, 16.0, offset, DirRadsLTR+radsOffset)
+
+		dir := DirRadsLTR + radsOffset
+		ctx.Renderer.SetColorF32(0, 0, 0, 0.2, 0)
+		ctx.Renderer.SetColorF32(0, 0.1, 0, 0.2, 1)
+		ctx.Renderer.SetColorF32(0, 0.1, 0.1, 0.2, 3)
+		ctx.Renderer.ApplyWaveLines(canvas, LineThick, minFillRate, maxFillRate, 16.0, offset, dir)
+
+		sin, cos := math.Sincos(normURads(dir))
+		ctx.Renderer.SetColorF32(0, 0.0, 0.0, 0.666)
+		w, h := rectSizeF64(canvas.Bounds())
+		ctx.Renderer.StrokeLine(canvas, w/2, h/2, w/2+(60.0*cos), h/2+(60.0*sin), 4.0)
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Renderer.SetColorF32(0, 0, 0, 0.2, 0)
-	app.Renderer.SetColorF32(0, 0.1, 0, 0.2, 1)
-	app.Renderer.SetColorF32(0, 0.1, 0.1, 0.2, 3)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

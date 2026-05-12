@@ -26,7 +26,7 @@ var White [4]float32 = [4]float32{1, 1, 1, 1}
 var white [4]float32 = [4]float32{1, 1, 1, 1} // safer internal use, no one can modify
 
 // Paint is a utility method to draw rect over target using the given color and blend
-// modes. This is more flexible than ebiten.SubImage(rect).(*ebiten.Image).Fill and
+// mode. This is more flexible than ebiten.SubImage(rect).(*ebiten.Image).Fill and
 // avoids the subimage creation. See also [Clear].
 //
 // The rect coordinates are global; to draw the rect at the top left of target, rect.Min

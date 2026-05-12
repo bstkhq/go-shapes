@@ -74,10 +74,12 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 // mixing instead of standard composition operations.
 //
 // This is the cleanest way to interpolate a transition between two images (morphing)
-// while there's also an alpha transition, or the two images have different alphas at
-// different pixel positions.
+// while there's also an alpha transition, or if the two images have different alphas
+// at different pixel positions.
 //
 // The sizes of 'base' and 'over' must match.
+//
+// Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alpha, mixLevel float32, flags ...Flag) {
 	baseBounds, overBounds := base.Bounds(), over.Bounds()
 	if baseBounds.Dx() != overBounds.Dx() || baseBounds.Dy() != overBounds.Dy() {

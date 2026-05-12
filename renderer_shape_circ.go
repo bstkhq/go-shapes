@@ -116,11 +116,11 @@ func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads
 // issue with the many edge cases.
 func (r *Renderer) fillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
 	if inRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, inRadius)
+		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
 		inRadius = 0.0
 	}
 	if outRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, outRadius)
+		r.Warnings.report(WarnNegativeValueZeroed, outRadius)
 		outRadius = 0.0
 	}
 	if inRadius == outRadius && rounding <= 0 {
@@ -185,11 +185,11 @@ func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRad
 		return // skip empty draws
 	}
 	if inRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, inRadius)
+		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
 		inRadius = 0.0
 	}
 	if outRadius < 0 {
-		r.Warnings.report(WarnRadiusClamped, outRadius)
+		r.Warnings.report(WarnNegativeValueZeroed, outRadius)
 		outRadius = 0.0
 	}
 	if inRadius == outRadius {

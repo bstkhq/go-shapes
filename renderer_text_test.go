@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"math"
 	"testing"
@@ -62,12 +63,13 @@ func TestText(t *testing.T) {
 		opts.LineGap = lineGap
 		cbounds := canvas.Bounds()
 		cw, ch := cbounds.Dx(), cbounds.Dy()
-		cx, cy := cbounds.Min.X+cw/2, cbounds.Min.Y+ch/2
+		cx, cy := cw/2, ch/2
 		ctx.Renderer.SetColorF32(0.4, 0.4, 0.4, 0.4)
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(0, cy, cw, 1), 0)
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(cx, 0, 1, ch), 0)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 1.0, 1.0, 2, 3)
+		Paint(canvas, image.Rect(cx, cy, cx+8, cy+8), [4]float32{0.5, 0.5, 0.5, 0.5}, ebiten.BlendSourceOver)
 		ctx.Renderer.Text(canvas, "Hellö World!\n¡HELLO WORLD!\nMoRE CoNTeNT", float32(cx), float32(cy), opts)
 
 		abounds := ark10pxAtlas.Bounds()

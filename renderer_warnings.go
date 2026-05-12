@@ -27,10 +27,11 @@ const (
 	// value integrity
 	WarnNegativeValueZeroed
 	WarnNegativeValueOpSkipped // vague but uncommon in practice
-	WarnInvalidAlphaClamped    // out of [0, 1] range
-	WarnInvalidTintClamped     // out of [0, 1] range
-	WarnInvalidRateClamped     // out of [0, 1] range
-	WarnInvalidBiasClamped     // out of [-1, 1] range
+	WarnNonPositiveValueOpSkipped
+	WarnInvalidAlphaClamped // out of [0, 1] range
+	WarnInvalidTintClamped  // out of [0, 1] range
+	WarnInvalidRateClamped  // out of [0, 1] range
+	WarnInvalidBiasClamped  // out of [-1, 1] range
 	WarnInvalidTextAlign
 	WarnInvalidFlag
 	WarnLowToleranceRaised // below 0.1
@@ -67,6 +68,8 @@ func (w Warning) Message() string {
 		return "negative value not valid in context, clamped to zero"
 	case WarnNegativeValueOpSkipped:
 		return "negative value not valid in context, operation skipped"
+	case WarnNonPositiveValueOpSkipped:
+		return "non-positive value not valid in context, operation skipped"
 	case WarnInvalidAlphaClamped:
 		return "alpha value out of range, clamped"
 	case WarnInvalidRateClamped:
@@ -122,7 +125,7 @@ type Warnings struct {
 
 // NewWarningPanicHandler returns a handler for [Warnings.SetHandler]()
 // that panics right away. Useful during debug to discover where the
-// warnings are coming from.
+// issues are coming from.
 func NewWarningPanicHandler() func(Warning, any, bool) {
 	return func(warning Warning, value any, _ bool) {
 		panic(fmt.Sprintf("%s (value=%v)", warning.Message(), value))

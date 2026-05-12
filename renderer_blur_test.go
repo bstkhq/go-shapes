@@ -91,12 +91,12 @@ func TestApplyDirBlur(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.applyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.ApplyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.applyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 
 		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16)
@@ -104,12 +104,12 @@ func TestApplyDirBlur(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ctx.SpacePressed {
 			// see notes on TestApplyBlur2
-			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
+			ctx.Renderer.applyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
 			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[2], 480, 96, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		} else {
-			ctx.Renderer.ApplyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
+			ctx.Renderer.applyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
 		}
 	}
 
@@ -181,8 +181,8 @@ func TestApplyBlurK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurKernLoop$ . -count 1
-func TestApplyBlurKernLoop(t *testing.T) {
+// go test -run ^TestApplyBlurKLoop$ . -count 1
+func TestApplyBlurKLoop(t *testing.T) {
 	const Radius = 64.0
 
 	updater := func(TestAppCtx) {}
@@ -213,8 +213,8 @@ func TestApplyBlurKernLoop(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurKernBleed$ . -count 1
-func TestApplyBlurKernBleed(t *testing.T) {
+// go test -run ^TestApplyBlurKBleed$ . -count 1
+func TestApplyBlurKBleed(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)

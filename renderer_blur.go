@@ -11,9 +11,6 @@ import (
 //
 // Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
 //
-// colorMix = 0 will use the renderer's vertex colors; colorMix = 1 will use the original mask
-// colors.
-//
 // This operation is affected by [Renderer.Tint].
 //
 // Notice that this method is designed mostly as a comparison baseline due to its high cost
@@ -80,16 +77,16 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	r.opts.Blend = ebiten.BlendCopy
 	memo := r.tint
 	r.tint = 0.0
-	r.ApplyVertBlur(tmp, mask, 0, ceilRadius, radius)
+	r.applyVertBlur(tmp, mask, 0, ceilRadius, radius)
 	r.opts.Blend = preBlend
 	r.tint = memo
-	r.ApplyHorzBlur(target, tmp, ox, oy-ceilRadius, radius)
+	r.applyHorzBlur(target, tmp, ox, oy-ceilRadius, radius)
 }
 
-// ApplyVertBlur applies a 1D vertical blur pass of the given radius, which can't exceed 32.
+// applyVertBlur applies a 1D vertical blur pass of the given radius, which can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+func (r *Renderer) applyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -114,10 +111,10 @@ func (r *Renderer) ApplyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.opts.Images[0] = nil
 }
 
-// ApplyHorzBlur applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
+// applyHorzBlur applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+func (r *Renderer) applyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -147,8 +144,10 @@ func (r *Renderer) ApplyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlurK is a separable blur using a fixed [GaussKernel] and optional downscaling
-// instead of a dynamic radius like [Renderer.ApplyBlur2]() or [Renderer.ApplyBlurVogel]().
+// ApplyBlurK is a separable multipass blur with fixed radius and optional downscaling.
+// See [KernelOptions] for more details.
+//
+// This operation is affected by [Renderer.Tint].
 //
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
@@ -174,11 +173,11 @@ func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 //
 // This operation is affected by [Renderer.Tint].
 //
-// If downscaling is != DownscaleNone, notice that:
+// If downscaling is used, notice that:
 //   - The function will use internal offscreens (#0, #1), and target and mask can be on the
 //     same internal atlas.
-//   - radius will be applied 'as is' to a downscaled version of mask before upscaling back to
-//     draw on target. This means that if radius 16 and DownscaleX4 are used, the actual radius
+//   - The radius will be applied 'as is' to a downscaled version of mask before upscaling back to
+//     draw on target. This means that if radius 16 and [DownscaleX4] are used, the actual radius
 //     effect will be closer to 16*4 = 64.
 func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
 	if mask == nil {

@@ -19,6 +19,8 @@ type Margins struct {
 
 var NoMargins = Margins{}
 
+// NewMargins returns symmetrical margins with Left=horz, Right=horz,
+// Top=vert, Bottom=vert.
 func NewMargins(horz, vert float32) Margins {
 	return Margins{
 		Left:   horz,
@@ -28,9 +30,9 @@ func NewMargins(horz, vert float32) Margins {
 	}
 }
 
-// Downscaling is a common technique used in graphics where an effect is not applied at full
-// resolution, but a smaller offscreen. This is done to reduce the amount of pixels to process,
-// but it has some downsides:
+// Downscaling is a common technique used in graphics where an effect is not applied at
+// full resolution, but on a smaller offscreen. This is done to reduce the amount of pixels
+// to process, but it has some downsides:
 //   - Non-trivial overhead due to the extra steps (downscale + effect + upscale back), which
 //     can be worse than paying for a full resolution operation if processing many small images.
 //   - The upscaled effects can look blocky. Different effects respond differently to downscaling,
@@ -79,7 +81,7 @@ var (
 //
 //	x, y := shapes.BR.Adjust(src, 60, 40)
 //
-// See [TC], [TR], [CTR] and company for predefined constants.
+// See also [TC], [TR], [CTR] and others for more predefined constants.
 func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
 	if source == nil {
 		return 0, 0
@@ -182,7 +184,8 @@ var gaussSig3Kernels = [][16]float32{ // sigma = radius/3.0
 
 var gaussKernels = gaussSig3Kernels
 
-// KernelOptions are used in kernel-based blur and glows.
+// KernelOptions are used in kernel-based blurs and glows. These are multi-pass operations
+// with fixed radiuses and configurable [Downscaling].
 //
 // Scaling is optional and can be nil, but for downscaling factors of [DownscaleX8] and above
 // using bicubic scaling is heavily recommended. At [DownscaleX4] the decision depends more

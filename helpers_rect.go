@@ -4,13 +4,13 @@ import (
 	"image"
 )
 
-// RectWithSize is a helper for image.Rectangle initialization
-// which receives the rect origin and size (unlike image.Rect, which
-// takes origin and end).
+// RectWithSize is a helper for [image.Rectangle] initialization which receives
+// the rect origin and size (unlike [image.Rect], which takes origin and end).
 func RectWithSize(ox, oy int, w, h int) image.Rectangle {
 	return image.Rect(ox, oy, ox+w, oy+h)
 }
 
+// RectPointsF32 returns the min and max points of the given rectangle as [PointF32] values.
 func RectPointsF32(bounds image.Rectangle) (min, max PointF32) {
 	return PtF32(float32(bounds.Min.X), float32(bounds.Min.Y)), PtF32(float32(bounds.Max.X), float32(bounds.Max.Y))
 }

@@ -5,7 +5,7 @@ package main
 // and blurs them vertically. A second pass is required to complete the horizontal blur and
 // the additive compositing.
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
 	radius := customVAs[0]

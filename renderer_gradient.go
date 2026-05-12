@@ -28,7 +28,7 @@ func (r *Renderer) setColors(values [16]float32) {
 }
 
 // Gradient paints a gradient over the given target, interpolating in Oklab space.
-// For common dirRadians values, consider [DirRadsLTR] and related constants.
+// For common dirRadians values, see [DirRadsLTR] and related constants.
 //
 // If you need to apply the gradient over a mask, use ebiten.BlendSourceIn:
 //

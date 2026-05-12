@@ -104,8 +104,8 @@ func TestDrawEllipse(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawCircSector$ . -count 1
-func TestDrawCircSector(t *testing.T) {
+// go test -run ^TestFillCircSector$ . -count 1
+func TestFillCircSector(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
@@ -129,8 +129,8 @@ func TestDrawCircSector(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawCircSectorRounding$ . -count 1
-func TestDrawCircSectorRounding(t *testing.T) {
+// go test -run ^TestFillCircSectorRounding$ . -count 1
+func TestFillCircSectorRounding(t *testing.T) {
 	var startRads, aperture float64 = 0, math.Pi / 4.0
 	var inRadius, outRadius float32 = 64.0, 128.0
 	var rounding float32 = -16.0

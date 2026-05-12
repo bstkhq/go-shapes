@@ -488,7 +488,11 @@ func TestFillQuadSoft(t *testing.T) {
 			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.FillQuadSoft(canvas, quad, thickening, 64.0)
+		softEdge := float32(64.0)
+		if ctx.SpacePressed {
+			softEdge = 0
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad, thickening, softEdge)
 	}
 
 	app := NewTestApp(updater, drawer)

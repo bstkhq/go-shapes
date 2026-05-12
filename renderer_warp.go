@@ -7,8 +7,7 @@ import (
 )
 
 // WarpBarrel draws the given image with a simple, CRT-like barrel warp.
-// Intensity should be in ~[0.2, 1.5], with 0.5 being a good starting value
-// to play with.
+// Intensity should be in ~[0.2, 1.5], with 0.5 being a good starting value.
 //
 // The size of the output image will always be equal or smaller than the
 // input source, as the corner vertices are warped towards the interior.

@@ -384,14 +384,14 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 const Sqrt3Div2 = 0.86602540378443864676372317075293618347140262690519031402790348 // https://oeis.org/A010527
 
 // FillHexagon renders an hexagon that can be fully contained within the given radius.
-// Roundness can be used to round the corners. Rads can be used to rotate the hexagon,
-// in radians.
 //
 // Roundness must be non-negative. When > 0, the sides of the hexagon will expand while
 // the radius of the shape is maintained, effectively rounding the vertices. Roundness
-// >= 'radius' will turn the hexagon into a perfect circle and start increasing the
-// effective radius. For inwards/outwards rounding, consider [Renderer.DrawHexagonApothem]()
+// >= radius will turn the hexagon into a perfect circle and start increasing the
+// effective radius. For inwards/outwards rounding, see [Renderer.FillHexagonApothem]()
 // instead.
+//
+// Rads can be used to rotate the hexagon. See [RadsRight] constants for angle conventions and docs.
 func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
 	if roundness < 0 {
 		r.Warnings.report(WarnNegativeValueZeroed, roundness)
@@ -419,12 +419,12 @@ func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	clear(r.opts.Uniforms)
 }
 
-// FillHexagonApothem is an alternative form to [Renderer.FillHexagon]() that requires the apothem
-// of the hexagon instead of its radius and supports signed rounding.
+// FillHexagonApothem is an alternative form to [Renderer.FillHexagon]() that defines the apothem
+// of the hexagon instead of its radius.
 //
 // Rounding values above 0 will increase the effective apothem by that amount while rounding corners
 // outwards. Values between 0 and -apothem will preserve the apothem while rounding corners inwards.
-// Values between -apothem and -2*apothem draw a perfect circle.
+// Values below -apothem collapse the shape into a circle.
 func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rounding, rads float32) {
 	if apothem == 0 {
 		return
@@ -448,19 +448,23 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	clear(r.opts.Uniforms)
 }
 
-// TODO: inner and outer rounding instead of thickening
+// NOTE: FillQuad and FillQuadSoft could have general rounding implemented, but the maths
+// are actually not trivial (straight skeleton, handle cases for line and point collapse)
+
 // FillQuad renders a convex quad with the current renderer colors.
-// The thickening acts as a rounding parameter, but it extends the shape outwards
-// instead of "cutting" the corners. Notice that non-zero thickening involves
-// additional CPU-side precomputations.
+// The thickening acts as a rounding parameter that extends the shape outwards.
+// Thickening must be >= 0. Notice that non-zero thickening involves additional
+// CPU-side precomputations.
 //
 // quad must be given in clockwise order starting from top-left.
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, thickening float32) {
 	r.FillQuadSoft(target, quad, thickening, 1.3333)
 }
 
+// TODO: inconsistent softEdge between FillRectSoft and this?
+
 // FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
-// creates a shadow-like soft edge. TODO: inconsistent softEdge between FillRectSoft and this?
+// creates a shadow-like soft edge.
 func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
 	for i, pt := range expandQuad(quad, thickening) {
 		r.vertices[i].DstX = pt.X

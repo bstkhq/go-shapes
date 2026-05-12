@@ -1,7 +1,7 @@
 //kage:unit pixels
 package main
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
 	radius := customVAs[0]

@@ -31,8 +31,6 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 //
 // This function uses one internal offscreen (#0), and target and mask
 // can be on the same internal atlas.
-//
-// Cost: two passes, 4*ceil(thickness) samples per pixel (2*ceil(thickness) on each pass).
 func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -63,6 +61,8 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.opts.Images[0] = nil
 }
 
+// TODO: move to MorphErosion, MorphJFM...?
+
 // ApplyErosion performs morphological erosion of the given mask and draws it
 // onto the given target. Notice that this is a quadratic algorithm. For large
 // erosion operations, consider [Renderer.JFMErode]().
@@ -80,7 +80,7 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 }
 
 // ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
-// This operation is imlemented as the difference between morphological dilation and erosion.
+// This operation is implemented as the difference between morphological dilation and erosion.
 // Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
 // with a boundary jfmap.
 //
@@ -97,23 +97,19 @@ func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	r.DrawImgShader(target, mask, ox, oy, margins, shaderOutline.Load())
 }
 
-// ApplyGlow draws a horizontal glow effect for the given mask into the target, at the
-// given coordinates. The effect mix intensity is determined by the renderer's color alphas.
+// ApplyGlow2 draws a separable two-pass glow effect for the given mask into the target,
+// at the given coordinates.
 //
-// Regarding the advanced control parameters:
-//   - threshStart and threshEnd indicate the start luminosity threshold at which the glow
-//     effect kicks in and the point at which it's fully active. threshStart must be <=
-//     threshEnd, and the values must be in [0, 1] range.
-//   - colorMix controls the glow's color. If 0, the glow color will be determined fully
-//     by the renderer's vertex colors. If 1, the glow color will be determined by the original
-//     mask colors. Any values in between will lead to linear interpolation.
+// threshStart and threshEnd indicate the start luminosity threshold at which the glow
+// effect kicks in and the point at which it's fully active. threshStart must be <=
+// threshEnd, and the values must be in [0, 1] range.
 //
 // For reference thresholds, 0.4 to 0.7 is a good general default range.
 //
 // This operation is affected by [Renderer.Tint].
 //
-// Notice that this effect uses an internal offscreen (#0) and two passes. Target and mask
-// can be on the same internal atlas. Neither horzRadius nor vertRadius can exceed 32.
+// Notice that this effect uses an internal offscreen (#0). Target and mask can be
+// on the same internal atlas. Neither horzRadius nor vertRadius can exceed 32.
 func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius, threshStart, threshEnd float32) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -121,6 +117,9 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	}
 	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
 	vertRadius = r.warnClampNonNegArgF32(vertRadius, 32, WarnRadiusClamped)
+	if vertRadius == 0 {
+		// TODO: optimize only horz / only vert cases
+	}
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -144,11 +143,11 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 
 	// second pass
 	r.opts.Blend = ebiten.BlendLighter
-	r.ApplyHorzBlur(target, tmp, ox, oy-vertRadius-1.0, horzRadius)
+	r.applyHorzBlur(target, tmp, ox, oy-vertRadius-1.0, horzRadius)
 	r.opts.Blend = preBlend
 }
 
-// ApplyHorzGlow draws a horizontal glow effect for the given mask into the target, at the
+// applyHorzGlow draws a horizontal glow effect for the given mask into the target, at the
 // given coordinates. See [Renderer.ApplyGlow]() for additional documentation. Compared to
 // Renderer.ApplyGlow, this effect only applies the glow horizontally and it's much cheaper,
 // requiring no offscreen and a single pass.
@@ -156,7 +155,7 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 // This operation is affected by [Renderer.Tint].
 //
 // horzRadius can't exceed 32.
-func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd float32) {
+func (r *Renderer) applyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd float32) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
@@ -190,7 +189,7 @@ func (r *Renderer) ApplyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 // This operation is affected by [Renderer.Tint].
 //
 // Notice that unlike regular glow effects, dark glows expects threshStart >= threshEnd.
-func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd float32) {
+func (r *Renderer) applyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, threshStart, threshEnd float32) {
 	if threshStart < threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
 		return
@@ -210,14 +209,26 @@ func (r *Renderer) ApplyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = BlendMultiply
-	//r.opts.Blend = BlendSubtract // also possible with a shader flag, but multiply feels more natural
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDarkHorzGlow.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
 
-// ApplyGlowK is the multipass downscaling version of [Renderer.ApplyGlow]().
-// See [Renderer.ApplyBlurKernel]() for further docs and context.
+// func (r *Renderer) ApplyDarkGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy float32) {}
+
+// func (r *Renderer) ApplyDarkGlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy, threshStart, threshEnd float32, opts KernelOptions) {
+// 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
+// 		r.setFlatCustomVAs(float32(opts.HorzKernel.Radius()), threshStart, threshEnd, r.tint)
+// 		preBlend := r.opts.Blend
+// 		r.opts.Blend = BlendMultiply
+// 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDarkHorzGlowKern.Load(), &r.opts)
+// 		r.opts.Blend = preBlend
+
+// 	}, true)
+// }
+
+// ApplyGlowK is a separable multipass glow with fixed radius and optional downscaling.
+// See [KernelOptions] for more details.
 //
 // This operation is affected by [Renderer.Tint].
 //
@@ -262,8 +273,8 @@ func (r *Renderer) ApplyColorGlowK(target *ebiten.Image, mask *ebiten.Image, ox,
 // and Kernel uniforms have been set, as well as the downscaled source image, but other uniforms
 // and custom VAs have to be set during invocation.
 //
-// When downscaling is used, this function uses two internal offscreens (#0, #1), and target and
-// mask can be on the same internal atlas.
+// This function uses the internal offscreen (#0), and if downscaling also (#1).
+// Target and mask can be on the same internal atlas.
 func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image), lighterBlend bool) {
 	if !opts.Downscaling.valid() {
 		panic("invalid downscaling value")
@@ -387,13 +398,24 @@ func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64,
 	clear(r.opts.Uniforms)
 }
 
+// TODO: rename to Fx* or Misc*?
+
+// ApplyScanlinesSharp is a miscellaneous effect that draws a simple scanline effect.
+//
+// Offset can be progressively increased to animate the scanlines, but notice that the
+// shader uses nearest sampling, not smooth interpolation.
 func (r *Renderer) ApplyScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
 	r.setFlatCustomVAs(float32(darkThick), float32(clearThick), intensity, offset)
 	tw, th := rectSizeF32(target.Bounds())
 	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderScanlinesSharp.Load())
 }
 
-func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dirRadians float64) {
+// ApplyWaveLines is a miscellaneous effect that draws a pattern of lines with oscillating widths.
+//
+// dir defines the direction in which the lines advance if offset is used. The actual
+// line direction is perpendicular to dir. For common values, see [DirRadsLTR] and
+// related constants.
+func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dir float64) {
 	if minFillRate > maxFillRate {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{minFillRate, maxFillRate})
 	}
@@ -413,7 +435,7 @@ func (r *Renderer) ApplyWaveLines(target *ebiten.Image, lineThick, minFillRate, 
 	maxFillThick := maxFillRate * lineThick
 	waveLen := linesPerOsc * lineThick
 	r.opts.Uniforms["Offset"] = float32(math.Mod(float64(offset), float64(waveLen)))
-	drs, drc := math.Sincos(dirRadians)
+	drs, drc := math.Sincos(dir)
 	hypot := math.Hypot(drs, drc)
 	drs, drc = drs/hypot, drc/hypot
 	r.opts.Uniforms["DirRadsSin"] = float32(drs)

@@ -52,7 +52,7 @@ const (
 // TextAlign defines the horizontal and vertical text alignment during text rendering
 // operations.
 //
-// A single constant we be used to control the horizontal and vertical alignment of the
+// A single constant can be used to control the horizontal and vertical alignment of the
 // "text container". Given a drawing position (x, y):
 //   - [TopLeft] aligns the text's top-left corner to (x, y)
 //   - [Center] aligns the text's center to (x, y)

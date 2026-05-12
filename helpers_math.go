@@ -13,14 +13,20 @@ func Float32Inf() float32 {
 	return roFloat32Inf
 }
 
+// GoldenRatioGen generates a low-discrepancy sequence of values in [0...1).
+// In visual applications, this kind of noise is often more adequate than
+// others like white noise, since it has an even distribution that avoids
+// the typical clumping of high-entropy sequences.
 type GoldenRatioGen struct {
 	n float64
 }
 
+// Reset restarts the sequence.
 func (gen *GoldenRatioGen) Reset() {
 	gen.n = 0
 }
 
+// Float64 returns the next [0...1) value in the sequence.
 func (gen *GoldenRatioGen) Float64() float64 {
 	const phi = 1.618033988749895 // golden ratio
 	gen.n += 1.0
@@ -34,7 +40,7 @@ func (gen *GoldenRatioGen) Float64() float64 {
 // RadsSpan returns the start and end angles (in radians) centered
 // around centerDir. fillRate must be in [0...1].
 //
-// This is a helper function often used with [Renderer.DrawCircSector]()
+// This is a helper function often used with [Renderer.FillCircSector]()
 // and similar functions.
 //
 // See [RadsRight] constants for angle conventions and docs.
@@ -355,6 +361,12 @@ func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, r
 		sidePad = 1.0
 	}
 
+	// handle negative thickness and radius collapse
+	if thickness < 0 {
+		thickness = -thickness
+		radius -= thickness * 0.5
+	}
+
 	radiusIn := max(radius-thickness*0.5, 0)
 	radiusOut := radius + thickness*0.5 + tolerance
 
@@ -372,7 +384,6 @@ func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, r
 		panic(maxAngle)
 	}
 	numSegments := math.Ceil(rads / maxAngle)
-	// fmt.Printf("numSegments: %d\n", int(numSegments))
 	step := rads / float64(numSegments)
 
 	// tighten radiusOut using the final angle

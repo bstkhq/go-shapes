@@ -137,7 +137,7 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 // BoundaryMode is a parameter type for [Renderer.JFMapBoundary]().
 type BoundaryMode struct {
 	// When false, the boundary is marked at the last pixel inside the
-	// region (minAlpha, maxAlpha). If true, at the first pixel outside
+	// region (minAlpha, maxAlpha). When true, at the first pixel outside
 	// it.
 	Outer bool
 
