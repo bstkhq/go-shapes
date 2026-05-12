@@ -6,7 +6,7 @@ var Offsets vec2
 func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
 
-	outSize, inSize := customVAs.xy, customVAs.zw
+	inSize, outSize := customVAs.xy, customVAs.zw
 	relCoords := sourceCoords.xy - imageSrc0Origin() - Offsets
 	cell := floor(relCoords / outSize)
 

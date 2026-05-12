@@ -8,7 +8,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const EqTriBaseToHeight = 0.86602540378 // sqrt(3)/2
 
 	offset := customVAs.xy
-	outTriBase, inTriBase := customVAs.z, customVAs.w
+	inTriBase, outTriBase := customVAs.z, customVAs.w
 	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
 	relCoords := sourceCoords.xy - imageSrc0Origin() - offset
 	cellSize := vec2(outTriSize.x*0.5, outTriSize.y)
