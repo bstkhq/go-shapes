@@ -22,19 +22,7 @@ var ark10pxOnce sync.Once
 var ark10pxAtlas *ebiten.Image
 
 //go:embed assets/ark10px-map.bin
-var ark10pxMap []byte
-
-const (
-	fontMapIdxGlyphsPerRow    = 0
-	fontMapIdxGlyphFrameWidth = 1
-	fontMapIdxAscent          = 2
-	fontMapIdxDescent         = 3
-	fontMapIdxLineGap         = 4
-	fontMapIdxCapHeight       = 5
-	fontMapIdxMidHeight       = 6
-	fontMapIdxSpaceWidth      = 7
-	fontMapIdxFirstGlyphWidth = 8
-)
+var ark10pxMap fontMap
 
 func loadBlueNoise64RGB() *ebiten.Image {
 	blueNoiseOnce.Do(loadBlueNoise64RGBOnce)

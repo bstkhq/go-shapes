@@ -13,15 +13,7 @@ import (
 
 // go test -run ^TestText$ . -count 1
 func TestText(t *testing.T) {
-	fmt.Printf("Debug font info:\n")
-	fmt.Printf(">> Glyphs per row: %d\n", ark10pxMap[fontMapIdxGlyphsPerRow])
-	fmt.Printf(">> Glyph frame width: %d\n", ark10pxMap[fontMapIdxGlyphFrameWidth])
-	fmt.Printf(">> Ascent: %d\n", ark10pxMap[fontMapIdxAscent])
-	fmt.Printf(">> Descent: %d\n", ark10pxMap[fontMapIdxDescent])
-	fmt.Printf(">> LineGap: %d\n", ark10pxMap[fontMapIdxLineGap])
-	fmt.Printf(">> CapHeight: %d\n", ark10pxMap[fontMapIdxCapHeight])
-	fmt.Printf(">> MidHeight: %d\n", ark10pxMap[fontMapIdxMidHeight])
-	fmt.Printf(">> Space width: %d\n", ark10pxMap[fontMapIdxSpaceWidth])
+	fmt.Print(TextOptions{}.fontMap().DebugInfo())
 
 	vertAlignIndex, horzAlignIndex, anchorIndex := 0, 0, 0
 	align := TopLeft
@@ -110,17 +102,18 @@ func TestTextAnim(t *testing.T) {
 
 func TestTextSize(t *testing.T) {
 	r := NewRenderer()
-	ascent := ark10pxMap[fontMapIdxAscent]
-	descent := ark10pxMap[fontMapIdxDescent]
-	lineGap := ark10pxMap[fontMapIdxLineGap]
-	spaceWidth := ark10pxMap[fontMapIdxSpaceWidth]
+	fontMap := TextOptions{}.fontMap()
+	ascent := fontMap.Ascent()
+	descent := fontMap.Descent()
+	lineGap := fontMap.LineGap()
+	spaceWidth := fontMap.SpaceWidth()
 
 	w, h := r.TextSize("\n", TextOptions{})
 	if w != 0 || h != float32(ascent+descent) {
 		t.Fatalf("expected (w, h) = (%.02f, %.02f), got (%.02f, %.02f)", 0.0, float32(ascent+descent), w, h)
 	}
 
-	line2H := float32(2*(ascent+descent) + lineGap)
+	line2H := 2*float32(ascent+descent) + float32(lineGap)
 	w, h = r.TextSize("\n\n", TextOptions{})
 	if w != 0 || h != line2H {
 		t.Fatalf("expected (w, h) = (%.02f, %.02f), got (%.02f, %.02f)", 0.0, line2H, w, h)
