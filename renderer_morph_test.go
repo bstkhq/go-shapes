@@ -11,8 +11,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestApplyExpansion$ . -count 1
-func TestApplyExpansion(t *testing.T) {
+// go test -run ^TestMorphExpansion$ . -count 1
+func TestMorphExpansion(t *testing.T) {
 	const radius, expansion = 64.0, 16.0
 
 	updater := func(TestAppCtx) {}
@@ -24,7 +24,7 @@ func TestApplyExpansion(t *testing.T) {
 		ctx.Renderer.FillCircle(canvas, lx, ly, radius+expansion)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		x := float32(ctx.DistAnim(float64(expansion), 1.0))
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
+		ctx.Renderer.MorphExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -34,8 +34,8 @@ func TestApplyExpansion(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyExpansionRect$ . -count 1
-func TestApplyExpansionRect(t *testing.T) {
+// go test -run ^TestMorphExpansionRect$ . -count 1
+func TestMorphExpansionRect(t *testing.T) {
 	const Radius = 64.0
 	const Expansion = 16.0
 
@@ -47,8 +47,8 @@ func TestApplyExpansionRect(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		expansion := float32(ctx.DistAnim(Expansion, 1.0))
-		ctx.Renderer.ApplyExpansionRect(canvas, ctx.Images[0], lx-Radius, ly-Radius, expansion)
-		ctx.Renderer.ApplyExpansionRect(canvas, ctx.Images[1], rx-Radius, ry-Radius, expansion)
+		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[0], lx-Radius, ly-Radius, expansion)
+		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[1], rx-Radius, ry-Radius, expansion)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lx-Radius, ly-Radius)
@@ -68,8 +68,8 @@ func TestApplyExpansionRect(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyErosion$ . -count 1
-func TestApplyErosion(t *testing.T) {
+// go test -run ^TestMorphErosion$ . -count 1
+func TestMorphErosion(t *testing.T) {
 	const radius, erosion = 96.0, 16.0
 
 	updater := func(TestAppCtx) {}
@@ -85,11 +85,11 @@ func TestApplyErosion(t *testing.T) {
 
 		r := float32(ctx.DistAnim(float64(erosion), 1.0))
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
-		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lx-radius, ly-radius, r)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.ApplyErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -106,8 +106,8 @@ func TestApplyErosion(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyOutline$ . -count 1
-func TestApplyOutline(t *testing.T) {
+// go test -run ^TestMorphOutline$ . -count 1
+func TestMorphOutline(t *testing.T) {
 	const radius, thick = 64.0, 8.0
 
 	updater := func(TestAppCtx) {}
@@ -121,14 +121,14 @@ func TestApplyOutline(t *testing.T) {
 		ctx.Renderer.FillCircle(canvas, lx, ly, radius-thick/2-1.0)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], lx-radius, ly-radius, thick)
+		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lx-radius, ly-radius, thick)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ctx.SpacePressed {
 			ctx.DrawAtF32(canvas, ctx.Images[0], rx-radius, ry-radius)
 		} else {
-			ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], rx-radius, ry-radius, thick)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rx-radius, ry-radius, thick)
 		}
 	}
 
@@ -344,9 +344,9 @@ func TestJFMExpand(t *testing.T) {
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 
 		if outline {
-			ctx.Renderer.ApplyOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
 		} else {
-			ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+			ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
 		}
 		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, outline, false)
 
@@ -382,10 +382,10 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 
 		const r = 9.0
 		iw, ih := rectSizeF32(ctx.Images[imgIndex].Bounds())
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
+		ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
 		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, false)
 
-		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
+		ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r)
 		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, true)
 	}
 
@@ -421,7 +421,7 @@ func TestJFMErode(t *testing.T) {
 			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
 			r = 6.0
 		}
-		ctx.Renderer.ApplyErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
 

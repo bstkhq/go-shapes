@@ -9,13 +9,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// ApplyExpansion performs morphological dilation of the given mask and
+// MorphExpansion performs morphological dilation of the given mask and
 // draws it onto the given target. Notice that this is a quadratic algorithm.
-// For large expansion operations, consider [Renderer.ApplyExpansionRect]() and
+// For large expansion operations, consider [Renderer.MorphExpansionRect]() and
 // [Renderer.JFMExpand]().
 //
 // thickness can't exceed 16.
-func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -27,14 +27,14 @@ func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphExpansion.Load())
 }
 
-// ApplyExpansionRect performs double pass expansion with a square kernel.
-// This is less general but more efficient than [Renderer.ApplyExpansion]().
+// MorphExpansionRect performs double pass expansion with a square kernel.
+// This is less general but much more efficient than [Renderer.MorphExpansion]().
 //
 // thickness can't exceed 16.
 //
 // This function uses one internal offscreen (#0), and target and mask
 // can be on the same internal atlas.
-func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -64,12 +64,12 @@ func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.opts.Images[0] = nil
 }
 
-// ApplyErosion performs morphological erosion of the given mask and draws it
+// MorphErosion performs morphological erosion of the given mask and draws it
 // onto the given target. Notice that this is a quadratic algorithm. For large
 // erosion operations, consider [Renderer.JFMErode]().
 //
 // thickness can't exceed 16.
-func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -80,13 +80,13 @@ func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphErosion.Load())
 }
 
-// ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
+// MorphOutline draws an outline of the mask into the given target using the renderer's colors.
 // This operation is implemented as the difference between morphological dilation and erosion.
 // Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
 // with a boundary jfmap.
 //
 // thickness can't exceed 16.
-func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -311,7 +311,7 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 //     this function uses the internal offscreens (#0, #1).
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-// See also [Renderer.ApplyExpansion]().
+// See also [Renderer.MorphExpansion]().
 func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32, outlineMode bool, smooth bool) {
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)

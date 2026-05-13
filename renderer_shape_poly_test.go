@@ -520,7 +520,7 @@ func TestFillRectSoft(t *testing.T) {
 		if ctx.SpacePressed {
 			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
 			ctx.Renderer.FillRect(tmp, 96/2, 96/2, brW, brH, rounding)
-			ctx.Renderer.ApplyBlur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
+			ctx.Renderer.Blur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
 		} else {
 			ctx.Renderer.FillRectBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
 		}

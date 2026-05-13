@@ -193,6 +193,11 @@ func (l flagList) Has(f Flag) bool {
 func (l flagList) Flip(f Flag) {
 	l[f] = -(l[f] - f)
 }
+func (l flagList) UpdateFlag(f Flag, key ebiten.Key) {
+	if inpututil.IsKeyJustPressed(key) {
+		l.Flip(f)
+	}
+}
 
 func wrap[Float ~float32 | ~float64 | ~int | ~uint8 | ~int8](x, lo, hi Float) Float {
 	if x < lo {

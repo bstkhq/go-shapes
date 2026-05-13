@@ -6,17 +6,17 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// ApplyBlur applies a naive, quadratic gaussian blur to the given mask and draws it onto the
-// given target.
+// Blur applies a naive, quadratic gaussian blur to the given mask and draws it onto
+// the given target.
 //
 // Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
 //
 // This operation is affected by [Renderer.Tint].
 //
-// Notice that this method is designed mostly as a comparison baseline due to its high cost
-// (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most applications should use
-// [Renderer.ApplyBlur2]() and [Renderer.ApplyBlurVogel]() instead.
-func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+// Notice that this method is designed mostly as a comparison baseline due to its high
+// cost (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most use-cases should rely
+// on [Renderer.Blur2]() instead.
+func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -46,17 +46,18 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlur2 is similar to [Renderer.ApplyBlur](), but uses two 1D passes instead of a single
-// 2D pass. This greatly reduces the amount of sampled pixels for the shader, and despite breaking
-// batching tends to be much more efficient than [Renderer.ApplyBlur](). Radius can't exceed 32.
+// Blur2 is similar to [Renderer.Blur](), but uses two 1D passes instead of a single 2D
+// pass. This greatly reduces the amount of sampled pixels for the shader, and despite
+// breaking batching tends to be much more efficient than [Renderer.Blur](). Radius can't
+// exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
 //
 // This function uses one internal offscreen (#0), and target and mask can be on the same
 // internal atlas.
 //
-// See [Renderer.ApplyBlurK]() if downscaling or fixed kernels are desired.
-func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+// See also [Renderer.BlurK]() if fixed radiuses are acceptable.
+func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -77,16 +78,16 @@ func (r *Renderer) ApplyBlur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	r.opts.Blend = ebiten.BlendCopy
 	memo := r.tint
 	r.tint = 0.0
-	r.applyVertBlur(tmp, mask, 0, ceilRadius, radius)
+	r.blurVert(tmp, mask, 0, ceilRadius, radius)
 	r.opts.Blend = preBlend
 	r.tint = memo
-	r.applyHorzBlur(target, tmp, ox, oy-ceilRadius, radius)
+	r.blurHorz(target, tmp, ox, oy-ceilRadius, radius)
 }
 
-// applyVertBlur applies a 1D vertical blur pass of the given radius, which can't exceed 32.
+// blurVert applies a 1D vertical blur pass of the given radius, which can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) applyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+func (r *Renderer) blurVert(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -107,14 +108,14 @@ func (r *Renderer) applyVertBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurVert.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
-// applyHorzBlur applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
+// blurHorz applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) applyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+func (r *Renderer) blurHorz(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -140,18 +141,18 @@ func (r *Renderer) applyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurHorz.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
-// ApplyBlurK is a separable multipass blur with fixed radius and optional downscaling.
+// BlurK is a separable multipass blur with fixed radius and optional downscaling.
 // See [KernelOptions] for more details.
 //
 // This operation is affected by [Renderer.Tint].
 //
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
-func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
+func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(r.tint)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurHorzKern.Load(), &r.opts)
@@ -159,12 +160,12 @@ func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
 }
 
-// ApplyBlurVogel applies a gaussian blur using numSamples distributed with a vogel disk.
+// BlurVogel applies a gaussian blur using numSamples distributed with a vogel disk.
 //
 // In comparison to pure gaussian blurs, vogel blurs have a more grainy, frosted glass look.
-// This can look anywhere from artistic to noisy. It can be an efficient way to implement
-// bokeh or depth of field effects. It works well on full images, much less so for isolated
-// shapes.
+// This can look anywhere from artistic to noisy. It can be a reasonable way to implement
+// bokeh or depth of field effects. It works well on organic images, much less so for isolated
+// shapes with very few colors.
 //
 // Common numSamples values:
 //   - 16: low quality and noisy, but fast and practical in certain scenarios.
@@ -179,7 +180,7 @@ func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 //   - The radius will be applied 'as is' to a downscaled version of mask before upscaling back to
 //     draw on target. This means that if radius 16 and [DownscaleX4] are used, the actual radius
 //     effect will be closer to 16*4 = 64.
-func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
+func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
@@ -210,16 +211,16 @@ func (r *Renderer) ApplyBlurVogel(target, mask *ebiten.Image, ox, oy, radius flo
 	r.vogelMemo.Refresh(numSamples, 1.0)
 	df := downscaling.Factor()
 	if df == 1 {
-		r.applyBlurVogelDirect(target, mask, ox, oy, radius, numSamples, seed, 0.0)
+		r.blurVogelDirect(target, mask, ox, oy, radius, numSamples, seed, 0.0)
 	} else {
-		r.applyBlurVogelDownscaled(target, mask, ox, oy, radius, numSamples, df, seed)
+		r.blurVogelDownscaled(target, mask, ox, oy, radius, numSamples, df, seed)
 	}
 }
 
-// helper function for ApplyBlurVogel. precondition: all input parameters have already been validated
+// helper function for BlurVogel. precondition: all input parameters have already been validated
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, seed, padOffset float32) {
+func (r *Renderer) blurVogelDirect(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, seed, padOffset float32) {
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	radiusF32 := float32(radius)
 
@@ -238,11 +239,11 @@ func (r *Renderer) applyBlurVogelDirect(target, mask *ebiten.Image, ox, oy, radi
 	clear(r.opts.Uniforms)
 }
 
-// helper function for ApplyBlurVogel. precondition: all input parameters have already been validated,
+// helper function for BlurVogel. precondition: all input parameters have already been validated,
 // and downscale is an strictly positive even number
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscale int, seed float32) {
+func (r *Renderer) blurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscale int, seed float32) {
 	_, _, sw, sh := rectOriginSize(mask.Bounds())
 	ds := 1.0 / float64(downscale)
 	tw := float64(sw) * ds
@@ -270,7 +271,7 @@ func (r *Renderer) applyBlurVogelDownscaled(target, mask *ebiten.Image, ox, oy, 
 	effectBounds := tmp.Bounds().Inset(-radiusInt - 1)
 	mid, _ := r.getTemp(1, effectBounds.Dx(), effectBounds.Dy(), true) // TODO: maybe I should optimize clears here, consider r.brClear(n) and r.borderClear(n)
 	shift := float32(radiusInt + 1)
-	r.applyBlurVogelDirect(mid, tmp, shift, shift, radius, numSamples, seed, shift)
+	r.blurVogelDirect(mid, tmp, shift, shift, radius, numSamples, seed, shift)
 	scaledShift := shift * float32(downscale)
 	ox -= scaledShift
 	oy -= scaledShift

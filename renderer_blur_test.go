@@ -12,8 +12,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestApplyBlur$ . -count 1
-func TestApplyBlur(t *testing.T) {
+// go test -run ^TestBlur$ . -count 1
+func TestBlur(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(16.0)
 	updater := func(TestAppCtx) {}
@@ -25,12 +25,12 @@ func TestApplyBlur(t *testing.T) {
 		ctx.Renderer.FillCircle(canvas, lx, ly, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -41,8 +41,8 @@ func TestApplyBlur(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlur2$ . -count 1
-func TestApplyBlur2(t *testing.T) {
+// go test -run ^TestBlur2$ . -count 1
+func TestBlur2(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(16.0)
 	updater := func(TestAppCtx) {}
@@ -52,8 +52,8 @@ func TestApplyBlur2(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, r)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
 		if ctx.SpacePressed {
 			// NOTE: there are still differences between blur and blur2, as can be
 			// seen here, though they are fairly small. I tested many things, but
@@ -62,14 +62,14 @@ func TestApplyBlur2(t *testing.T) {
 			// horz/vert blurs have differences, which is the suspicious part. short on
 			// both directions, slightly offset on vertical (see TestApplyDirBlur)
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx+radius, ly-radius, r)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx+radius, ly-radius, r)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -80,8 +80,8 @@ func TestApplyBlur2(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyDirBlur$ . -count 1
-func TestApplyDirBlur(t *testing.T) {
+// go test -run ^TestDirBlur$ . -count 1
+func TestDirBlur(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(24.0)
 	updater := func(TestAppCtx) {}
@@ -91,25 +91,25 @@ func TestApplyDirBlur(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.applyVertBlur(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.blurVert(canvas, ctx.Images[0], lx-radius, ly-radius, r)
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.applyHorzBlur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.blurHorz(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 
 		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16)
 		Paint(canvas, rect, [4]float32{0, 1, 0, 1}, ebiten.BlendSourceOver)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ctx.SpacePressed {
-			// see notes on TestApplyBlur2
-			ctx.Renderer.applyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
+			// see notes on TestBlur2
+			ctx.Renderer.blurVert(canvas, ctx.Images[1], 480, 96, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[2], 480, 96, 15.5)
+			ctx.Renderer.Blur2(canvas, ctx.Images[2], 480, 96, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		} else {
-			ctx.Renderer.applyVertBlur(canvas, ctx.Images[1], 480, 96, 15.5)
+			ctx.Renderer.blurVert(canvas, ctx.Images[1], 480, 96, 15.5)
 		}
 	}
 
@@ -127,8 +127,8 @@ func TestApplyDirBlur(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurK$ . -count 1
-func TestApplyBlurK(t *testing.T) {
+// go test -run ^TestBlurK$ . -count 1
+func TestBlurK(t *testing.T) {
 	radius := float32(64.0)
 	dscale := DownscaleX4
 	bicubic := false
@@ -145,11 +145,11 @@ func TestApplyBlurK(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ctx.SpacePressed {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
-			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
+			ctx.Renderer.BlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
 		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
@@ -157,20 +157,20 @@ func TestApplyBlurK(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		k := GaussK9
 		if ctx.SpacePressed {
-			ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
-			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
+			ctx.Renderer.BlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
 		}
 
 		_, ch := rectSizeF32(canvas.Bounds())
 		k = GaussK29
 		if ctx.SpacePressed {
-			ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()))
+			ctx.Renderer.Blur(canvas, ctx.Images[0], 16, ch-16-radius*2, float32(k.Radius()))
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleNone, HorzKernel: k, VertKernel: k}
-			ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], 16, ch-16-radius*2, kOpts)
+			ctx.Renderer.BlurK(canvas, ctx.Images[0], 16, ch-16-radius*2, kOpts)
 		}
 	}
 
@@ -181,8 +181,8 @@ func TestApplyBlurK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurKLoop$ . -count 1
-func TestApplyBlurKLoop(t *testing.T) {
+// go test -run ^TestBlurKLoop$ . -count 1
+func TestBlurKLoop(t *testing.T) {
 	const Radius = 64.0
 
 	updater := func(TestAppCtx) {}
@@ -200,10 +200,10 @@ func TestApplyBlurKLoop(t *testing.T) {
 		ebiten.SetWindowTitle(fmt.Sprintf("kern size: %d, radius: %d", kern.Size(), kern.Radius()))
 
 		kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: kern, VertKernel: kern}
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[0], lx-Radius, ly-Radius, kOpts)
+		ctx.Renderer.BlurK(canvas, ctx.Images[0], lx-Radius, ly-Radius, kOpts)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.ApplyBlur2(canvas, ctx.Images[0], rx-Radius, ry-Radius, min(float32(kern.Radius())*4.0, 32.0))
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-Radius, ry-Radius, min(float32(kern.Radius())*4.0, 32.0))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -229,12 +229,12 @@ func TestApplyBlurKBleed(t *testing.T) {
 			opts.VertKernel = kernel
 			return opts
 		}
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i1], 16, 16, withKernel(kOpts, GaussK9))
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i2], 16+96*1, 16, withKernel(kOpts, GaussK17))
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i3], 16+96*2, 16, withKernel(kOpts, GaussK11))
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i3], 16, 16+96*1, withKernel(kOpts, GaussK5))
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i2], 16+96*1, 16+96*1, withKernel(kOpts, GaussK13))
-		ctx.Renderer.ApplyBlurK(canvas, ctx.Images[i1], 16+96*2, 16+96*1, withKernel(kOpts, GaussK9))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i1], 16, 16, withKernel(kOpts, GaussK9))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i2], 16+96*1, 16, withKernel(kOpts, GaussK17))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i3], 16+96*2, 16, withKernel(kOpts, GaussK11))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i3], 16, 16+96*1, withKernel(kOpts, GaussK5))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i2], 16+96*1, 16+96*1, withKernel(kOpts, GaussK13))
+		ctx.Renderer.BlurK(canvas, ctx.Images[i1], 16+96*2, 16+96*1, withKernel(kOpts, GaussK9))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -271,25 +271,25 @@ func TestApplyBlurVogel(t *testing.T) {
 		}
 
 		cw, ch := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius, sampling, downscale, seed)
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
+		ctx.Renderer.BlurVogel(canvas, ctx.Images[0], 16, ch-16-radius*2, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], 32+radius*2, ch-16-radius*2, FxRadius)
 		ctx.Renderer.SetTint(0)
 
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[1], cw-float32(ctx.Images[1].Bounds().Dx())-16, 16, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.BlurVogel(canvas, ctx.Images[1], cw-float32(ctx.Images[1].Bounds().Dx())-16, 16, FxRadius, sampling, downscale, seed)
 
 		lx, ly := ctx.LeftClickF32()
 		rx, ry := ctx.RightClickF32()
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.ApplyBlur(canvas, ctx.Images[0], lx-radius, ly-radius, FxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lx-radius, ly-radius, FxRadius)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.ApplyBlurVogel(canvas, ctx.Images[0], rx-radius, ry-radius, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.BlurVogel(canvas, ctx.Images[0], rx-radius, ry-radius, FxRadius, sampling, downscale, seed)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -317,7 +317,7 @@ func TestApplyBlurVogelFull(t *testing.T) {
 		}
 
 		radius := ctx.DistAnim(64, 0.5)
-		ctx.Renderer.ApplyBlurVogel(canvas, full, 0, 0, float32(radius), Sampling, Downscale, seed)
+		ctx.Renderer.BlurVogel(canvas, full, 0, 0, float32(radius), Sampling, Downscale, seed)
 	}
 
 	app := NewTestApp(updater, drawer)

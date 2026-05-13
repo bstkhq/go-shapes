@@ -159,12 +159,12 @@ var shaderBlurNaiveSrc []byte
 var shaderBlurNaive = shaderRef{src: shaderBlurNaiveSrc}
 
 //go:embed shaders/blur/horz.kage
-var shaderHorzBlurSrc []byte
-var shaderHorzBlur = shaderRef{src: shaderHorzBlurSrc}
+var shaderBlurHorzSrc []byte
+var shaderBlurHorz = shaderRef{src: shaderBlurHorzSrc}
 
 //go:embed shaders/blur/vert.kage
-var shaderVertBlurSrc []byte
-var shaderVertBlur = shaderRef{src: shaderVertBlurSrc}
+var shaderBlurVertSrc []byte
+var shaderBlurVert = shaderRef{src: shaderBlurVertSrc}
 
 //go:embed shaders/blur/horz_kern.kage
 var shaderBlurHorzKernSrc []byte
@@ -187,12 +187,12 @@ var shaderGlowDarkHorzSrc []byte
 var shaderGlowDarkHorz = shaderRef{src: shaderGlowDarkHorzSrc}
 
 //go:embed shaders/glow/horz_kern.kage
-var shaderHorzGlowKernSrc []byte
-var shaderHorzGlowKern = shaderRef{src: shaderHorzGlowKernSrc}
+var shaderGlowHorzKernSrc []byte
+var shaderGlowHorzKern = shaderRef{src: shaderGlowHorzKernSrc}
 
 //go:embed shaders/glow/color_horz.kage
-var shaderHorzColorGlowSrc []byte
-var shaderHorzColorGlow = shaderRef{src: shaderHorzColorGlowSrc}
+var shaderGlowColorHorzSrc []byte
+var shaderGlowColorHorz = shaderRef{src: shaderGlowColorHorzSrc}
 
 //go:embed shaders/color/gradient.kage
 var shaderGradientSrc []byte

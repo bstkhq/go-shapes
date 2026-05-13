@@ -1,29 +1,56 @@
 package shapes
 
 import (
+	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-func (r *Renderer) memorizeColors() [16]float32 {
-	var memo [16]float32
-	for i := range 4 {
-		memo[i<<2+0] = r.vertices[i].ColorR
-		memo[i<<2+1] = r.vertices[i].ColorG
-		memo[i<<2+2] = r.vertices[i].ColorB
-		memo[i<<2+3] = r.vertices[i].ColorA
-	}
-	return memo
+// GradientOptions are used for multiple color operations like
+// [Renderer.Gradient]() and [Renderer.GradientRadial]().
+type GradientOptions struct {
+	// Starting gradient color.
+	From [4]float64
+
+	// End gradient color.
+	To [4]float64
+
+	// Steps controls the number of colors in the gradient.
+	//  - Steps <= 0 specifies a continuous gradient (no color limit).
+	//  - Steps > 0 specifies a stepped gradient.
+	Steps int
+
+	// Dither determines whether the gradient will have dithering applied.
+	//
+	// Dithering is only necessary on subtle gradients or alpha transitions,
+	// where very similar colors can cause banding or flickering.
+	Dither bool
+
+	// Bias is a value in [-1, 1] that controls the color interpolation:
+	//  - Zero generates a linear gradient (both colors have the same presence).
+	//  - Negative values give the start color more presence.
+	//  - Positive values give the end color more presence.
+	//
+	// The interpolation is based on Schlick's bias function.
+	Bias float32
 }
 
-// notice: internal use only, doesn't touch singleClr flag
-func (r *Renderer) setColors(values [16]float32) {
-	for i := range 4 {
-		r.vertices[i].ColorR = values[i<<2+0]
-		r.vertices[i].ColorG = values[i<<2+1]
-		r.vertices[i].ColorB = values[i<<2+2]
-		r.vertices[i].ColorA = values[i<<2+3]
+// GradientOpts creates GradientOptions for a continuous gradient.
+func GradientOpts(from, to color.Color, dither bool) GradientOptions {
+	return GradientOptions{
+		From:   colorToF64(from),
+		To:     colorToF64(to),
+		Dither: dither,
+	}
+}
+
+// StepGradientOpts creates GradientOptions for a stepped gradient.
+func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
+	return GradientOptions{
+		From:  colorToF64(from),
+		To:    colorToF64(to),
+		Steps: steps,
 	}
 }
 

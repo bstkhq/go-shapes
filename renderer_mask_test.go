@@ -12,12 +12,8 @@ import (
 
 func setMaskFlagsAndTitle(ctx TestAppCtx, flags flagList) {
 	ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
-	switch {
-	case inpututil.IsKeyJustPressed(ebiten.KeyB):
-		flags.Flip(Bilinear)
-	case inpututil.IsKeyJustPressed(ebiten.KeyD):
-		flags.Flip(Dithered)
-	}
+	flags.UpdateFlag(Bilinear, ebiten.KeyB)
+	flags.UpdateFlag(Dithered, ebiten.KeyD)
 }
 
 // go test -run ^TestMask$ . -count 1
