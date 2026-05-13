@@ -84,6 +84,9 @@ func TestStrokeTriangle(t *testing.T) {
 		}
 
 		r := float32(ctx.DistAnim(24.0, 1.0))
+		if ctx.SpacePressed {
+			r *= 3.0
+		}
 		ctx.Renderer.SetColorF32(a, a, a, a)
 		ctx.Renderer.FillTriangle(canvas, points[0], 0.0) // no rounding
 		ctx.Renderer.FillTriangle(canvas, points[1], r)   // outer rounding

@@ -88,6 +88,13 @@ func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
 	return x - w*o.X, y - h*o.Y
 }
 
+// AdjustQt is the same as [Origin.Adjust](), but rounds the results at the end.
+// This is useful when whole positions are required despite using centered origins.
+func (o Origin) AdjustQt(source *ebiten.Image, x, y float32) (float32, float32) {
+	x, y = o.Adjust(source, x, y)
+	return float32(int(x + 0.5)), float32(int(y + 0.5))
+}
+
 // Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered], etc.
 type Flag int
 

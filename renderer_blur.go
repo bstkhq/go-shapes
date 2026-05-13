@@ -21,13 +21,7 @@ func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 16 {
-		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 16
-	} else if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = r.warnClampNonNegArgF32(radius, 16, WarnRadiusClamped)
 
 	srcBounds := mask.Bounds()
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
@@ -48,8 +42,8 @@ func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius
 
 // Blur2 is similar to [Renderer.Blur](), but uses two 1D passes instead of a single 2D
 // pass. This greatly reduces the amount of sampled pixels for the shader, and despite
-// breaking batching tends to be much more efficient than [Renderer.Blur](). Radius can't
-// exceed 32.
+// breaking batching tends to be much more efficient than [Renderer.Blur](). Radiuses
+// can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
 //
@@ -62,13 +56,7 @@ func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radiu
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 32 {
-		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 32
-	} else if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
 
 	ceilRadius := ceilF32(radius)
 	w32, h32 := rectSizeF32(mask.Bounds())
@@ -92,13 +80,7 @@ func (r *Renderer) blurVert(target *ebiten.Image, mask *ebiten.Image, ox, oy, ra
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 32 {
-		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 32
-	} else if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
 
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	ceilRadius := ceilF32(radius)
@@ -120,23 +102,18 @@ func (r *Renderer) blurHorz(target *ebiten.Image, mask *ebiten.Image, ox, oy, ra
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	if radius > 32 {
-		r.Warnings.report(WarnRadiusClamped, radius)
-		radius = 32
-	} else if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
 
 	srcBounds := mask.Bounds()
+	ceilRadius := ceilF32(radius)
 	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	minX, minY := ox-radius, oy
-	maxX, maxY := ox+srcWidth+radius, oy+srcHeight
+	minX, minY := ox-ceilRadius, oy
+	maxX, maxY := ox+srcWidth+ceilRadius, oy+srcHeight
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-radius, srcMinY, srcMaxX+radius, srcMaxY)
+	r.setSrcRectCoords(srcMinX-ceilRadius, srcMinY, srcMaxX+ceilRadius, srcMaxY)
 	r.setFlatCustomVAs01(radius, r.tint)
 
 	// draw shader
@@ -196,10 +173,7 @@ func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32,
 		r.Warnings.report(WarnNumSamplesClamped, numSamples)
 		numSamples = 64
 	}
-	if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = warnZeroNegativeValue(r, radius)
 	if seed < 0 || seed > 1 {
 		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)
 		seed = clamp(seed, 0, 1)

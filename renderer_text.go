@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	textFlagSmoothAnim = 0b0000_0001
+	textFlagNoQuantization uint8 = 0b0000_0001
 )
 
 // TextOptions are used in [Renderer.Text]() and [Renderer.TextSize]().
@@ -22,8 +22,9 @@ type TextOptions struct {
 	// coordinates. If unset, [TopLeft] will be used as the default.
 	Align TextAlign
 
-	// 0b0000_000S
-	//  - S: smooth animation flag. When set, line origin should not be quantized.
+	// 0b0000_000Q
+	//  - Q: no quantization flag. When set, line origin should not be
+	//    quantized.
 	// Other flags might include monospace, font, nearest, etc.
 	flags uint8
 
@@ -47,19 +48,29 @@ func TextOpts(scale float32, align TextAlign) TextOptions {
 	}
 }
 
-// Quantized returns a copy of TextOptions with the quantization flag set to the
-// given value. By default , which causes line positions to be quantized to the
-// nearest pixel. As a general guideline:
-//   - Static text should snap to nearest pixel to avoid blurriness on centered aligns.
-//   - Animated text (moving or zooming) should use SmoothAnim to prevent motion jitter.
-func (opts TextOptions) SmoothAnim() TextOptions {
-	opts.flags |= textFlagSmoothAnim
+// Quantized returns a copy of opts with the quantization setting set to the requested
+// value.
+//
+// By default, quantization is active, which causes line positions to be snapped to the
+// nearest pixel.
+//
+// As a general guideline:
+//   - Static text should use Quantized(true) to snap to nearest pixel to avoid
+//     blurriness on centered aligns (default behavior).
+//   - Animated text (moving or zooming) should set Quantized(false) to prevent motion
+//     jitter.
+func (opts TextOptions) Quantized(quantize bool) TextOptions {
+	if quantize {
+		opts.flags |= ^textFlagNoQuantization
+	} else {
+		opts.flags |= textFlagNoQuantization
+	}
 	return opts
 }
 
 // if smooth animation flag is not set, the given float is quantized to the nearest integer.
 func (opts TextOptions) quantize(f float32) float32 {
-	if opts.flags&textFlagSmoothAnim == textFlagSmoothAnim {
+	if opts.flags&textFlagNoQuantization == textFlagNoQuantization {
 		return f
 	}
 	return float32(math.Round(float64(f)))

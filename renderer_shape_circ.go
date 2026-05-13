@@ -115,14 +115,8 @@ func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads
 // [0..2*Pi]. inner rounding is not implemented because of analytical geometry skill
 // issue with the many edge cases.
 func (r *Renderer) fillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
-	if inRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
-		inRadius = 0.0
-	}
-	if outRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, outRadius)
-		outRadius = 0.0
-	}
+	inRadius = warnZeroNegativeValue(r, inRadius)
+	outRadius = warnZeroNegativeValue(r, outRadius)
 	if inRadius == outRadius && rounding <= 0 {
 		return
 	}
@@ -184,14 +178,8 @@ func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRad
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads {
 		return // skip empty draws
 	}
-	if inRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
-		inRadius = 0.0
-	}
-	if outRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, outRadius)
-		outRadius = 0.0
-	}
+	inRadius = warnZeroNegativeValue(r, inRadius)
+	outRadius = warnZeroNegativeValue(r, outRadius)
 	if inRadius == outRadius {
 		return
 	}
@@ -301,10 +289,7 @@ func (r *Renderer) StrokeCircSector(target *ebiten.Image, cx, cy, inRadius, outR
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads || thickness <= 0 {
 		return // skip empty draws
 	}
-	if inRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inRadius)
-		inRadius = 0
-	}
+	inRadius = warnZeroNegativeValue(r, inRadius)
 	if endRads >= startRads+2*math.Pi {
 		r.StrokeCircle(target, cx, cy, inRadius, thickness)
 		r.StrokeCircle(target, cx, cy, outRadius, thickness)

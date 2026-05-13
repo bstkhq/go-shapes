@@ -258,11 +258,7 @@ func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.
 //
 // Returned offscreens always have origin (0, 0).
 func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, padding int, clear bool) *ebiten.Image {
-	if padding < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, padding)
-		padding = 0
-	}
-
+	padding = warnZeroNegativeValue(r, padding)
 	ow, oh := rectSize(source.Bounds())
 	ow, oh = ow+padding*2, oh+padding*2
 	temp, clear := r.getTemp(offscreenIndex, ow, oh, clear)
@@ -290,11 +286,7 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, padd
 //
 // See safety warnings and docs for UnsafeTemp.
 func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padding int, clear bool) (sourceTemp, variantTemp *ebiten.Image) {
-	if padding < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, padding)
-		padding = 0
-	}
-
+	padding = warnZeroNegativeValue(r, padding)
 	_, _, w, h := rectOriginSize(source.Bounds())
 	ox, oy := 0, 0
 	pw, ph := w+padding*2, h+padding*2

@@ -133,14 +133,9 @@ func (r *Renderer) internalStrokeIntRect(target *ebiten.Image, ox, oy, w, h, out
 		h = -h
 		oy -= h
 	}
-	if outThickness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, outThickness)
-		outThickness = 0
-	}
-	if inThickness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inThickness)
-		inThickness = 0
-	}
+
+	outThickness = warnZeroNegativeValue(r, outThickness)
+	inThickness = warnZeroNegativeValue(r, inThickness)
 	if outThickness+inThickness == 0 {
 		return
 	}
@@ -251,7 +246,7 @@ func (r *Renderer) StrokeIntRect(target *ebiten.Image, rect image.Rectangle, inT
 // If you have an [image.Rectangle] for the rect, consider [Renderer.StrokeIntRect]() instead,
 // or if you need rounding convert with [RectPointsF32]().
 func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32) {
-	// TODO: we should consider optional segmentation more similar to what internalStrokeIntRect does
+	// NOTE: should we consider optional segmentation more similar to what internalStrokeIntRect does?
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -313,7 +308,6 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 	r.drawTriangle(target, points, thickness, rounding)
 }
 
-// TODO: skip if inner rounding collapses the shape (currently it degenerates), test all orientations
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
 	area := abs((points[0].X*(points[1].Y-points[2].Y) + points[1].X*(points[2].Y-points[0].Y) + points[2].X*(points[0].Y-points[1].Y)) / 2)
 	if area < 1e-6 {
@@ -393,10 +387,7 @@ const Sqrt3Div2 = 0.866025403784438646763723170752936183471402626905190314027903
 //
 // Rads can be used to rotate the hexagon. See [RadsRight] constants for angle conventions and docs.
 func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
-	if roundness < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, roundness)
-		roundness = 0.0
-	}
+	roundness = warnZeroNegativeValue(r, roundness)
 	if radius == 0 {
 		return
 	}
@@ -521,6 +512,8 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 // FillRectBlur behaves similarly to [Renderer.FillRectSoft](), but accepts only non-negative
 // blur radiuses, and blurs around the boundary instead of before or after it.
 func (r *Renderer) FillRectBlur(target *ebiten.Image, ox, oy, w, h, rounding, blurRadius float32) {
+	blurRadius = warnZeroNegativeValue(r, blurRadius)
+
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -536,11 +529,6 @@ func (r *Renderer) FillRectBlur(target *ebiten.Image, ox, oy, w, h, rounding, bl
 		ox -= rounding
 		oy -= rounding
 		rounding = -rounding
-	}
-
-	if blurRadius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, blurRadius)
-		blurRadius = 0.0
 	}
 
 	if rounding+blurRadius < -max(w, h)*2 {

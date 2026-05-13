@@ -91,7 +91,7 @@ func TestTextAnim(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.5, 0.75, float32(ctx.DistAnim(1.0, 0.5)), 1.0, 1)
 		ctx.Renderer.SetColorF32(0.5, float32(ctx.DistAnim(1.0, 0.4)), 1.0, 1.0, 2)
 		ctx.Renderer.SetColorF32(float32(ctx.DistAnim(1.0, 0.17)), 0.5, float32(ctx.DistAnim(1.0, 0.57)), 1.0, 3)
-		ctx.Renderer.Text(canvas, Text, cx+xoff, cy+yoff, TextOpts(scale, Center).SmoothAnim())
+		ctx.Renderer.Text(canvas, Text, cx+xoff, cy+yoff, TextOpts(scale, Center).Quantized(false))
 	}
 
 	app := NewTestApp(updater, drawer)

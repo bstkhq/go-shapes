@@ -129,10 +129,7 @@ func (r *Renderer) MaskCirc(target, source *ebiten.Image, ox, oy, circCX, circCY
 			softEdge = 0
 		}
 	}
-	if hardRadius < 0.0 {
-		r.Warnings.report(WarnNegativeValueZeroed, hardRadius)
-		hardRadius = 0.0
-	}
+	hardRadius = warnZeroNegativeValue(r, hardRadius)
 	if hardRadius == 0 && softEdge == 0 && r.blendSafeToCrop() {
 		return
 	}

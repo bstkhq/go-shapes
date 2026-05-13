@@ -115,6 +115,14 @@ func (r *Renderer) warnClampNonNegArgF32(value, maxValue float32, clampWarning W
 	return value
 }
 
+func warnZeroNegativeValue[Num ~float32 | ~float64 | ~int](r *Renderer, value Num) Num {
+	if value < 0 {
+		r.Warnings.report(WarnNegativeValueZeroed, value)
+		return 0
+	}
+	return value
+}
+
 // Warnings is a register of problems detected by the renderer during operations.
 //
 // Most users will only care about [Warnings.SetHandler]() to make warnings
