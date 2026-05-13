@@ -38,6 +38,6 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 		}
 	}
 
-	alpha := accColor.a / accWeight
-	return mix(color*alpha, color.a*(accColor/accWeight), customVAs[3])
+	accColor /= accWeight
+	return mix(accColor, color*accColor.a, customVAs[3])
 }

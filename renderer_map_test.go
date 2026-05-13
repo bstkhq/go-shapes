@@ -40,7 +40,7 @@ func TestMap(t *testing.T) {
 		if (ctx.Ticks/180)&1 == 1 {
 			ctx.Renderer.SetColorF32(0, 0, 0, 0, 2, 3)
 		}
-		ctx.Renderer.MapProjective(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
+		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))
 	}
 
@@ -64,8 +64,8 @@ func TestMap(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMapProjectiveTilt$ . -count 1
-func TestMapProjectiveTilt(t *testing.T) {
+// go test -run ^TestMapQuadTilt$ . -count 1
+func TestMapQuadTilt(t *testing.T) {
 	const CardWidth, CardHeight = 256, 328
 
 	tilt := 0.0
@@ -106,7 +106,7 @@ func TestMapProjectiveTilt(t *testing.T) {
 		pts[1].Y += yOff
 		pts[2].Y -= yOff
 
-		ctx.Renderer.MapProjective(canvas, ctx.Images[0], pts, anisotropic)
+		ctx.Renderer.MapQuad(canvas, ctx.Images[0], pts, anisotropic)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -159,7 +159,7 @@ func TestMapProjectiveStress(t *testing.T) {
 		for range NumRows {
 			cx := float32(ox) + dx
 			for range NumCols {
-				ctx.Renderer.MapProjective(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), false)
+				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), false)
 				cx += dx
 				waverIdx += 1
 			}

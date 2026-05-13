@@ -4,7 +4,7 @@ package main
 var KernelLen int
 var Kernel [16]float // 1D kernel, center and one side, since gaussian kernels are symmetrical
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 	srcCoords := floor(sourceCoords) + vec2(0.5)
 	accColor := imageSrc0At(srcCoords) * Kernel[0]
 	for offset := 1; offset < 16; offset += 1 {

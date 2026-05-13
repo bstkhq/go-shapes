@@ -11,6 +11,134 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+// go test -run ^TestApplyExpansion$ . -count 1
+func TestApplyExpansion(t *testing.T) {
+	const radius, expansion = 64.0, 16.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetColor(color.RGBA{0, 128, 128, 255})
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius+expansion)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		x := float32(ctx.DistAnim(float64(expansion), 1.0))
+		ctx.Renderer.ApplyExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
+	}
+
+	app := NewTestApp(updater, drawer)
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestApplyExpansionRect$ . -count 1
+func TestApplyExpansionRect(t *testing.T) {
+	const Radius = 64.0
+	const Expansion = 16.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		lx, ly := ctx.LeftClickF32()
+		rx, ry := ctx.RightClickF32()
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		expansion := float32(ctx.DistAnim(Expansion, 1.0))
+		ctx.Renderer.ApplyExpansionRect(canvas, ctx.Images[0], lx-Radius, ly-Radius, expansion)
+		ctx.Renderer.ApplyExpansionRect(canvas, ctx.Images[1], rx-Radius, ry-Radius, expansion)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lx-Radius, ly-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lx-Radius-Expansion, ly-Radius-Expansion)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rx-Radius, ry-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rx-Radius-Expansion, ry-Radius-Expansion)
+	}
+
+	app := NewTestApp(updater, drawer)
+	img1 := app.Renderer.NewFilledRect(int(Radius*2), int(Radius*2))
+	img4 := app.Renderer.NewFilledRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
+	img2 := app.Renderer.NewFilledCircle(float64(Radius))
+	img3 := app.Renderer.NewFilledCircle(float64(Radius + Expansion))
+	app.Images = append(app.Images, img1, img2, img3, img4)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestApplyErosion$ . -count 1
+func TestApplyErosion(t *testing.T) {
+	const radius, erosion = 96.0, 16.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius-erosion)
+
+		r := float32(ctx.DistAnim(float64(erosion), 1.0))
+		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
+		ctx.Renderer.ApplyErosion(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+
+		rx, ry := ctx.RightClickF32()
+		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
+		ctx.Renderer.ApplyErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
+	}
+
+	app := NewTestApp(updater, drawer)
+	circle := app.Renderer.NewFilledCircle(float64(radius))
+	triangle := ebiten.NewImage(256, 164)
+	var points [3]PointF32
+	points[0] = PointF32{X: 16, Y: 16}
+	points[1] = points[0].AddXY(224, 0)
+	points[2] = points[0].AddXY(0, 132)
+	app.Renderer.StrokeTriangle(triangle, points, erosion*2, 0)
+	app.Images = append(app.Images, circle, triangle)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestApplyOutline$ . -count 1
+func TestApplyOutline(t *testing.T) {
+	const radius, thick = 64.0, 8.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		lx, ly := ctx.LeftClickF32()
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius+thick/2+1.0)
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.Renderer.FillCircle(canvas, lx, ly, radius-thick/2-1.0)
+
+		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
+		ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], lx-radius, ly-radius, thick)
+
+		rx, ry := ctx.RightClickF32()
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		if ctx.SpacePressed {
+			ctx.DrawAtF32(canvas, ctx.Images[0], rx-radius, ry-radius)
+		} else {
+			ctx.Renderer.ApplyOutline(canvas, ctx.Images[0], rx-radius, ry-radius, thick)
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 const negBit = 0x80
 
 func jfmDebugPrint(t *testing.T, out *image.RGBA) {

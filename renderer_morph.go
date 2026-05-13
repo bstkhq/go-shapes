@@ -9,6 +9,95 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// ApplyExpansion performs morphological dilation of the given mask and
+// draws it onto the given target. Notice that this is a quadratic algorithm.
+// For large expansion operations, consider [Renderer.ApplyExpansionRect]() and
+// [Renderer.JFMExpand]().
+//
+// thickness can't exceed 16.
+func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+
+	r.setFlatCustomVA0(thickness)
+	margins := NewMargins(thickness+1.0, thickness+1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphExpansion.Load())
+}
+
+// ApplyExpansionRect performs double pass expansion with a square kernel.
+// This is less general but more efficient than [Renderer.ApplyExpansion]().
+//
+// thickness can't exceed 16.
+//
+// This function uses one internal offscreen (#0), and target and mask
+// can be on the same internal atlas.
+func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+
+	// first pass (vert)
+	thickCeil := float32(math.Ceil(float64(thickness)))
+	sx, sy, sw, sh := rectOriginSize(mask.Bounds())
+	temp, _ := r.getTemp(0, sw, sh+int(thickCeil)*2.0, false)
+	sx32, sy32, sw32, sh32 := float32(sx), float32(sy), float32(sw), float32(sh)
+	memoBlend := r.opts.Blend
+	r.opts.Blend = ebiten.BlendCopy
+	r.setSrcRectCoords(sx32, sy32-thickCeil, sx32+sw32, sy32+sh32+thickCeil)
+	r.setDstRectCoords(0, 0, sw32, sh32+thickCeil*2)
+	r.setFlatCustomVA0(thickness)
+	r.opts.Images[0] = mask
+	temp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMorphExpansionRectVert.Load(), &r.opts)
+	r.opts.Images[0] = nil
+
+	// second pass (horz)
+	r.opts.Blend = memoBlend
+	r.setSrcRectCoords(-thickCeil, 0, sw32+thickCeil, sh32+thickCeil*2.0)
+	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
+	r.opts.Images[0] = temp
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMorphExpansionRectHorz.Load(), &r.opts)
+	r.opts.Images[0] = nil
+}
+
+// ApplyErosion performs morphological erosion of the given mask and draws it
+// onto the given target. Notice that this is a quadratic algorithm. For large
+// erosion operations, consider [Renderer.JFMErode]().
+//
+// thickness can't exceed 16.
+func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+	r.setFlatCustomVA0(thickness)
+	margins := NewMargins(1.0, 1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphErosion.Load())
+}
+
+// ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
+// This operation is implemented as the difference between morphological dilation and erosion.
+// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
+// with a boundary jfmap.
+//
+// thickness can't exceed 16.
+func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+	if mask == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+		return
+	}
+	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+
+	r.setFlatCustomVA0(thickness)
+	margins := NewMargins(thickness+1.0, thickness+1.0)
+	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphOutline.Load())
+}
+
 // JFMapCompute computes a jumping flood map from the given seeds and stores it in jfmap.
 //
 // A jumping flood map encodes offsets to nearest seeds, which allows computing precise

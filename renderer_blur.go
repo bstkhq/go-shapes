@@ -42,7 +42,7 @@ func (r *Renderer) ApplyBlur(target *ebiten.Image, mask *ebiten.Image, ox, oy, r
 
 	// draw shader
 	r.opts.Images[0] = mask
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlur.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurNaive.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
@@ -154,7 +154,7 @@ func (r *Renderer) applyHorzBlur(target *ebiten.Image, mask *ebiten.Image, ox, o
 func (r *Renderer) ApplyBlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(r.tint)
-		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzBlurKern.Load(), &r.opts)
+		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurHorzKern.Load(), &r.opts)
 	}
 	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
 }

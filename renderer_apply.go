@@ -6,97 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// ApplyExpansion performs morphological dilation of the given mask and
-// draws it onto the given target. Notice that this is a quadratic algorithm.
-// For large expansion operations, consider [Renderer.ApplyExpansionRect]() and
-// [Renderer.JFMExpand]().
-//
-// thickness can't exceed 16.
-func (r *Renderer) ApplyExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-
-	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(thickness+1.0, thickness+1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderExpansion.Load())
-}
-
-// ApplyExpansionRect performs double pass expansion with a square kernel.
-// This is less general but more efficient than [Renderer.ApplyExpansion]().
-//
-// thickness can't exceed 16.
-//
-// This function uses one internal offscreen (#0), and target and mask
-// can be on the same internal atlas.
-func (r *Renderer) ApplyExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-
-	// first pass (vert)
-	thickCeil := float32(math.Ceil(float64(thickness)))
-	sx, sy, sw, sh := rectOriginSize(mask.Bounds())
-	temp, _ := r.getTemp(0, sw, sh+int(thickCeil)*2.0, false)
-	sx32, sy32, sw32, sh32 := float32(sx), float32(sy), float32(sw), float32(sh)
-	memoBlend := r.opts.Blend
-	r.opts.Blend = ebiten.BlendCopy
-	r.setSrcRectCoords(sx32, sy32-thickCeil, sx32+sw32, sy32+sh32+thickCeil)
-	r.setDstRectCoords(0, 0, sw32, sh32+thickCeil*2)
-	r.setFlatCustomVA0(thickness)
-	r.opts.Images[0] = mask
-	temp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderExpansionVert.Load(), &r.opts)
-	r.opts.Images[0] = nil
-
-	// second pass (horz)
-	r.opts.Blend = memoBlend
-	r.setSrcRectCoords(-thickCeil, 0, sw32+thickCeil, sh32+thickCeil*2.0)
-	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
-	r.opts.Images[0] = temp
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderExpansionHorz.Load(), &r.opts)
-	r.opts.Images[0] = nil
-}
-
-// TODO: move to MorphErosion, MorphJFM...?
-
-// ApplyErosion performs morphological erosion of the given mask and draws it
-// onto the given target. Notice that this is a quadratic algorithm. For large
-// erosion operations, consider [Renderer.JFMErode]().
-//
-// thickness can't exceed 16.
-func (r *Renderer) ApplyErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(1.0, 1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderErosion.Load())
-}
-
-// ApplyOutline draws an outline of the mask into the given target using the renderer's colors.
-// This operation is implemented as the difference between morphological dilation and erosion.
-// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
-// with a boundary jfmap.
-//
-// thickness can't exceed 16.
-func (r *Renderer) ApplyOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-
-	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(thickness+1.0, thickness+1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderOutline.Load())
-}
-
 // ApplyGlow2 draws a separable two-pass glow effect for the given mask into the target,
 // at the given coordinates.
 //
@@ -132,13 +41,13 @@ func (r *Renderer) ApplyGlow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, 
 	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
 	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
 	r.setSrcRectCoords(srcMinX, srcMinY-vertRadius-1, srcMaxX, srcMaxY+vertRadius+1.0)
-	r.setFlatCustomVAs(vertRadius, threshStart, threshEnd, 1.0)
+	r.setFlatCustomVAs(vertRadius, threshStart, threshEnd, r.tint)
 
 	// first pass (threshold + vertical blur)
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	tmp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowFirstPass.Load(), &r.opts)
+	tmp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowVert.Load(), &r.opts)
 	r.opts.Images[0] = nil
 
 	// second pass
@@ -175,7 +84,7 @@ func (r *Renderer) applyHorzGlow(target *ebiten.Image, mask *ebiten.Image, ox, o
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendLighter
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderHorzGlow.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowHorz.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -209,7 +118,7 @@ func (r *Renderer) applyDarkHorzGlow(target *ebiten.Image, mask *ebiten.Image, o
 	r.opts.Images[0] = mask
 	preBlend := r.opts.Blend
 	r.opts.Blend = BlendMultiply
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDarkHorzGlow.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowDarkHorz.Load(), &r.opts)
 	r.opts.Blend = preBlend
 	r.opts.Images[0] = nil
 }
@@ -369,7 +278,7 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	r.opts.Uniforms["KernelLen"] = opts.VertKernel.Size()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
 	r.opts.Images[0] = tmp
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderKernVertFinish.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 	r.opts.Blend = preBlend
@@ -393,7 +302,7 @@ func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64,
 	r.setDstRectCoords(0, 0, float32(dkernW64)+2, float32(dkernH64)+2)
 	r.setSrcRectCoords(0, float32(-halfVertMargin), float32(dkernW64)+2, float32(downH64+halfVertMargin)+2)
 	r.opts.Images[0] = dkernHorz
-	dkern.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderVertBlurKern.Load(), &r.opts)
+	dkern.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderKernVertFinish.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

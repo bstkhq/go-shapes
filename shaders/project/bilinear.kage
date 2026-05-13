@@ -3,7 +3,7 @@ package main
 
 func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	percent := customVAs.xy
-	halfPercent := percent / 2.0
+	halfPercent := percent * 0.5
 	minCoords, maxCoords := getMinMaxSourceCoords()
 	tl := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(-halfPercent.x, -halfPercent.y), minCoords, maxCoords))
 	tr := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(+halfPercent.x, -halfPercent.y), minCoords, maxCoords))

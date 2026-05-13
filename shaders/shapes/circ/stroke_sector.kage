@@ -1,11 +1,11 @@
 //kage:unit pixels
 package main
 
-// see circ_sector.kage for the base version with docs
+// related: circ_sector.kage
 
 var WedgeNormal vec2
 var InRadius float
-var Rounding float
+var Rounding float // can only be positive
 var Thickness float
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
@@ -25,18 +25,14 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 }
 
 func sdfCircSector(pos vec2, wedgeNormal vec2, inRadius, outRadius, rounding float) float {
-	inRounding, outRounding := -min(rounding, 0.0), max(rounding, 0.0)
-	outRadius -= inRounding
-	inRadius += inRounding
-
-	pos = pos.yx
+	pos = pos.yx // switch symmetry axis from original function
 	pos.x = abs(pos.x)
 	lenPos := length(pos)
 	l := max(lenPos-outRadius, inRadius-lenPos)
 
 	m := length(pos - wedgeNormal*clamp(dot(pos, wedgeNormal), inRadius, outRadius))
 	m *= sign(wedgeNormal.y*pos.x - wedgeNormal.x*pos.y)
-	return max(l, m) - inRounding - outRounding
+	return max(l, m) - rounding
 }
 
 func rotate(p vec2, rads float) vec2 {

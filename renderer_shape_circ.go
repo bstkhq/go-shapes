@@ -106,7 +106,7 @@ func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads
 	r.opts.Uniforms["Center"] = [2]float32{cx32 - tox, cy32 - toy}
 	s, c = math.Sincos(uradsAddCW(startRads, delta*0.5))
 	r.opts.Uniforms["Rotation"] = [2]float32{float32(c), float32(s)}
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircLine.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderArc.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 

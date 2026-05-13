@@ -118,8 +118,8 @@ func TestMaskHorz(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMaskCircle$ . -count 1
-func TestMaskCircle(t *testing.T) {
+// go test -run ^TestMaskCirc$ . -count 1
+func TestMaskCirc(t *testing.T) {
 	flags := newFlagList()
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -128,12 +128,12 @@ func TestMaskCircle(t *testing.T) {
 		hardRadius := 48.0 + float32(ctx.DistAnim(16.0, 0.25))
 		softEdge := float32(ctx.DistAnim(16.0, 1.0))
 		ox, oy := CTR.Adjust(ctx.Images[0], w/2, h/2)
-		ctx.Renderer.MaskCircle(canvas, ctx.Images[0], ox, oy, w/2, h/2, hardRadius, softEdge, flags...)
+		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], ox, oy, w/2, h/2, hardRadius, softEdge, flags...)
 
 		lx, ly := ctx.LeftClickF32()
 		ox, oy = CTR.Adjust(ctx.Images[0], lx, ly)
 		circleYShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskCircle(canvas, ctx.Images[0], ox, oy, lx, ly+circleYShift, 32, 16, flags...)
+		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], ox, oy, lx, ly+circleYShift, 32, 16, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -174,8 +174,8 @@ func TestMaskThreshold(t *testing.T) {
 	}
 }
 
-// go test -run ^TestAlphaMaskCirc$ . -count 1
-func TestAlphaMaskCirc(t *testing.T) {
+// go test -run ^TestBakeAlphaMaskRadial$ . -count 1
+func TestBakeAlphaMaskRadial(t *testing.T) {
 	const Size = 256
 	randomness := float32(0.3)
 	var justClicked bool
@@ -203,7 +203,7 @@ func TestAlphaMaskCirc(t *testing.T) {
 		if justClicked {
 			lx, ly := ctx.LeftClickF32()
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
-			ctx.Renderer.DrawAlphaMaskCirc(ctx.Images[1], lx-ox, ly-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
+			ctx.Renderer.BakeAlphaMaskRadial(ctx.Images[1], lx-ox, ly-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
@@ -214,7 +214,7 @@ func TestAlphaMaskCirc(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	maskTarget := ebiten.NewImage(Size, Size)
 	whiteRect := app.Renderer.NewFilledRect(Size, Size)
-	app.Renderer.DrawAlphaMaskCirc(maskTarget, Size/2, Size/2, Size, randomness, MaskPatternDefault)
+	app.Renderer.BakeAlphaMaskRadial(maskTarget, Size/2, Size/2, Size, randomness, MaskPatternDefault)
 	app.Images = append(app.Images, whiteRect, maskTarget)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
