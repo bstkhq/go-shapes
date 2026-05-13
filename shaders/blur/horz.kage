@@ -1,37 +1,33 @@
 //kage:unit pixels
 package main
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
-	srcCoords := floor(sourceCoords) + vec2(0.5)
 	radius := customVAs[0]
 	tint := customVAs[1]
+
+	accColor := imageSrc0At(sourceCoords)
+	accWeight := 1.0
 
 	sigma := radius / 3.0
 	sigma2 := 2.0 * sigma * sigma
 	if sigma2 <= 0.001 {
-		sample := imageSrc0At(sourceCoords)
-		return mix(sample, color*sample.a, tint)
+		return mix(accColor, color*accColor.a, tint)
 	}
 
-	accColor := vec4(0.0)
-	accWeight := 0.0
-
-	for x := 0.0; x < MaxRadius*2.0; x += 1.0 {
-		if x > radius*2.0 {
+	for x := 1.0; x < MaxRadius; x += 1.0 {
+		if x > radius {
 			break
 		}
-		sample := floor(vec2(srcCoords.x-radius+x, srcCoords.y)) + vec2(0.5)
-		clr := imageSrc0At(sample)
-		dist := abs(srcCoords.x - sample.x)
-		if dist <= radius {
-			factor := exp(-(dist * dist) / sigma2)
-			accColor += clr * factor
-			accWeight += factor
-		}
+
+		leftClr := imageSrc0At(vec2(sourceCoords.x-x, sourceCoords.y))
+		rightClr := imageSrc0At(vec2(sourceCoords.x+x, sourceCoords.y))
+		factor := exp(-(x * x) / sigma2)
+		accColor += (leftClr + rightClr) * factor
+		accWeight += 2.0 * factor
 	}
 
-	alpha := accColor.a / accWeight
-	return mix(accColor/accWeight, color*alpha, tint)
+	accColor /= accWeight
+	return mix(accColor, color*accColor.a, tint)
 }

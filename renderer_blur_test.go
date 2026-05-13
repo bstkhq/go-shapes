@@ -45,14 +45,22 @@ func TestBlur(t *testing.T) {
 func TestBlur2(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(16.0)
-	updater := func(TestAppCtx) {}
+	auxRadius := float32(16.0)
+	updater := func(ctx TestAppCtx) {
+		auxRadius = updateParam(ctx, ebiten.KeyR, auxRadius, 0.0, 16.0, 1.0)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		rAux := float32(ctx.DistAnim(float64(auxRadius), 1.0))
+		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, rAux, r)
+		} else {
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, r, rAux)
+		}
 		ctx.Renderer.Blur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
 		if ctx.SpacePressed {
 			// NOTE: there are still differences between blur and blur2, as can be
@@ -62,14 +70,14 @@ func TestBlur2(t *testing.T) {
 			// horz/vert blurs have differences, which is the suspicious part. short on
 			// both directions, slightly offset on vertical (see TestApplyDirBlur)
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx+radius, ly-radius, r)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx+radius, ly-radius, r, r)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, fxRadius)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -106,7 +114,7 @@ func TestDirBlur(t *testing.T) {
 			// see notes on TestBlur2
 			ctx.Renderer.blurVert(canvas, ctx.Images[1], 480, 96, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
-			ctx.Renderer.Blur2(canvas, ctx.Images[2], 480, 96, 15.5)
+			ctx.Renderer.Blur2(canvas, ctx.Images[2], 480, 96, 15.5, 15.5)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		} else {
 			ctx.Renderer.blurVert(canvas, ctx.Images[1], 480, 96, 15.5)
@@ -145,7 +153,7 @@ func TestBlurK(t *testing.T) {
 		lx, ly := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ctx.SpacePressed {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0, 16.0)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
@@ -157,7 +165,9 @@ func TestBlurK(t *testing.T) {
 		rx, ry := ctx.RightClickF32()
 		k := GaussK9
 		if ctx.SpacePressed {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, float32(k.Radius())*4.0)
+			r := float32(k.Radius() * dscale.Factor())
+			r = min(r, 32)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, r, r)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
@@ -203,7 +213,9 @@ func TestBlurKLoop(t *testing.T) {
 		ctx.Renderer.BlurK(canvas, ctx.Images[0], lx-Radius, ly-Radius, kOpts)
 
 		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-Radius, ry-Radius, min(float32(kern.Radius())*4.0, 32.0))
+		r := float32(kern.Radius() * kOpts.Downscaling.Factor())
+		r = min(r, 32.0)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-Radius, ry-Radius, r, r)
 	}
 
 	app := NewTestApp(updater, drawer)

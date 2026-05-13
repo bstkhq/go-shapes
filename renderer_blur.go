@@ -51,25 +51,33 @@ func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius
 // internal atlas.
 //
 // See also [Renderer.BlurK]() if fixed radiuses are acceptable.
-func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
+func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
+	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
+	vertRadius = r.warnClampNonNegArgF32(vertRadius, 32, WarnRadiusClamped)
+	if horzRadius == 0 {
+		r.blurVert(target, mask, ox, oy, vertRadius)
+		return
+	} else if vertRadius == 0 {
+		r.blurHorz(target, mask, ox, oy, horzRadius)
+		return
+	}
 
-	ceilRadius := ceilF32(radius)
+	ceilVertRadius := ceilF32(vertRadius)
 	w32, h32 := rectSizeF32(mask.Bounds())
-	h32 += 2.0 * ceilRadius
+	h32 += 2.0 * ceilVertRadius
 	tmp, _ := r.getTemp(0, int(w32), int(h32), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 	memo := r.tint
 	r.tint = 0.0
-	r.blurVert(tmp, mask, 0, ceilRadius, radius)
+	r.blurVert(tmp, mask, 0, ceilVertRadius, vertRadius)
 	r.opts.Blend = preBlend
 	r.tint = memo
-	r.blurHorz(target, tmp, ox, oy-ceilRadius, radius)
+	r.blurHorz(target, tmp, ox, oy-ceilVertRadius, horzRadius)
 }
 
 // blurVert applies a 1D vertical blur pass of the given radius, which can't exceed 32.
