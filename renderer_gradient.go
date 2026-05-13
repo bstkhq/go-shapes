@@ -57,7 +57,7 @@ func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
 // Gradient paints a gradient over the given target, interpolating in Oklab space.
 // For common dirRadians values, see [DirRadsLTR] and related constants.
 //
-// If you need to apply the gradient over a mask, use ebiten.BlendSourceIn:
+// If you need to apply the gradient over a mask, use [ebiten.BlendSourceIn]:
 //
 //	tmp := r.UnsafeTempCopy(0, mask, 0, false) // optionally make a mask copy
 //	r.Options().Blend = ebiten.BlendSourceIn

@@ -131,7 +131,7 @@ const (
 	Bottom   LineAnchor = 0b0001
 )
 
-// TextAlign defines the horizontal and vertical text alignment during text rendering
+// TextAlign defines the horizontal and vertical text alignment for [Renderer.Text]()
 // operations.
 //
 // A single constant can be used to control the horizontal and vertical alignment of the
@@ -140,12 +140,12 @@ const (
 //   - [Center] aligns the text's center to (x, y)
 //   - [BottomCenter] aligns the text's bottom-center to (x, y)
 //
-// For even finer-grained vertical adjustment on Top* and Bottom* aligns, a line anchor
+// For finer-grained vertical adjustment on Top* and Bottom* aligns, a [LineAnchor]
 // can also be specified. Given a drawing position (x, y):
 //   - TopLeft.Snap([Baseline]) aligns the first line's baseline
 //     to (x, y)
 //   - BottomRight.Snap([Top]) aligns the last line's top to (x, y)
-//   - TopCenter.Snap([Top]) is the same as TopCenter
+//   - TopCenter.Snap([Top]) is the same as [TopCenter]
 //
 // Notice that line anchors are ignored for Center* aligns, and they are completely
 // optional otherwise.

@@ -8,19 +8,21 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Renderer is the heart of the go-shapes package and provides access to most of
-// its operations. It stores offscreens, vertices and other data reused across rendering
+// Renderer is the heart of the go-shapes package and provides access to most of its
+// operations. It stores offscreens, vertices and other data reused across rendering
 // methods.
 //
 // Valid renderers must be created through [NewRenderer](). Once created, most
-// users should consider setting a logger for warnings, e.g. [NewWarningLogOnceHandler]().
+// users should consider setting a logger for warnings, e.g.:
+//
+//	renderer.Warnings.SetHandler(NewWarningLogOnceHandler()).
 //
 // Unless stated otherwise, renderer state management should respect the following
 // conventions:
 //
 //   - Renderer color should not be assumed; set it explicitly before operation.
 //   - If [Renderer.Options]() and [Renderer.Tint]() are modified during operation,
-//     they must be restored afterwards. Tint is assumed to be zero, and the only
+//     they should be restored afterwards. Tint is assumed to be zero, and the only
 //     common modification to the renderer options is setting the blend, which is
 //     expected to be [ebiten.BlendSourceOver].
 type Renderer struct {

@@ -174,12 +174,12 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 //
 // This operation is affected by [Renderer.Tint].
 //
-// If downscaling is used, notice that:
-//   - The function will use internal offscreens (#0, #1), and target and mask can be on the
-//     same internal atlas.
-//   - The radius will be applied 'as is' to a downscaled version of mask before upscaling back to
-//     draw on target. This means that if radius 16 and [DownscaleX4] are used, the actual radius
-//     effect will be closer to 16*4 = 64.
+// If downscaling is used:
+//   - The function will use internal offscreens (#0, #1). In this case, target and mask
+//     can be on the same internal atlas.
+//   - The radius will be applied 'as is' to a downscaled version of mask before upscaling
+//     back to draw on target. For example: if radius 16 and [DownscaleX4] are used, the
+//     resulting radius will be closer to 16*4 = 64.
 func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)

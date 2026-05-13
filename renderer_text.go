@@ -27,7 +27,7 @@ type TextOptions struct {
 	// Other flags might include monospace, font, nearest, etc.
 	flags uint8
 
-	// SpaceWidth controls the font's logical space size.
+	// SpaceWidth controls the font's logical space width.
 	// A sensible default is used when the value is zero.
 	//
 	// This is a low-level control for advanced usage.
@@ -47,8 +47,11 @@ func TextOpts(scale float32, align TextAlign) TextOptions {
 	}
 }
 
-// SmoothAnim returns a copy of TextOptions with the smooth animation flag set. By default,
-// this flag is not set, and line positions are quantized to the nearest pixel.
+// Quantized returns a copy of TextOptions with the quantization flag set to the
+// given value. By default , which causes line positions to be quantized to the
+// nearest pixel. As a general guideline:
+//   - Static text should snap to nearest pixel to avoid blurriness on centered aligns.
+//   - Animated text (moving or zooming) should use SmoothAnim to prevent motion jitter.
 func (opts TextOptions) SmoothAnim() TextOptions {
 	opts.flags |= textFlagSmoothAnim
 	return opts

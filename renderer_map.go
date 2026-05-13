@@ -22,15 +22,15 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 	r.opts.Images[0] = nil
 }
 
-// MapQuad4 draws the given source texture into the given quad using 4
-// triangles. This will produce noticeable texture projection distortions,
-// but it's not as bad as using just two triangles and can work well
-// enough in some cases. Otherwise, consider [Renderer.MapQuad]().
+// MapQuad4 draws the given source texture into the given quad using 4 triangles. This
+// produces noticeable texture projection distortions, but it's not as bad as using just
+// two triangles and can work well enough in some cases. For higher quality projections,
+// see [Renderer.MapQuad]().
 //
 // quad must be given in clockwise order starting from top-left.
 //
-// The renderer's color is applied multiplicatively as a color scale;
-// set it to white for neutral operation.
+// The renderer's color is applied multiplicatively as a color scale; set it to white for
+// neutral operation.
 func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
@@ -76,22 +76,22 @@ func quadCenter(quad [4]PointF32) PointF32 {
 	return PointF32{X: sumX / 4.0, Y: sumY / 4.0}
 }
 
-// MapProjective draws the given source texture into the given quad.
-// This function computes the homography between the quad and the texture
-// space, which involves solving an 8x8 equation system. This can be
-// somewhat CPU heavy, so avoid drawing more than ~100 elements with it
-// if you are not targeting powerful devices.
+// MapQuad draws the given source texture into the given quad.
+//
+// This function computes the homography between the quad and the texture space, which
+// involves solving an 8x8 equation system. This can be somewhat CPU heavy, so avoid
+// drawing more than ~100 elements with it if you are not targeting powerful devices.
 //
 // quad must be given in clockwise order starting from top-left.
 //
-// The anisotropic flag can be set to true to reduce texture distortion
-// at extreme angles, at the price of sampling 8 times instead of 4.
+// The anisotropic flag can be set to true to reduce texture distortion at extreme
+// angles, at the price of sampling 8 times instead of 4.
 //
-// To avoid jaggy edges, it's recommended to have one pixel of transparent
-// padding in the source texture.
+// To avoid jaggy edges, it's recommended to have one pixel of transparent padding in the
+// source texture.
 //
-// The renderer's color is applied multiplicatively as a color scale;
-// set it to white for neutral operation.
+// The renderer's color is applied multiplicatively as a color scale; set it to white
+// for neutral operation.
 func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, anisotropic bool) {
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)

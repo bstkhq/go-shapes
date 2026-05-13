@@ -70,21 +70,21 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 	}
 }
 
-// ColorMix draws 'base' and 'over' to 'target' using the mix() function for color
-// mixing instead of standard composition operations.
+// ColorMix draws base and over to target using the mix() function for color mixing
+// instead of standard composition operations.
 //
 // This is the cleanest way to interpolate a transition between two images (morphing)
 // while there's also an alpha transition, or if the two images have different alphas
 // at different pixel positions.
 //
-// The sizes of 'base' and 'over' must match.
+// The sizes of base and over must match.
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alpha, mixLevel float32, flags ...Flag) {
 	baseBounds, overBounds := base.Bounds(), over.Bounds()
 	if baseBounds.Dx() != overBounds.Dx() || baseBounds.Dy() != overBounds.Dy() {
 		panic(fmt.Sprintf(
-			"'base' and 'over' sizes must match (found %dx%d vs %dx%d)",
+			"base and over sizes must match (found %dx%d vs %dx%d)",
 			baseBounds.Dx(), baseBounds.Dy(), overBounds.Dx(), overBounds.Dy(),
 		))
 	}
@@ -153,7 +153,9 @@ var (
 	}
 )
 
-// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4].
+// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4], in column-major
+// order.
+//
 // Tip: average multiple matrices for more interesting variations.
 var (
 	DitherBayes [16]float32 = [16]float32{

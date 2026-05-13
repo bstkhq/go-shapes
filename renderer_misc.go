@@ -29,12 +29,12 @@ func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, triBaseSize
 
 // func (r *Renderer) HalftoneDots(target, source *ebiten.Image, ox, oy, cellSize, loSize, hiSize, xOffset, yOffset float32) {}
 
-// TODO: rename to Fx* or Misc*?
-
 // ScanlinesSharp is a miscellaneous effect that draws a simple scanline effect.
 //
 // Offset can be progressively increased to animate the scanlines, but notice that the
 // shader uses nearest sampling, not smooth interpolation.
+//
+// Consider also [Renderer.WaveLines]().
 func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
 	r.setFlatCustomVAs(float32(darkThick), float32(clearThick), intensity, offset)
 	tw, th := rectSizeF32(target.Bounds())
@@ -46,6 +46,8 @@ func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick in
 // dir defines the direction in which the lines advance if offset is used. The actual
 // line direction is perpendicular to dir. For common values, see [DirRadsLTR] and
 // related constants.
+//
+// Consider also [Renderer.ScanlinesSharp]().
 func (r *Renderer) WaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dir float64) {
 	if minFillRate > maxFillRate {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{minFillRate, maxFillRate})

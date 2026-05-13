@@ -50,6 +50,7 @@ const (
 
 const unknownWarningPrefix = "unknown warning"
 
+// Message returns a basic description of the warning.
 func (w Warning) Message() string {
 	switch w {
 	case WarnMissingSourceOpSkipped:
@@ -145,8 +146,9 @@ func NewWarningLogOnceHandler() func(Warning, any, bool) {
 }
 
 // SetHandler allows setting a custom handler for warnings.
-// 'value' is the exact value that triggered the warning. Most often an int,
-// float32 or float64 (but might also be nil).
+//
+// value is the exact value that triggered the warning. This is most often an int,
+// float32 or float64, but can also be nil or an array.
 //
 // See [NewWarningPanicHandler]() and [NewWarningLogOnceHandler]() for reference
 // implementations.
@@ -161,18 +163,24 @@ func (w *Warnings) report(warning Warning, value any) {
 	w.reports |= warning
 }
 
+// HasAny returns whether any warning has been issued since creation or the last
+// [Warnings.Reset]().
 func (w *Warnings) HasAny() bool {
 	return w.reports != 0
 }
 
+// Has returns whether the given warning has been issued since creation or the last
+// [Warnings.Reset]().
 func (w *Warnings) Has(warning Warning) bool {
 	return w.reports&warning != 0
 }
 
+// Reset clears the reports history.
 func (w *Warnings) Reset() {
 	w.reports = 0
 }
 
+// All iterates all issued warnings in consistent order.
 func (w *Warnings) All() iter.Seq[Warning] {
 	return allWarnings(w.reports)
 }
