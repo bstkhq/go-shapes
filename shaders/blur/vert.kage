@@ -7,25 +7,25 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	radius := customVAs[0]
 	tint := customVAs[1]
 
-	accColor := imageSrc0At(sourceCoords)
-	accWeight := 1.0
-
 	sigma := radius / 3.0
 	sigma2 := 2.0 * sigma * sigma
 	if sigma2 <= 0.001 {
+		accColor := imageSrc0At(sourceCoords)
 		return mix(accColor, color*accColor.a, tint)
 	}
 
-	for y := 1.0; y < MaxRadius; y += 1.0 {
-		if y > radius {
+	var accColor vec4
+	var accWeight float
+	offset := MaxRadius - floor(radius)
+	for rd := -MaxRadius; rd <= MaxRadius; rd += 1.0 {
+		d := rd + offset
+		if d > radius {
 			break
 		}
 
-		topClr := imageSrc0At(vec2(sourceCoords.x, sourceCoords.y-y))
-		bottomClr := imageSrc0At(vec2(sourceCoords.x, sourceCoords.y+y))
-		factor := exp(-(y * y) / sigma2)
-		accColor += (topClr + bottomClr) * factor
-		accWeight += 2.0 * factor
+		factor := exp(-(d * d) / sigma2)
+		accColor += imageSrc0At(vec2(sourceCoords.x, sourceCoords.y+d)) * factor
+		accWeight += factor
 	}
 
 	accColor /= accWeight

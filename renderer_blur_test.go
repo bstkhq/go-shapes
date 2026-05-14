@@ -63,12 +63,9 @@ func TestBlur2(t *testing.T) {
 		}
 		ctx.Renderer.Blur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
 		if ctx.SpacePressed {
-			// NOTE: there are still differences between blur and blur2, as can be
-			// seen here, though they are fairly small. I tested many things, but
-			// I can't see where it comes from. Floating point precision loss is the
-			// most likely candidate, alongside gamma/linearization, but even individual
-			// horz/vert blurs have differences, which is the suspicious part. short on
-			// both directions, slightly offset on vertical (see TestApplyDirBlur)
+			// NOTE: there are still differences between blur and blur2, due to colors
+			// being quantized to RGBA8 in the middle of the blur2 process. This causes
+			// a precision loss that's unavoidable without higher depth textures
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
 			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx+radius, ly-radius, r, r)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver

@@ -80,58 +80,34 @@ func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzR
 	r.blurHorz(target, tmp, ox, oy-ceilVertRadius, horzRadius)
 }
 
-// blurVert applies a 1D vertical blur pass of the given radius, which can't exceed 32.
-//
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) blurVert(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
-
 	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	ceilRadius := ceilF32(radius)
 	r.setDstRectCoords(ox, oy-ceilRadius, ox+sw, oy+sh+ceilRadius)
 	r.setSrcRectCoords(sox, soy-ceilRadius, sox+sw, soy+sh+ceilRadius)
 	r.setFlatCustomVAs01(radius, r.tint)
 
-	// draw shader
 	r.opts.Images[0] = mask
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurVert.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
-// blurHorz applies a 1D horizontal blur pass of the given radius, which can't exceed 32.
-//
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) blurHorz(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
-		return
-	}
-	radius = r.warnClampNonNegArgF32(radius, 32, WarnRadiusClamped)
-
-	srcBounds := mask.Bounds()
+	sox, soy, sw, sh := rectOriginSizeF32(mask.Bounds())
 	ceilRadius := ceilF32(radius)
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	minX, minY := ox-ceilRadius, oy
-	maxX, maxY := ox+srcWidth+ceilRadius, oy+srcHeight
-	r.setDstRectCoords(minX, minY, maxX, maxY)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX-ceilRadius, srcMinY, srcMaxX+ceilRadius, srcMaxY)
+	r.setDstRectCoords(ox-ceilRadius, oy, ox+sw+ceilRadius, oy+sh)
+	r.setSrcRectCoords(sox-ceilRadius, soy, sox+sw+ceilRadius, soy+sh)
 	r.setFlatCustomVAs01(radius, r.tint)
 
-	// draw shader
 	r.opts.Images[0] = mask
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurHorz.Load(), &r.opts)
 	r.opts.Images[0] = nil
 }
 
-// BlurK is a separable multipass blur with fixed radius and optional downscaling.
-// See [KernelOptions] for more details.
+// BlurK is the fixed kernel version of [Renderer.Blur2](). See [KernelOptions] for more
+// details.
 //
 // This operation is affected by [Renderer.Tint].
 //

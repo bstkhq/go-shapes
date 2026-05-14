@@ -1,69 +1,47 @@
 package shapes
 
 import (
+	"fmt"
+	"image"
 	"image/color"
-	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestGlow2$ . -count 1
 func TestGlow2(t *testing.T) {
-	updater := func(TestAppCtx) {}
+	updater := func(ctx TestAppCtx) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+			ctx.Renderer.SetTint(1.0 - ctx.Renderer.Tint())
+		}
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.Glow2(canvas, ctx.Images[0], lx, ly, 16, 16, 0.4, 0.7)
+		ctx.DrawAtF32(canvas, ctx.Images[1], lx, ly)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
+			ctx.Renderer.Blur2(canvas, ctx.Images[1], lx, ly, 16, 16)
+		} else {
+			ctx.Renderer.Glow2(canvas, ctx.Images[1], lx, ly, 16, 16, 0.4, 0.7)
+		}
 
 		rx, ry := ctx.RightClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
-		ctx.Renderer.SetTint(1)
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
 		vertRadius := float32(16.0)
 		if ctx.SpacePressed {
 			vertRadius = float32(ctx.DistAnim(16.0, 0.5))
 		}
-		ctx.Renderer.Glow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius, 0.5, 0.6)
-		ctx.Renderer.SetTint(0)
-	}
-
-	app := NewTestApp(updater, drawer)
-	const s, m = 96, 16
-	cross := ebiten.NewImage(s, s)
-	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
-	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
-	app.Images = append(app.Images, cross)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestGlowHorz$ . -count 1
-func TestGlowHorz(t *testing.T) {
-	updater := func(TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.glowHorz(canvas, ctx.Images[0], lx, ly, 16, 0.4, 0.5)
-
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
-		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
-		ctx.Renderer.SetTint(1)
-		dynRadius := float32(ctx.DistAnim(6, 2.0))
-		if ctx.SpacePressed {
-			ctx.Renderer.Glow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0, 0.5, 0.6)
+		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius)
 		} else {
-			ctx.Renderer.glowHorz(canvas, ctx.Images[0], rx, ry, 10+dynRadius, 0.5, 0.6)
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius, 0.5, 0.6)
 		}
-		ctx.Renderer.SetTint(0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -72,46 +50,9 @@ func TestGlowHorz(t *testing.T) {
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
 	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
 	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
-	app.Images = append(app.Images, cross)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestGlowDarkHorz$ . -count 1
-func TestGlowDarkHorz(t *testing.T) {
-	updater := func(TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.White)
-
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-		ctx.Renderer.glowDarkHorz(canvas, ctx.Images[0], lx, ly, 16, 0.5, 0.01)
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly+120)
-
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry)
-		dynRadius := float32(ctx.DistAnim(16, 4.0))
-		ctx.Renderer.SetColor(color.RGBA{64, 0, 0, 255})
-		ctx.Renderer.SetTint(1)
-		ctx.Renderer.glowDarkHorz(canvas, ctx.Images[1], rx, ry, dynRadius, 1, 0.5)
-		ctx.Renderer.SetTint(0)
-		_, h := rectSizeF32(ctx.Images[1].Bounds())
-		ctx.Renderer.blurHorz(canvas, ctx.Images[1], rx, ry-h-h/16, dynRadius)
-		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry-h-h/16)
-	}
-
-	const s, m = 96, 16
-	app := NewTestApp(updater, drawer)
-	cross := ebiten.NewImage(s, s)
-	app.Renderer.SetColor(color.RGBA{0, 0, 128, 255})
-	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
-	img := ebiten.NewImage(s, s)
-	app.Renderer.SetColor(color.RGBA{0, 0, 0, 255})
-	gradientOpts := GradientOpts(color.RGBA{255, 255, 255, 255}, color.RGBA{128, 0, 0, 255}, false)
-	app.Renderer.Gradient(img, gradientOpts, math.Pi/2)
-	app.Images = append(app.Images, img, cross)
+	app.Renderer.SetColor(color.RGBA{96, 120, 0, 255}, 2, 3)
+	circ := app.Renderer.NewFilledCircle(96)
+	app.Images = append(app.Images, cross, circ)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -227,4 +168,140 @@ func TestGlowColorK(t *testing.T) {
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// go test -run ^TestGlowCompare$ . -count 1
+func TestGlowCompare(t *testing.T) {
+	modes := []string{"none", "std", "color", "dark"}
+	mode := 0
+	horzRadius := float32(16.0)
+	vertRadius := float32(16.0)
+
+	motionAnim := false
+	intensityAnim := false
+	backColors := []color.RGBA{{255, 255, 255, 255}, {128, 128, 128, 128}, {128, 64, 0, 128}}
+	rendererColors := []color.RGBA{{255, 255, 255, 255}, {64, 192, 255, 255}, {192, 192, 192, 192}, {192, 192, 0, 192}}
+	backColorIdx := 0
+	rendererClrIdx := 0
+
+	updater := func(ctx TestAppCtx) {
+		mode = updateParam(ctx, ebiten.KeyM, mode, 0, 3, 1)
+		backColorIdx = updateParam(ctx, ebiten.KeyB, backColorIdx, 0, 2, 1)
+		rendererClrIdx = updateParam(ctx, ebiten.KeyR, rendererClrIdx, 0, 3, 1)
+		horzRadius = float32(int(updateParam(ctx, ebiten.KeyH, horzRadius, 0, 32, 1.0)))
+		vertRadius = float32(int(updateParam(ctx, ebiten.KeyU, vertRadius, 0, 32, 1.0)))
+
+		if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+			motionAnim = !motionAnim
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+			ctx.Renderer.SetTint(1.0 - ctx.Renderer.Tint())
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyI) {
+			intensityAnim = !intensityAnim
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		cwi, chi := rectSize(canvas.Bounds())
+		cw, ch := rectSizeF32(canvas.Bounds())
+		Paint(canvas, image.Rect(0, 0, cwi, chi/2), [4]float32{0, 0, 0, 1}, ebiten.BlendCopy)
+		Paint(canvas, image.Rect(0, chi/2, cwi, chi), RGBAF32(backColors[backColorIdx]), ebiten.BlendCopy)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+
+		info := fmt.Sprintf(
+			"Back color: %v [B]\nRenderer color: %v [R]\nMode: %s [M]\nHorz/Vert Radius: %.02f / %.02f [H / U]\nTint: %.02f [T]\nMotionAnim: %t [A]\nIntensityAnim: %t [I]",
+			backColors[backColorIdx], rendererColors[rendererClrIdx], modes[mode], horzRadius, vertRadius, ctx.Renderer.Tint(), motionAnim, intensityAnim,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		x0, y0 := CTR.Adjust(ctx.Images[0], cw*0.25, ch*0.25)
+		x1, y1 := CTR.Adjust(ctx.Images[1], cw*0.75, ch*0.25)
+		x2, y2 := CTR.Adjust(ctx.Images[2], cw*0.25, ch*0.75)
+		x3, y3 := CTR.Adjust(ctx.Images[3], cw*0.75, ch*0.75)
+		hRadius, vRadius := horzRadius, vertRadius
+		if motionAnim {
+			xAnim, yAnim := float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666))
+			x0, x1, x2, x3 = x0+xAnim, x1+xAnim, x2+xAnim, x3+xAnim
+			y0, y1, y2, y3 = y0+yAnim, y1+yAnim, y2+yAnim, y3+yAnim
+			hRadius -= float32(ctx.DistAnim(1.0, 0.6))
+			vRadius -= float32(ctx.DistAnim(1.0, 0.8))
+		}
+
+		if ctx.SpacePressed {
+			ctx.Renderer.SetColor(rendererColors[rendererClrIdx])
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius)
+			return
+		}
+
+		ctx.DrawAtF32(canvas, ctx.Images[0], x0, y0)
+		ctx.DrawAtF32(canvas, ctx.Images[1], x1, y1)
+		ctx.DrawAtF32(canvas, ctx.Images[2], x2, y2)
+		ctx.DrawAtF32(canvas, ctx.Images[3], x3, y3)
+		ctx.Renderer.SetColor(rendererColors[rendererClrIdx])
+		if intensityAnim {
+			ctx.Renderer.ScaleAlphaBy(float32(ctx.DistAnim(1.0, 1.0)))
+		}
+		switch mode {
+		case 1: // std
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, 0.4, 1.0)
+		case 2: // color
+			rgb := [3]float32{1, 0, 1}
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, rgb, 0.4, 1.0)
+		case 3: // dark
+			if ebiten.IsKeyPressed(ebiten.KeyD) {
+				ctx.Renderer.Options().Blend = BlendSubtract
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyF) {
+				ctx.Renderer.Options().Blend = BlendMultiply
+			}
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	circ := app.Renderer.NewFilledCircle(96.0)
+	darkCirc := app.Renderer.NewFilledCircle(96.0)
+	app.Renderer.Options().Blend = ebiten.BlendSourceIn
+	gradientOpts := GradientOpts(color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255}, false)
+	app.Renderer.Gradient(circ, gradientOpts, DirRadsLTR)
+	gradientOpts = GradientOpts(color.RGBA{255, 128, 64, 255}, color.RGBA{0, 0, 0, 255}, false)
+	app.Renderer.Gradient(darkCirc, gradientOpts, DirRadsTLBR)
+	app.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+	cross := ebiten.NewImage(128, 128)
+	darkCross := ebiten.NewImage(128, 128)
+	app.Renderer.SetColorF32(1.0, 0.75, 0.5, 1.0, 0, 1)
+	app.Renderer.StrokeLine(cross, 128/2.0, 8.0, 128/2.0, 128.0-8.0, 6.0)
+	swapDiagColors(app.Renderer)
+	app.Renderer.StrokeLine(cross, 8.0, 128/2.0, 128.0-8.0, 128/2.0, 6.0)
+	app.Renderer.SetColorF32(0.0, 0.0, 0.0, 1.0, 0, 1)
+	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
+	app.Renderer.StrokeLine(darkCross, 128/2.0, 8.0, 128/2.0, 128.0-8.0, 6.0)
+	swapDiagColors(app.Renderer)
+	app.Renderer.StrokeLine(darkCross, 8.0, 128/2.0, 128.0-8.0, 128/2.0, 6.0)
+	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Images = append(app.Images, circ, cross, darkCross, darkCirc)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func swapDiagColors(r *Renderer) {
+	r1, g1, b1, a1 := r.vertices[1].ColorR, r.vertices[1].ColorG, r.vertices[1].ColorB, r.vertices[1].ColorA
+	r3, g3, b3, a3 := r.vertices[3].ColorR, r.vertices[3].ColorG, r.vertices[3].ColorB, r.vertices[3].ColorA
+	r.vertices[1].ColorR, r.vertices[1].ColorG, r.vertices[1].ColorB, r.vertices[1].ColorA = r3, g3, b3, a3
+	r.vertices[3].ColorR, r.vertices[3].ColorG, r.vertices[3].ColorB, r.vertices[3].ColorA = r1, g1, b1, a1
 }

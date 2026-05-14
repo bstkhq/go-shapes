@@ -1,6 +1,8 @@
 //kage:unit pixels
 package main
 
+var RGB vec3
+
 func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
@@ -12,7 +14,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	sigma := radius / 3.0
 	sigma2 := 2.0 * sigma * sigma
 	if sigma2 <= 0.001 {
-		accColor := multByDark(imageSrc0At(sourceCoords), startThreshold, endThreshold)
+		accColor := multBySim(imageSrc0At(sourceCoords), RGB, startThreshold, endThreshold)
 		return mix(accColor*color.a, color*accColor.a, tint)
 	}
 
@@ -26,8 +28,8 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 		}
 
 		factor := exp(-(d * d) / sigma2)
-		clr := imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y))
-		accColor += multByDark(clr, startThreshold, endThreshold) * factor
+		clr := imageSrc0At(vec2(sourceCoords.x, sourceCoords.y+d))
+		accColor += multBySim(clr, RGB, startThreshold, endThreshold) * factor
 		accWeight += factor
 	}
 
@@ -35,7 +37,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	return mix(accColor*color.a, color*accColor.a, tint)
 }
 
-func multByDark(clr vec4, startThreshold, endThreshold float) vec4 {
-	luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114))
-	return clr * smoothstep(-startThreshold, -endThreshold, -luminance)
+func multBySim(clr vec4, rgb vec3, startThreshold, endThreshold float) vec4 {
+	similarity := 1.0 - (distance(clr.rgb, rgb) / 1.73205)
+	return clr * smoothstep(startThreshold, endThreshold, similarity)
 }

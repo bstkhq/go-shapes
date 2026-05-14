@@ -5,35 +5,37 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxRadius = 32.0
 
 	radius := customVAs[0]
-	loThreshold := customVAs[1]
-	hiThreshold := customVAs[2]
+	startThreshold := customVAs[1]
+	endThreshold := customVAs[2]
+	tint := customVAs[3]
 
-	accColor := vec4(0.0)
-	accWeight := 0.0
-	if radius < 0.001 {
-		accColor = imageSrc0At(sourceCoords)
-		accWeight = 1.0
-	} else {
-		sigma := radius / 3.0
-		sigma2 := 2.0 * sigma * sigma
-		srcCoords := floor(sourceCoords) + vec2(0.5)
-		for x := 0.0; x < MaxRadius*2; x += 1.0 {
-			if x > radius*2 {
-				break
-			}
-			sample := floor(vec2(srcCoords.x-radius+x, srcCoords.y)) + vec2(0.5)
-			clr := imageSrc0At(sample)
-			dist := abs(srcCoords.x - sample.x)
-			if dist <= radius {
-				luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114)) // NOTE: this only works on gamma-encoded sRGB
-				lumFactor := smoothstep(loThreshold, hiThreshold, luminance)
-				factor := exp(-(dist * dist) / sigma2)
-				accColor += clr * factor * lumFactor
-				accWeight += factor
-			}
+	sigma := radius / 3.0
+	sigma2 := 2.0 * sigma * sigma
+	if sigma2 <= 0.001 {
+		accColor := multByLight(imageSrc0At(sourceCoords), startThreshold, endThreshold)
+		return mix(accColor*color.a, color*accColor.a, tint)
+	}
+
+	var accColor vec4
+	var accWeight float
+	offset := MaxRadius - floor(radius)
+	for rd := -MaxRadius; rd <= MaxRadius; rd += 1.0 {
+		d := rd + offset
+		if d > radius {
+			break
 		}
+
+		factor := exp(-(d * d) / sigma2)
+		clr := imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y))
+		accColor += multByLight(clr, startThreshold, endThreshold) * factor
+		accWeight += factor
 	}
 
 	accColor /= accWeight
-	return mix(accColor*color.a, color*accColor.a, customVAs[3])
+	return mix(accColor*color.a, color*accColor.a, tint)
+}
+
+func multByLight(clr vec4, startThreshold, endThreshold float) vec4 {
+	luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114)) // NOTE: this only works on gamma-encoded sRGB
+	return clr * smoothstep(startThreshold, endThreshold, luminance)
 }

@@ -181,7 +181,7 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	r.setSrcRectCoords(sx, oy32, sx+w32, oy32+h32)
 	r.opts.Blend = ebiten.BlendCopy
 	r.opts.Images[0] = mask
-	r.opts.Uniforms["KernelLen"] = opts.HorzKernel.Size()
+	r.opts.Uniforms["Radius"] = opts.HorzKernel.Radius()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.HorzKernel]
 	invokeShader(tmp) // set VAs, more uniforms, invoke shader and clear(r.opts.Uniforms) if needed
 
@@ -194,7 +194,7 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	if lighterBlend {
 		r.opts.Blend = ebiten.BlendLighter
 	}
-	r.opts.Uniforms["KernelLen"] = opts.VertKernel.Size()
+	r.opts.Uniforms["Radius"] = opts.VertKernel.Radius()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
 	r.opts.Images[0] = tmp
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderKernVertFinish.Load(), &r.opts)
@@ -211,12 +211,12 @@ func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64,
 	r.setSrcRectCoords(float32(-halfHorzMargin), float32(0), float32(downW64+halfHorzMargin)+2, float32(downH64)+2)
 	r.opts.Blend = ebiten.BlendCopy
 	r.opts.Images[0] = down
-	r.opts.Uniforms["KernelLen"] = opts.HorzKernel.Size()
+	r.opts.Uniforms["Radius"] = opts.HorzKernel.Radius()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.HorzKernel]
 	invokeShader(dkernHorz) // set VAs, more uniforms, invoke shader and clear(r.opts.Uniforms) if needed
 
 	// apply vert blur kern
-	r.opts.Uniforms["KernelLen"] = opts.VertKernel.Size()
+	r.opts.Uniforms["Radius"] = opts.VertKernel.Radius()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
 	r.setDstRectCoords(0, 0, float32(dkernW64)+2, float32(dkernH64)+2)
 	r.setSrcRectCoords(0, float32(-halfVertMargin), float32(dkernW64)+2, float32(downH64+halfVertMargin)+2)

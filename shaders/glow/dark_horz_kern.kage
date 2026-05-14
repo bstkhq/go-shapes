@@ -18,13 +18,13 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 			break
 		}
 		clr := imageSrc0At(sourceCoords + vec2(float(radius), 0))
-		accColor += multByLight(clr, startThreshold, endThreshold) * Kernel[abs(radius)]
+		accColor += multByDark(clr, startThreshold, endThreshold) * Kernel[abs(radius)]
 	}
 
 	return mix(accColor*color.a, color*accColor.a, customVAs[2])
 }
 
-func multByLight(clr vec4, startThreshold, endThreshold float) vec4 {
-	luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114)) // NOTE: this only works on gamma-encoded sRGB
-	return clr * smoothstep(startThreshold, endThreshold, luminance)
+func multByDark(clr vec4, startThreshold, endThreshold float) vec4 {
+	luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114))
+	return clr * smoothstep(-startThreshold, -endThreshold, -luminance)
 }

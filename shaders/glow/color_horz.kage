@@ -2,39 +2,42 @@
 package main
 
 var RGB vec3
-var KernelLen int
-var Kernel [16]float // 1D kernel, center and one side, since gaussian kernels are symmetrical
 
-func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	srcCoords := floor(sourceCoords) + vec2(0.5)
-	loThresh, hiThresh := customVAs[0], customVAs[1]
-	tint := customVAs[2]
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const MaxRadius = 32.0
 
-	accColor := multBySim(imageSrc0At(srcCoords), RGB, loThresh, hiThresh) * Kernel[0]
-	for offset := 1; offset < 16; offset += 1 {
-		if offset >= KernelLen {
-			break
-		}
-		left := vec2(srcCoords.x-float(offset), srcCoords.y)
-		right := vec2(srcCoords.x+float(offset), srcCoords.y)
-		clrLeft, clrRight := imageSrc0At(left), imageSrc0At(right)
-		accColor += multBySim(clrLeft, RGB, loThresh, hiThresh) * Kernel[offset]
-		accColor += multBySim(clrRight, RGB, loThresh, hiThresh) * Kernel[offset]
+	radius := customVAs[0]
+	startThreshold := customVAs[1]
+	endThreshold := customVAs[2]
+	tint := customVAs[3]
+
+	sigma := radius / 3.0
+	sigma2 := 2.0 * sigma * sigma
+	if sigma2 <= 0.001 {
+		accColor := multBySim(imageSrc0At(sourceCoords), RGB, startThreshold, endThreshold)
+		return mix(accColor*color.a, color*accColor.a, tint)
 	}
 
-	return mix(accColor, color*accColor.a, tint)
+	var accColor vec4
+	var accWeight float
+	offset := MaxRadius - floor(radius)
+	for rd := -MaxRadius; rd <= MaxRadius; rd += 1.0 {
+		d := rd + offset
+		if d > radius {
+			break
+		}
+
+		factor := exp(-(d * d) / sigma2)
+		clr := imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y))
+		accColor += multBySim(clr, RGB, startThreshold, endThreshold) * factor
+		accWeight += factor
+	}
+
+	accColor /= accWeight
+	return mix(accColor*color.a, color*accColor.a, tint)
 }
 
-func multBySim(clr vec4, rgb vec3, loThresh, hiThresh float) vec4 {
-	// note: quadratic approximations don't hold up well with loThresh close to zero
-	// diff := clr.rgb - rgb
-	// sqDist := dot(diff, diff)
-	// similarity := 1.0 - (sqDist / 3.0)
+func multBySim(clr vec4, rgb vec3, startThreshold, endThreshold float) vec4 {
 	similarity := 1.0 - (distance(clr.rgb, rgb) / 1.73205)
-	return clr * smoothstep(loThresh, hiThresh, similarity)
-}
-
-func linearStep(a, b, x float) float {
-	x = clamp(x, a, b)
-	return (x - a) / (b - a)
+	return clr * smoothstep(startThreshold, endThreshold, similarity)
 }

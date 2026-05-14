@@ -26,7 +26,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 		}
 
 		factor := exp(-(d * d) / sigma2)
-		clr := imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y))
+		clr := imageSrc0At(vec2(sourceCoords.x, sourceCoords.y+d))
 		accColor += multByDark(clr, startThreshold, endThreshold) * factor
 		accWeight += factor
 	}
