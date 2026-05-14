@@ -78,9 +78,10 @@ var gaussKernels = gaussSig3Kernels
 // using bicubic scaling is heavily recommended. At [DownscaleX4] the decision depends more
 // on the desired quality, effect and performance constraints.
 type KernelOptions struct {
-	Downscaling Downscaling
-	HorzKernel  GaussKernel
-	VertKernel  GaussKernel
+	Downscaling    Downscaling
+	HorzKernel     GaussKernel
+	VertKernel     GaussKernel
+	clearOffscreen bool
 
 	// Scaling options can be provided if defaults need to be overridden.
 	Scaling *ScaleOptions
@@ -130,8 +131,8 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	// get offscreens and smart clears
 	downImgWidth, downImgHeight := math.Ceil(downW64)+2, math.Ceil(downH64)+2
 	dkernImgWidth, dkernImgHeight := math.Ceil(dkernW64)+2, math.Ceil(dkernH64)+2
-	dkern, _ := r.getTemp(0, int(dkernImgWidth), int(dkernImgHeight), false) // get first as the biggest offscreen
-	down, _ := r.getTemp(0, int(downImgWidth), int(downImgHeight), false)    // shared with dkern
+	dkern, _ := r.getTemp(0, int(dkernImgWidth), int(dkernImgHeight), false)            // get first as the biggest offscreen
+	down, _ := r.getTemp(0, int(downImgWidth), int(downImgHeight), opts.clearOffscreen) // shared with dkern
 	dkernHorz, _ := r.getTemp(1, int(dkernImgWidth), int(downImgHeight), false)
 	preBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendClear
@@ -171,7 +172,7 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	ceilHRadius := float32(horzKernelLen)
 	ox32, oy32, w32, h32 := rectOriginSizeF32(mask.Bounds())
 	w32 += float32(horzKernelLen + horzKernelLen)
-	tmp, _ := r.getTemp(0, int(w32), int(h32), false)
+	tmp, _ := r.getTemp(0, int(w32), int(h32), opts.clearOffscreen)
 	preBlend := r.opts.Blend
 
 	// apply horz kern shader
