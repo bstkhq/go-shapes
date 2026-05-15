@@ -472,13 +472,15 @@ func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, thickeni
 	clear(r.opts.Uniforms)
 }
 
-// FillRectSoft draws a rect like [Renderer.FillRect]() but with an extra softRadius,
-// which creates a shadow-like soft edge. This is ideal for batch rendering rect shadows
-// in UIs avoiding the more expensive raster-based blurs.
+// FillRectSoft2 draws a rect like [Renderer.FillRect]() but with a soft edge. This is
+// ideal for batch rendering rect shadows in UIs avoiding the more expensive raster-
+// based blurs.
 //
-// Rounding can be zero, positive for outwards rounding, or negative for inwards rounding.
-// SoftRadius extends beyond the boundary based on its sign.
-func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softRadius float32) {
+// Rounding can be zero, positive for outwards rounding, or negative for inwards
+// rounding. When positive, the soft radius will extend [-softEdge, +softEdge] around the
+// boundary, closely approximating a gaussian blur. When negative, the softening will
+// extend inwards [-softEdge, 0].
+func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softEdge float32) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -488,6 +490,7 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		oy -= h
 	}
 
+	// always make rounding negative (inwards)
 	if rounding > 0 {
 		r2 := rounding + rounding
 		w, h = w+r2, h+r2
@@ -496,50 +499,25 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		rounding = -rounding
 	}
 
-	if rounding+max(softRadius, 0) < -max(w, h)*2 {
+	// collapse case
+	if rounding+max(softEdge, 0) < -max(w, h)*2 {
 		return // ignore
+	}
+
+	var shader *ebiten.Shader
+	if softEdge > 0 {
+		rounding -= softEdge / 1.65 // empirical adjustment
+		shader = shaderRectSoftBlur.Load()
+	} else {
+		softEdge = -softEdge
+		shader = shaderRectSoftIn.Load()
 	}
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
-	r.opts.Uniforms["Rounding"] = -rounding
-	r.opts.Uniforms["SoftRadius"] = softRadius
-	margin := max(softRadius, 0)
-	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shaderRectSoft.Load())
-	clear(r.opts.Uniforms)
-}
-
-// FillRectBlur behaves similarly to [Renderer.FillRectSoft](), but accepts only non-negative
-// blur radiuses, and blurs around the boundary instead of before or after it.
-func (r *Renderer) FillRectBlur(target *ebiten.Image, ox, oy, w, h, rounding, blurRadius float32) {
-	blurRadius = warnZeroNegativeValue(r, blurRadius)
-
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-
-	if rounding > 0 {
-		r2 := rounding + rounding
-		w, h = w+r2, h+r2
-		ox -= rounding
-		oy -= rounding
-		rounding = -rounding
-	}
-
-	if rounding+blurRadius < -max(w, h)*2 {
-		return // ignore
-	}
-
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
-	r.opts.Uniforms["Rounding"] = -rounding
-	r.opts.Uniforms["BlurRadius"] = blurRadius
-	margins := NewMargins(blurRadius, blurRadius)
-	r.DrawRectShader(target, ox, oy, w, h, margins, shaderRectBlur.Load())
+	r.opts.Uniforms["InRounding"] = -rounding
+	r.opts.Uniforms["BlurRadius"] = softEdge
+	margin := max(softEdge, 0)
+	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shader)
 	clear(r.opts.Uniforms)
 }

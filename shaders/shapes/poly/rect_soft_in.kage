@@ -1,28 +1,21 @@
 //kage:unit pixels
 package main
 
-var Rounding float   // can only be zero or positive (inwards rounding)
-var SoftRadius float // can be zero, positive or negative
+var InRounding float // can only be zero or positive (inwards rounding)
+var BlurRadius float // can be zero or positive (inwards softening)
+
+// TODO: try to pass rounding and soft radius as origin, and remove origin in favor of sourceCoords?
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	origin := customVAs.xy
 	size := customVAs.zw
 
 	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
-	dist := distanceToRoundedRect(p, size.x, size.y, Rounding)
-	if SoftRadius > 0 {
-		dist = max(0, dist)
-	} else {
-		dist = min(0, dist)
-	}
+	dist := min(distanceToRoundedRect(p, size.x, size.y, InRounding), 0)
 
-	sigma := abs(SoftRadius) / 3.0
+	sigma := abs(BlurRadius) / 3.0
 	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
-	alpha := clamp(exp(-(dist*dist)/sigma2), 0, 1)
-	if SoftRadius <= 0 {
-		alpha = 1.0 - alpha
-	}
-
+	alpha := 1.0 - clamp(exp(-(dist*dist)/sigma2), 0, 1)
 	return color * alpha
 }
 

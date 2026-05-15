@@ -54,13 +54,13 @@ var shaderDrawTintBilinear = shaderRef{src: shaderDrawTintBilinearSrc}
 var shaderRectSrc []byte
 var shaderRect = shaderRef{src: shaderRectSrc}
 
-//go:embed shaders/shapes/poly/rect_soft.kage
-var shaderRectSoftSrc []byte
-var shaderRectSoft = shaderRef{src: shaderRectSoftSrc}
+//go:embed shaders/shapes/poly/rect_soft_in.kage
+var shaderRectSoftInSrc []byte
+var shaderRectSoftIn = shaderRef{src: shaderRectSoftInSrc}
 
-//go:embed shaders/shapes/poly/rect_blur.kage
-var shaderRectBlurSrc []byte
-var shaderRectBlur = shaderRef{src: shaderRectBlurSrc}
+//go:embed shaders/shapes/poly/rect_soft_blur.kage
+var shaderRectSoftBlurSrc []byte
+var shaderRectSoftBlur = shaderRef{src: shaderRectSoftBlurSrc}
 
 //go:embed shaders/shapes/poly/stroke_rect.kage
 var shaderStrokeRectSrc []byte

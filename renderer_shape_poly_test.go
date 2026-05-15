@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -506,34 +507,50 @@ func TestFillQuadSoft(t *testing.T) {
 
 // go test -run ^TestFillRectSoft$ . -count 1
 func TestFillRectSoft(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
+	const W, H = 128, 64
+	roundingSign := 0
+	softEdgeSign := 0
+
+	updater := func(ctx TestAppCtx) {
+		roundingSign = updateParam(ctx, ebiten.KeyR, roundingSign, -1, 1, 1)
+		softEdgeSign = updateParam(ctx, ebiten.KeyS, softEdgeSign, -1, 1, 1)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		cw, ch := rectSizeF32(canvas.Bounds())
 
-		rounding := float32(-32 + ctx.DistAnim(48, 1.0))
-		rounding2 := float32(-32 + ctx.DistAnim(48, 0.777))
-		soft := float32(-16.0 + ctx.DistAnim(32, 1.0))
+		rounding := float32(roundingSign) * float32(ctx.DistAnim(16.0, 1.000))
+		softEdge := float32(softEdgeSign) * float32(ctx.DistAnim(16.0, 0.666))
+
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		ctx.Renderer.FillRectSoft(canvas, cw/3-64, ch/3-32, 128, 64, rounding, soft)
-		ctx.Renderer.FillRectSoft(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2, 0.0)
+		info := fmt.Sprintf(
+			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
+			rounding, softEdge,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
-		const brW, brH = 128, 96
-		ox, oy := cw-cw/3-64, ch/3-32
-		brSoft := float32(ctx.DistAnim(16.0, 1.0))
-		if ctx.SpacePressed {
-			tmp := ctx.Renderer.UnsafeTemp(0, brW+96, brH+96, true)
-			ctx.Renderer.FillRect(tmp, 96/2, 96/2, brW, brH, rounding)
-			ctx.Renderer.Blur(canvas, tmp, ox-96/2, oy-96/2, brSoft)
-		} else {
-			ctx.Renderer.FillRectBlur(canvas, ox, oy, brW, brH, rounding, brSoft)
+		rect := image.Rect(0, 0, W, H)
+		ol := CTR.AdjustXY(rect, cw*0.25, ch*0.25)
+		or := CTR.AdjustXY(rect, cw*0.75, ch*0.25)
+		ctx.Renderer.FillRectSoft(canvas, ol.X, ol.Y, W, H, rounding, softEdge)
+
+		if softEdge >= 0 {
+			roundCeil := max(int(math.Ceil(float64(rounding))), 0)
+			tmpRect := ctx.Renderer.UnsafeTemp(0, W+roundCeil*2, H+roundCeil*2, true)
+			ctx.Renderer.FillRect(tmpRect, float32(roundCeil), float32(roundCeil), W, H, rounding)
+			or := CTR.AdjustXY(tmpRect, cw*0.75, ch*0.25)
+			ctx.Renderer.Blur(canvas, tmpRect, or.X, or.Y, softEdge)
+
+			cmpX, cmpY := cw*0.15, ch*0.65
+			if ctx.SpacePressed {
+				ctx.Renderer.Blur(canvas, tmpRect, cmpX-float32(roundCeil), cmpY-float32(roundCeil), softEdge)
+			} else {
+				ctx.Renderer.FillRectSoft(canvas, cmpX, cmpY, W, H, rounding, softEdge)
+			}
 		}
 
-		if ctx.SpacePressed {
-			ctx.Renderer.SetColorF32(1, 0, 0, 1)
-			ctx.Renderer.ScaleAlphaBy(0.333)
-			ctx.Renderer.FillRect(canvas, cw/3-64, ch/3-32, 128, 64, rounding)
-			ctx.Renderer.FillRect(canvas, cw-cw/3-64, ch-ch/3-32, 128, 64, rounding2)
-		}
+		ctx.Renderer.SetColorF32(0.25, 0, 0, 0.25)
+		ctx.Renderer.FillRect(canvas, ol.X, ol.Y, W, H, rounding)
+		ctx.Renderer.FillRect(canvas, or.X, or.Y, W, H, rounding)
 	}
 
 	app := NewTestApp(updater, drawer)
