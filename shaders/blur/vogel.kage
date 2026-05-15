@@ -28,9 +28,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 		accColor += imageSrc0At(sourceCoords + offset)
 	}
 
-	alpha := accColor.a / float(NumSamples)
-	out := mix(accColor/float(NumSamples), color*alpha, tint)
-	return out
+	accColor /= float(NumSamples)
+	return mix(accColor, color*accColor.a, tint)
 }
 
 func hash3A(xyz vec3) float {

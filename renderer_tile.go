@@ -21,14 +21,8 @@ func (r *Renderer) TileRectsGrid(target *ebiten.Image, inWidth, inHeight, outWid
 		r.Warnings.report(WarnNonPositiveValueOpSkipped, inWidth)
 		return
 	}
-	if inWidth < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inWidth)
-		inWidth = 0
-	}
-	if inHeight < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inHeight)
-		inHeight = 0
-	}
+	inWidth = warnZeroNegativeValue(r, inWidth)
+	inHeight = warnZeroNegativeValue(r, inHeight)
 	if (inWidth == 0 || inHeight == 0) && r.blendSafeToCrop() {
 		return
 	}
@@ -58,10 +52,7 @@ func (r *Renderer) TileDotsHex(target *ebiten.Image, radius, horzSpacing, xOffse
 		r.Warnings.report(WarnNonPositiveValueOpSkipped, horzSpacing)
 		return
 	}
-	if radius <= 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = warnZeroNegativeValue(r, radius)
 	if radius == 0 && r.blendSafeToCrop() {
 		return
 	}
@@ -83,10 +74,7 @@ func (r *Renderer) TileDotsGrid(target *ebiten.Image, radius, spacing, xOffset, 
 		r.Warnings.report(WarnNonPositiveValueOpSkipped, spacing)
 		return
 	}
-	if radius < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, radius)
-		radius = 0
-	}
+	radius = warnZeroNegativeValue(r, radius)
 	if radius == 0 && r.blendSafeToCrop() {
 		return
 	}
@@ -109,10 +97,7 @@ func (r *Renderer) TileTriUpGrid(target *ebiten.Image, inTriBase, outTriBase, xO
 		r.Warnings.report(WarnNonPositiveValueOpSkipped, outTriBase)
 		return
 	}
-	if inTriBase < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inTriBase)
-		inTriBase = 0
-	}
+	inTriBase = warnZeroNegativeValue(r, inTriBase)
 	if inTriBase == 0 && r.blendSafeToCrop() {
 		return
 	}
@@ -135,10 +120,7 @@ func (r *Renderer) TileTriHex(target *ebiten.Image, inTriBase, outTriBase, xOffs
 		r.Warnings.report(WarnNonPositiveValueOpSkipped, outTriBase)
 		return
 	}
-	if inTriBase < 0 {
-		r.Warnings.report(WarnNegativeValueZeroed, inTriBase)
-		inTriBase = 0
-	}
+	inTriBase = warnZeroNegativeValue(r, inTriBase)
 	if inTriBase == 0 && r.blendSafeToCrop() {
 		return
 	}

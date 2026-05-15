@@ -129,7 +129,9 @@ func NewTestApp(updater func(TestAppCtx), drawer func(canvas *ebiten.Image, ctx 
 }
 
 func (app *TestApp) Update() error {
-	app.Ticks += 1
+	if !ebiten.IsKeyPressed(ebiten.KeyPeriod) {
+		app.Ticks += 1
+	}
 	app.SpacePressed = ebiten.IsKeyPressed(ebiten.KeySpace)
 	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
