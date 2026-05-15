@@ -46,3 +46,36 @@ func TestStudyRadians(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// go test -run ^TestStudyGaussian$ . -count 1
+func TestStudyGaussian(t *testing.T) {
+	const Radius = 64.0
+	const H = 192.0
+	const Sigma = Radius / 3.0
+	const Sigma2 = 2.0 * Sigma * Sigma
+	const MarkerRadius = 2.0
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		w, h := rectSizeF64(canvas.Bounds())
+		canvas.Fill(color.Black)
+
+		gaussian := func(x float64) float32 {
+			return float32(H * math.Exp(-(x*x)/Sigma2))
+		}
+
+		cx, by := float32(w*0.5), float32(h*0.666)
+		ctx.Renderer.FillCircle(canvas, cx, by-gaussian(0.0), MarkerRadius)
+		for i := range 30 {
+			x := float64(i+1) * (Radius * 0.05)
+			y := gaussian(x)
+			ctx.Renderer.FillCircle(canvas, cx+float32(x), by-y, MarkerRadius)
+			ctx.Renderer.FillCircle(canvas, cx-float32(x), by-y, MarkerRadius)
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
