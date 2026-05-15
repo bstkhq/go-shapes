@@ -48,28 +48,28 @@ func TestStrokeCircle(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		const Radius = 72
 
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.FillCircle(canvas, lx, ly, Radius)
-		ctx.Renderer.FillCircle(canvas, rx, ry, Radius)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, Radius)
 
 		const MaxThickness = 16
 		thick := float32(ctx.DistAnim(MaxThickness, 1.0))
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.FillCircle(canvas, lx, ly, Radius-MaxThickness)
-		ctx.Renderer.FillCircle(canvas, rx, ry, Radius-MaxThickness)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-MaxThickness)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, Radius-MaxThickness)
 
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
 		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.StrokeCircle(canvas, lx, ly, Radius, thick)
-		ctx.Renderer.StrokeCircle(canvas, rx, ry, Radius, -thick)
+		ctx.Renderer.StrokeCircle(canvas, lc.X, lc.Y, Radius, thick)
+		ctx.Renderer.StrokeCircle(canvas, rc.X, rc.Y, Radius, -thick)
 
 		thick2 := float32(ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.StrokeCircle(canvas, lx, ry, 16, -thick2)
-		ctx.Renderer.StrokeCircle(canvas, rx, ly, thick2-8.0, 16.0)
+		ctx.Renderer.StrokeCircle(canvas, lc.X, rc.Y, 16, -thick2)
+		ctx.Renderer.StrokeCircle(canvas, rc.X, lc.Y, thick2-8.0, 16.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -82,20 +82,20 @@ func TestStrokeCircle(t *testing.T) {
 func TestDrawEllipse(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.FillCircle(canvas, lx, ly, 64.0)
-		ctx.Renderer.FillCircle(canvas, rx, ry, 32.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, 64.0)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, 32.0)
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.FillEllipse(canvas, lx, ly, 24.0, 64.0, ctx.RadsAnim(1.0))
-		ctx.Renderer.FillEllipse(canvas, rx, ry, 32.0, 16.0, 0)
+		ctx.Renderer.FillEllipse(canvas, lc.X, lc.Y, 24.0, 64.0, ctx.RadsAnim(1.0))
+		ctx.Renderer.FillEllipse(canvas, rc.X, rc.Y, 32.0, 16.0, 0)
 
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.FillCircle(canvas, lx, ly, 24.0)
-		ctx.Renderer.FillCircle(canvas, rx, ry, 16.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, 24.0)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, 16.0)
 	}
 
 	app := NewTestApp(updater, drawer)

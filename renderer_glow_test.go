@@ -20,17 +20,17 @@ func TestGlow2(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[1], lx, ly)
+		lc := ctx.LeftClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[1], lc.X, lc.Y)
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
-			ctx.Renderer.Blur2(canvas, ctx.Images[1], lx, ly, 16, 16)
+			ctx.Renderer.Blur2(canvas, ctx.Images[1], lc.X, lc.Y, 16, 16)
 		} else {
-			ctx.Renderer.Glow2(canvas, ctx.Images[1], lx, ly, 16, 16, 0.4, 0.7)
+			ctx.Renderer.Glow2(canvas, ctx.Images[1], lc.X, lc.Y, 16, 16, 0.4, 0.7)
 		}
 
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
+		rc := ctx.RightClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[0], rc.X, rc.Y)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		dynRadius := float32(ctx.DistAnim(6, 2.0))
 		vertRadius := float32(16.0)
@@ -38,9 +38,9 @@ func TestGlow2(t *testing.T) {
 			vertRadius = float32(ctx.DistAnim(16.0, 0.5))
 		}
 		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], rc.X, rc.Y, 10+dynRadius, vertRadius)
 		} else {
-			ctx.Renderer.Glow2(canvas, ctx.Images[0], rx, ry, 10+dynRadius, vertRadius, 0.5, 0.6)
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], rc.X, rc.Y, 10+dynRadius, vertRadius, 0.5, 0.6)
 		}
 	}
 
@@ -64,8 +64,8 @@ func TestApplyGlowK(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
+		lc := ctx.LeftClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[0], lc.X, lc.Y)
 		hkern, vkern := GaussK3, GaussK3
 		gRad := func(kern GaussKernel) float32 {
 			// NOTE: this still doesn't match because the edges are blurred/dilated
@@ -74,22 +74,22 @@ func TestApplyGlowK(t *testing.T) {
 			return min(radius, 16.0)
 		}
 		if ctx.SpacePressed {
-			ctx.Renderer.Glow2(canvas, ctx.Images[0], lx, ly, gRad(hkern), gRad(vkern), 0.2, 0.8)
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], lc.X, lc.Y, gRad(hkern), gRad(vkern), 0.2, 0.8)
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
-			ctx.Renderer.GlowK(canvas, ctx.Images[0], lx, ly, 0.2, 0.8, kOpts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[0], lc.X, lc.Y, 0.2, 0.8, kOpts)
 		}
 
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
+		rc := ctx.RightClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[0], rc.X, rc.Y)
 		ctx.Renderer.SetColor(color.RGBA{255, 192, 192, 255})
 		hkern, vkern = GaussK5, GaussK15
 		ctx.Renderer.SetTint(1.0)
 		if ctx.SpacePressed {
-			ctx.Renderer.Glow2(canvas, ctx.Images[0], rx, ry, gRad(hkern), gRad(vkern), 0.5, 0.6)
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], rc.X, rc.Y, gRad(hkern), gRad(vkern), 0.5, 0.6)
 		} else {
 			kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: hkern, VertKernel: vkern}
-			ctx.Renderer.GlowK(canvas, ctx.Images[0], rx, ry, 0.5, 0.6, kOpts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[0], rc.X, rc.Y, 0.5, 0.6, kOpts)
 		}
 		ctx.Renderer.SetTint(0)
 	}
@@ -149,12 +149,12 @@ func TestGlowColorK(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
+		lc := ctx.LeftClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[0], lc.X, lc.Y)
 		if !ctx.SpacePressed {
 			loThresh := 0.1 + ctx.DistAnim(0.4, 1.0)
 			kOpts := KernelOpts(DownscaleX4, GaussK7)
-			ctx.Renderer.GlowColorK(canvas, ctx.Images[0], lx, ly, RGBF32(color.RGBA{255, 255, 0, 255}), float32(loThresh), 1.0, kOpts)
+			ctx.Renderer.GlowColorK(canvas, ctx.Images[0], lc.X, lc.Y, RGBF32(color.RGBA{255, 255, 0, 255}), float32(loThresh), 1.0, kOpts)
 		}
 	}
 
@@ -214,53 +214,55 @@ func TestGlowCompare(t *testing.T) {
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
-		x0, y0 := CTR.Adjust(ctx.Images[0], cw*0.25, ch*0.25)
-		x1, y1 := CTR.Adjust(ctx.Images[1], cw*0.75, ch*0.25)
-		x2, y2 := CTR.Adjust(ctx.Images[2], cw*0.25, ch*0.75)
-		x3, y3 := CTR.Adjust(ctx.Images[3], cw*0.75, ch*0.75)
+		o0 := CTR.AdjustXY(ctx.Images[0], cw*0.25, ch*0.25)
+		o1 := CTR.AdjustXY(ctx.Images[1], cw*0.75, ch*0.25)
+		o2 := CTR.AdjustXY(ctx.Images[2], cw*0.25, ch*0.75)
+		o3 := CTR.AdjustXY(ctx.Images[3], cw*0.75, ch*0.75)
 		hRadius, vRadius := horzRadius, vertRadius
 		if motionAnim {
-			xAnim, yAnim := float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666))
-			x0, x1, x2, x3 = x0+xAnim, x1+xAnim, x2+xAnim, x3+xAnim
-			y0, y1, y2, y3 = y0+yAnim, y1+yAnim, y2+yAnim, y3+yAnim
+			animOffset := PtF32(float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666)))
+			o0 = o0.Add(animOffset)
+			o1 = o1.Add(animOffset)
+			o2 = o2.Add(animOffset)
+			o3 = o3.Add(animOffset)
 			hRadius = max(hRadius-float32(ctx.DistAnim(1.0, 0.6)), 0)
 			vRadius = max(vRadius-float32(ctx.DistAnim(1.0, 0.8)), 0)
 		}
 
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColor(rendererColors[rendererClrIdx])
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius)
-			ctx.Renderer.Blur2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius)
-			ctx.Renderer.Blur2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius)
-			ctx.Renderer.Blur2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], o0.X, o0.Y, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[1], o1.X, o1.Y, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[2], o2.X, o2.Y, hRadius, vRadius)
+			ctx.Renderer.Blur2(canvas, ctx.Images[3], o3.X, o3.Y, hRadius, vRadius)
 			return
 		}
 
-		ctx.DrawAtF32(canvas, ctx.Images[0], x0, y0)
-		ctx.DrawAtF32(canvas, ctx.Images[1], x1, y1)
-		ctx.DrawAtF32(canvas, ctx.Images[2], x2, y2)
-		ctx.DrawAtF32(canvas, ctx.Images[3], x3, y3)
+		ctx.DrawAtF32(canvas, ctx.Images[0], o0.X, o0.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[1], o0.X, o0.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[2], o0.X, o0.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[3], o0.X, o0.Y)
 		ctx.Renderer.SetColor(rendererColors[rendererClrIdx])
 		if intensityAnim {
 			ctx.Renderer.ScaleAlphaBy(float32(ctx.DistAnim(1.0, 1.0)))
 		}
 		switch mode {
 		case 1: // std
-			ctx.Renderer.Glow2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, 0.4, 1.0)
-			ctx.Renderer.Glow2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, 0.4, 1.0)
-			ctx.Renderer.Glow2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, 0.4, 1.0)
-			ctx.Renderer.Glow2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[0], o0.X, o0.Y, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[1], o1.X, o1.Y, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[2], o2.X, o2.Y, hRadius, vRadius, 0.4, 1.0)
+			ctx.Renderer.Glow2(canvas, ctx.Images[3], o3.X, o3.Y, hRadius, vRadius, 0.4, 1.0)
 		case 2: // color
 			rgb := [3]float32{1, 0, 1}
-			ctx.Renderer.GlowColor2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, rgb, 0.4, 1.0)
-			ctx.Renderer.GlowColor2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, rgb, 0.4, 1.0)
-			ctx.Renderer.GlowColor2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, rgb, 0.4, 1.0)
-			ctx.Renderer.GlowColor2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[0], o0.X, o0.Y, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[1], o1.X, o1.Y, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[2], o2.X, o2.Y, hRadius, vRadius, rgb, 0.4, 1.0)
+			ctx.Renderer.GlowColor2(canvas, ctx.Images[3], o3.X, o3.Y, hRadius, vRadius, rgb, 0.4, 1.0)
 		case 3: // dark
-			ctx.Renderer.GlowDark2(canvas, ctx.Images[0], x0, y0, hRadius, vRadius, 0.5, 0.25)
-			ctx.Renderer.GlowDark2(canvas, ctx.Images[1], x1, y1, hRadius, vRadius, 0.5, 0.25)
-			ctx.Renderer.GlowDark2(canvas, ctx.Images[2], x2, y2, hRadius, vRadius, 0.5, 0.25)
-			ctx.Renderer.GlowDark2(canvas, ctx.Images[3], x3, y3, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[0], o0.X, o0.Y, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[1], o1.X, o1.Y, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[2], o2.X, o2.Y, hRadius, vRadius, 0.5, 0.25)
+			ctx.Renderer.GlowDark2(canvas, ctx.Images[3], o3.X, o3.Y, hRadius, vRadius, 0.5, 0.25)
 		}
 	}
 
@@ -345,20 +347,22 @@ func TestGlowKCompare(t *testing.T) {
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
-		x0, y0 := CTR.Adjust(ctx.Images[0], cw*0.25, ch*0.25)
-		x1, y1 := CTR.Adjust(ctx.Images[1], cw*0.75, ch*0.25)
-		x2, y2 := CTR.Adjust(ctx.Images[2], cw*0.25, ch*0.75)
-		x3, y3 := CTR.Adjust(ctx.Images[3], cw*0.75, ch*0.75)
+		o0 := CTR.AdjustXY(ctx.Images[0], cw*0.25, ch*0.25)
+		o1 := CTR.AdjustXY(ctx.Images[1], cw*0.75, ch*0.25)
+		o2 := CTR.AdjustXY(ctx.Images[2], cw*0.25, ch*0.75)
+		o3 := CTR.AdjustXY(ctx.Images[3], cw*0.75, ch*0.75)
 		if motionAnim {
-			xAnim, yAnim := float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666))
-			x0, x1, x2, x3 = x0+xAnim, x1+xAnim, x2+xAnim, x3+xAnim
-			y0, y1, y2, y3 = y0+yAnim, y1+yAnim, y2+yAnim, y3+yAnim
+			animOffset := PtF32(float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666)))
+			o0 = o0.Add(animOffset)
+			o1 = o1.Add(animOffset)
+			o2 = o2.Add(animOffset)
+			o3 = o3.Add(animOffset)
 		}
 
-		ctx.DrawAtF32(canvas, ctx.Images[0], x0, y0)
-		ctx.DrawAtF32(canvas, ctx.Images[1], x1, y1)
-		ctx.DrawAtF32(canvas, ctx.Images[2], x2, y2)
-		ctx.DrawAtF32(canvas, ctx.Images[3], x3, y3)
+		ctx.DrawAtF32(canvas, ctx.Images[0], o0.X, o0.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[1], o1.X, o1.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[2], o2.X, o2.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[3], o3.X, o3.Y)
 		ctx.Renderer.SetColorF32(0, 1, 1, 1)
 		if intensityAnim {
 			ctx.Renderer.ScaleAlphaBy(float32(ctx.DistAnim(1.0, 1.0)))
@@ -368,21 +372,21 @@ func TestGlowKCompare(t *testing.T) {
 		opts.VertKernel = vertKern
 		switch mode {
 		case 0: // std
-			ctx.Renderer.GlowK(canvas, ctx.Images[0], x0, y0, 0.5, 1.0, opts)
-			ctx.Renderer.GlowK(canvas, ctx.Images[1], x1, y1, 0.5, 1.0, opts)
-			ctx.Renderer.GlowK(canvas, ctx.Images[2], x2, y2, 0.5, 1.0, opts)
-			ctx.Renderer.GlowK(canvas, ctx.Images[3], x3, y3, 0.5, 1.0, opts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[0], o0.X, o0.Y, 0.5, 1.0, opts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[1], o1.X, o1.Y, 0.5, 1.0, opts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[2], o2.X, o2.Y, 0.5, 1.0, opts)
+			ctx.Renderer.GlowK(canvas, ctx.Images[3], o3.X, o3.Y, 0.5, 1.0, opts)
 		case 1: // color
 			rgb := [3]float32{1, 0, 1}
-			ctx.Renderer.GlowColorK(canvas, ctx.Images[0], x0, y0, rgb, 0.4, 1.0, opts)
-			ctx.Renderer.GlowColorK(canvas, ctx.Images[1], x1, y1, rgb, 0.4, 1.0, opts)
-			ctx.Renderer.GlowColorK(canvas, ctx.Images[2], x2, y2, rgb, 0.4, 1.0, opts)
-			ctx.Renderer.GlowColorK(canvas, ctx.Images[3], x3, y3, rgb, 0.4, 1.0, opts)
+			ctx.Renderer.GlowColorK(canvas, ctx.Images[0], o0.X, o0.Y, rgb, 0.4, 1.0, opts)
+			ctx.Renderer.GlowColorK(canvas, ctx.Images[1], o1.X, o1.Y, rgb, 0.4, 1.0, opts)
+			ctx.Renderer.GlowColorK(canvas, ctx.Images[2], o2.X, o2.Y, rgb, 0.4, 1.0, opts)
+			ctx.Renderer.GlowColorK(canvas, ctx.Images[3], o3.X, o3.Y, rgb, 0.4, 1.0, opts)
 		case 2: // dark
-			ctx.Renderer.GlowDarkK(canvas, ctx.Images[0], x0, y0, 0.5, 0.25, opts)
-			ctx.Renderer.GlowDarkK(canvas, ctx.Images[1], x1, y1, 0.5, 0.25, opts)
-			ctx.Renderer.GlowDarkK(canvas, ctx.Images[2], x2, y2, 0.5, 0.25, opts)
-			ctx.Renderer.GlowDarkK(canvas, ctx.Images[3], x3, y3, 0.5, 0.25, opts)
+			ctx.Renderer.GlowDarkK(canvas, ctx.Images[0], o0.X, o0.Y, 0.5, 0.25, opts)
+			ctx.Renderer.GlowDarkK(canvas, ctx.Images[1], o1.X, o1.Y, 0.5, 0.25, opts)
+			ctx.Renderer.GlowDarkK(canvas, ctx.Images[2], o2.X, o2.Y, 0.5, 0.25, opts)
+			ctx.Renderer.GlowDarkK(canvas, ctx.Images[3], o3.X, o3.Y, 0.5, 0.25, opts)
 		}
 	}
 

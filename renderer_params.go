@@ -1,9 +1,8 @@
 package shapes
 
 import (
+	"image"
 	"strconv"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // Margins are used in basic shader operations like [Renderer.DrawRectShader]
@@ -54,6 +53,10 @@ func (d Downscaling) Factor() int {
 	return int(1 << d)
 }
 
+type Bounded interface {
+	Bounds() image.Rectangle
+}
+
 // Origin is a helper type for adjusting draw coordinates based on a
 // source image origin anchor. See [Origin.Adjust] for more details.
 type Origin PointF32
@@ -71,28 +74,27 @@ var (
 	BR  = Origin{X: 1, Y: 1}     // bottom-right
 )
 
-// Adjust translates the given reference position from TL (top-left)
-// origin to o.
+// Adjust translates the given reference position from TL (top-left) origin to o. Common
+// argument types are [*ebiten.Image], [image.Rectangle] and [image.Image].
 //
-// For example, if we want to draw the bottom-right corner of an image
-// at X=60, Y=40, we adjust the coordinates like this:
+// For example, if we want to draw the bottom-right corner of an image at X=60, Y=40, we
+// adjust the coordinates like this:
 //
-//	x, y := shapes.BR.Adjust(src, 60, 40)
+//	x, y := shapes.BR.Adjust(src, shapes.PtF32(60, 40))
 //
 // See also [TC], [TR], [CTR] and others for more predefined constants.
-func (o Origin) Adjust(source *ebiten.Image, x, y float32) (float32, float32) {
-	if source == nil {
-		return 0, 0
-	}
-	w, h := rectSizeF32(source.Bounds())
-	return x - w*o.X, y - h*o.Y
+func (o Origin) Adjust(bounded Bounded, xy PointF32) PointF32 {
+	return o.AdjustXY(bounded, xy.X, xy.Y)
 }
 
-// AdjustQt is the same as [Origin.Adjust](), but rounds the results at the end.
-// This is useful when whole positions are required despite using centered origins.
-func (o Origin) AdjustQt(source *ebiten.Image, x, y float32) (float32, float32) {
-	x, y = o.Adjust(source, x, y)
-	return float32(int(x + 0.5)), float32(int(y + 0.5))
+// AdjustXY is an alternative form of [Origin.Adjust]() that accepts individual
+// coordinates instead of a [PointF32].
+func (o Origin) AdjustXY(bounded Bounded, x, y float32) PointF32 {
+	if bounded == nil {
+		return PointF32{}
+	}
+	w, h := rectSizeF32(bounded.Bounds())
+	return PtF32(x-w*o.X, y-h*o.Y)
 }
 
 // Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered], etc.

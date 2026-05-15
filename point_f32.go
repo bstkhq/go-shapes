@@ -1,6 +1,9 @@
 package shapes
 
-import "math"
+import (
+	"image"
+	"math"
+)
 
 // PointF32 is a helper type for operations with triangles, quads and paths like
 // [Renderer.FillTriangle](), [Renderer.FillQuad](), etc.
@@ -11,6 +14,11 @@ type PointF32 struct {
 // PtF32 is shorthand for PointF32{X: x, Y: y}.
 func PtF32(x, y float32) PointF32 {
 	return PointF32{X: x, Y: y}
+}
+
+// RoundInt rounds a PointF32 into an image.Point.
+func (p PointF32) RoundInt() image.Point {
+	return image.Pt(int(p.X+0.5), int(p.Y+0.5))
 }
 
 // Sub returns p - o.

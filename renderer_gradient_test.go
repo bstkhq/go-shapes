@@ -86,8 +86,8 @@ func TestGradientRadial(t *testing.T) {
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx-64, ly-64)
+		lc := ctx.LeftClickF32()
+		ctx.DrawAtF32(canvas, ctx.Images[0], lc.X-64, lc.Y-64)
 
 		_, _, cw, ch := rectOriginSize(canvas.Bounds())
 		halfsize := min(cw, ch) * 2 / 6

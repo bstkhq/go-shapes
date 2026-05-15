@@ -35,11 +35,11 @@ type TestAppCtx struct {
 	SpacePressed bool
 }
 
-func (ctx *TestAppCtx) LeftClickF32() (x, y float32) {
-	return float32(ctx.LeftClick.X), float32(ctx.LeftClick.Y)
+func (ctx *TestAppCtx) LeftClickF32() PointF32 {
+	return PtF32(float32(ctx.LeftClick.X), float32(ctx.LeftClick.Y))
 }
-func (ctx *TestAppCtx) RightClickF32() (x, y float32) {
-	return float32(ctx.RightClick.X), float32(ctx.RightClick.Y)
+func (ctx *TestAppCtx) RightClickF32() PointF32 {
+	return PtF32(float32(ctx.RightClick.X), float32(ctx.RightClick.Y))
 }
 func (ctx *TestAppCtx) LeftClickF64() (x, y float64) {
 	return float64(ctx.LeftClick.X), float64(ctx.LeftClick.Y)

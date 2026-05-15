@@ -17,11 +17,11 @@ func TestDrawAt(t *testing.T) {
 		setMaskFlagsAndTitle(ctx, flags)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		x, y := CTR.Adjust(ctx.Images[0], lx, ly)
-		y += -8.0 + float32(ctx.DistAnim(16, 1.0))
+		lc := ctx.LeftClickF32()
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		lc.Y += -8.0 + float32(ctx.DistAnim(16, 1.0))
 		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
-			ctx.Renderer.DrawAt(canvas, ctx.Images[0], x, y, 1.0, flags...)
+			ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0, flags...)
 		} else {
 			mark := image.Rectangle{Max: canvas.Bounds().Max}
 			mark.Min = mark.Max.Sub(image.Pt(16, 8))
@@ -31,23 +31,23 @@ func TestDrawAt(t *testing.T) {
 			if flags.Has(Bilinear) {
 				opts.Filter = ebiten.FilterLinear
 			}
-			opts.GeoM.Translate(float64(x), float64(y))
+			opts.GeoM.Translate(float64(lc.X), float64(lc.Y))
 			canvas.DrawImage(ctx.Images[0], &opts)
 		}
 
-		rx, ry := ctx.RightClickF32()
-		x, y = CTR.Adjust(ctx.Images[1], rx, ry)
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[1], rc)
 		ctx.Renderer.SetTint(0.5 + float32(ctx.DistAnim(0.5, 1.0)))
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
-		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags...)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rc.X, rc.Y, alpha, flags...)
 		ctx.Renderer.SetTint(0)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		alpha = float32(0.025 + ctx.DistAnim(0.025, 1.0))
 		ctx.Renderer.SetTint(1)
-		x, y = CTR.Adjust(ctx.Images[1], cw/2, ch/2)
-		y += float32(-4 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.DrawAt(canvas, ctx.Images[1], x, y, alpha, flags...)
+		o := CTR.AdjustXY(ctx.Images[1], cw/2, ch/2)
+		o.Y += float32(-4 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], o.X, o.Y, alpha, flags...)
 		ctx.Renderer.SetTint(0)
 	}
 

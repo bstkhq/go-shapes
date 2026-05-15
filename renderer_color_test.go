@@ -18,18 +18,18 @@ func TestFlatPaint(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetTint(1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
-		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
-		ctx.Renderer.DrawAt(canvas, ctx.Images[0], lx, ly, 1.0)
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
 		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
-		rx, ry = CTR.Adjust(ctx.Images[1], rx, ry)
-		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rx, ry, 1.0)
+		rc = CTR.Adjust(ctx.Images[1], rc)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rc.X, rc.Y, 1.0)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -117,17 +117,17 @@ func TestOklabShift(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		chromaShift := float32(0.3 - ctx.DistAnim(0.6, 0.4))
 		lightnessShift := float32(0.5 - ctx.DistAnim(1.0, 1.0))
 		hueShift := float32(ctx.ModAnim(2*math.Pi, 0.5))
 
-		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
-		ctx.Renderer.OklabShift(canvas, ctx.Images[0], lx, ly, lightnessShift, chromaShift, hueShift)
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.OklabShift(canvas, ctx.Images[0], lc.X, lc.Y, lightnessShift, chromaShift, hueShift)
 
-		rx, ry := ctx.RightClickF32()
-		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
-		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
+		ctx.DrawAtF32(canvas, ctx.Images[0], rc.X, rc.Y)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -152,18 +152,18 @@ func TestDitherMat4(t *testing.T) {
 			mat = combineDitherMat4(mat, DitherBayes)
 		}
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
 		anim := float32(ctx.DistAnim(1.0, 1.0))
 		yOffset := int(ctx.ModAnim(4.0, 1.0))
 		xOffset := 8 - int(ctx.DistAnim(16.0, 1.0))
-		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lx, ly, xOffset, yOffset, PaletteBW4, mat, anim, 0.0)
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lc.X, lc.Y, xOffset, yOffset, PaletteBW4, mat, anim, 0.0)
 
-		rx, ry := ctx.RightClickF32()
-		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, PaletteAlpha8, mat, 0.0, anim)
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rc.X, rc.Y, 0, 0, PaletteAlpha8, mat, 0.0, anim)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -198,15 +198,15 @@ func TestColorMix(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
-		lx, ly := ctx.LeftClickF32()
-		lx, ly = CTR.Adjust(ctx.Images[0], lx, ly)
-		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lx, ly, 0.5, lvl, flags...)
+		lc := ctx.LeftClickF32()
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lc.X, lc.Y, 0.5, lvl, flags...)
 
-		rx, ry := ctx.RightClickF32()
-		rx, ry = CTR.Adjust(ctx.Images[0], rx, ry)
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
 		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rx+offX, ry, alpha, lvl, flags...)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rc.X+offX, rc.Y, alpha, lvl, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)

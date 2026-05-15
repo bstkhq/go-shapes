@@ -16,9 +16,9 @@ func TestDrawShapes(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		lx, ly := ctx.LeftClickF64()
-		rx, ry := ctx.RightClickF64()
-		ctx.Renderer.StrokeLine(canvas, lx, ly, rx, ry, 6.0)
+		lcx, lcy := ctx.LeftClickF64()
+		rcx, rcy := ctx.RightClickF64()
+		ctx.Renderer.StrokeLine(canvas, lcx, lcy, rcx, rcy, 6.0)
 
 		x, y := float64(160), float64(40)
 		var points [3]PointF32
@@ -274,18 +274,18 @@ func TestFillHexagons(t *testing.T) {
 func TestFillRect(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		w1, h1 := float32(128), float32(48)
 		w2, h2 := float32(48), float32(128)
-		ctx.Renderer.FillRect(canvas, lx-w1/2, ly-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
-		ctx.Renderer.FillRect(canvas, rx-w2/2, ry-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.FillRect(canvas, lc.X-w1/2, lc.Y-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.FillRect(canvas, rc.X-w2/2, rc.Y-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 
 		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
-		ctx.Renderer.FillCircle(canvas, lx, ly, max(w1, h1)/2.0)
-		ctx.Renderer.FillCircle(canvas, rx, ry, max(w2, h2)/2.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, max(w1, h1)/2.0)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, max(w2, h2)/2.0)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
@@ -348,27 +348,27 @@ func TestFillRectPrecise(t *testing.T) {
 func TestStrokeIntRect(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClick.X, ctx.LeftClick.Y
+		lcx, lcy := ctx.LeftClick.X, ctx.LeftClick.Y
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.FillIntRect(canvas, RectWithSize(lx, ly, 200, 50), 0)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx-1, ly-1, 200+2, 50+2), 1, 0)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx-1, lcy-1, 200+2, 50+2), 1, 0)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 128, 0, 128})
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx, ly, 200, 50), 0, 1)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0, 1)
 
-		rx, ry := ctx.RightClick.X, ctx.RightClick.Y
+		rcx, rcy := ctx.RightClick.X, ctx.RightClick.Y
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rx, ry, 100, 50), 4, 4)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 4, 4)
 
 		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
-		ctx.Renderer.FillIntRect(canvas, RectWithSize(rx, ry, 100, 50), 0)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 0)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lx, ry, 80, 50), 8, 8)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, 80, 50), 8, 8)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -381,22 +381,22 @@ func TestStrokeIntRect(t *testing.T) {
 func TestStrokeRect(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.FillRect(canvas, lx, ly, 200, 50, 16)
+		ctx.Renderer.FillRect(canvas, lc.X, lc.Y, 200, 50, 16)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeRect(canvas, lx, ly, 200, 50, 0, 2, 16)
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 0, 2, 16)
 
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.StrokeRect(canvas, lx, ly, 200, 50, 2, 0, 16)
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 2, 0, 16)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeRect(canvas, rx, ry, 100, 50, 4, 4, 25)
+		ctx.Renderer.StrokeRect(canvas, rc.X, rc.Y, 100, 50, 4, 4, 25)
 
 		a := uint8(ctx.DistAnim(144.0, 1.0))
 		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
-		ctx.Renderer.FillIntRect(canvas, RectWithSize(int(rx), int(ry), 100, 50), 0)
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(int(rc.X), int(rc.Y), 100, 50), 0)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
@@ -404,7 +404,7 @@ func TestStrokeRect(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
 		extra := float32(ctx.DistAnim(16, 1.0))
 		subRounding := float32(ctx.DistAnim(20, 1.0))
-		ctx.Renderer.StrokeRect(canvas, lx, ry, 80+extra, 50, 8, 8, 25-subRounding)
+		ctx.Renderer.StrokeRect(canvas, lc.X, rc.Y, 80+extra, 50, 8, 8, 25-subRounding)
 
 		w, h := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
@@ -456,14 +456,14 @@ func TestFillRectRounding(t *testing.T) {
 func TestFillQuad(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		w, h := rectSizeF32(canvas.Bounds())
 		quad := [4]PointF32{
-			{X: lx, Y: ly},
+			{X: lc.X, Y: lc.Y},
 			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rx, Y: ry},
+			{X: rc.X, Y: rc.Y},
 			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))
@@ -480,14 +480,14 @@ func TestFillQuad(t *testing.T) {
 func TestFillQuadSoft(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		w, h := rectSizeF32(canvas.Bounds())
 		quad := [4]PointF32{
-			{X: lx, Y: ly},
+			{X: lc.X, Y: lc.Y},
 			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rx, Y: ry},
+			{X: rc.X, Y: rc.Y},
 			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
 		}
 		thickening := float32(ctx.DistAnim(48.0, 1.0))

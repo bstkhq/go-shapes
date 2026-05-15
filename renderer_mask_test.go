@@ -28,13 +28,13 @@ func TestMask(t *testing.T) {
 		ctx.Renderer.Mask(canvas, ctx.Images[4], ctx.Images[3], 16, ch-16-float32(ctx.Images[3].Bounds().Dy()), flags...)
 
 		// circle with slightly movement for bilinear testing
-		lx, ly := ctx.LeftClickF32()
-		ly += float32(-4 + ctx.DistAnim(8, 1.0))
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lx, ly, flags...)
+		lc := ctx.LeftClickF32()
+		lc.Y += float32(-4 + ctx.DistAnim(8, 1.0))
+		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lc.X, lc.Y, flags...)
 
 		// small rect mask scaling and dst space bilinear test
-		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rx, ry, flags...)
+		rc := ctx.RightClickF32()
+		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rc.X, rc.Y, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -62,9 +62,9 @@ func TestMaskAt(t *testing.T) {
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		dist := float32(ctx.DistAnim(256.0, 1.0))
-		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lx+dist, ly, lx, ly, flags...)
+		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lc.X+dist, lc.Y, lc.X, lc.Y, flags...)
 
 		_, ch := rectSizeF32(canvas.Bounds())
 		x, y := float32(16.0), ch-16-float32(ctx.Images[3].Bounds().Dy())
@@ -92,15 +92,15 @@ func TestMaskHorz(t *testing.T) {
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		x, _ := ebiten.CursorPosition()
 		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lx, ly+yShift, lx+256/2.0, float32(x), flags...)
+		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lc.X, lc.Y+yShift, lc.X+256/2.0, float32(x), flags...)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
-		xm, ym := CTR.Adjust(ctx.Images[1], cw/2, ch*2/3)
+		om := CTR.AdjustXY(ctx.Images[1], cw/2, ch*2/3)
 		i1w := float32(ctx.Images[1].Bounds().Dx())
-		ctx.Renderer.MaskHorz(canvas, ctx.Images[1], xm, ym, xm, xm+i1w, flags...)
+		ctx.Renderer.MaskHorz(canvas, ctx.Images[1], om.X, om.Y, om.X, om.X+i1w, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -123,13 +123,13 @@ func TestMaskCirc(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		hardRadius := 48.0 + float32(ctx.DistAnim(16.0, 0.25))
 		softEdge := float32(ctx.DistAnim(16.0, 1.0))
-		ox, oy := CTR.Adjust(ctx.Images[0], w/2, h/2)
-		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], ox, oy, w/2, h/2, hardRadius, softEdge, flags...)
+		o := CTR.AdjustXY(ctx.Images[0], w/2, h/2)
+		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], o.X, o.Y, w/2, h/2, hardRadius, softEdge, flags...)
 
-		lx, ly := ctx.LeftClickF32()
-		ox, oy = CTR.Adjust(ctx.Images[0], lx, ly)
+		lc := ctx.LeftClickF32()
+		o = CTR.AdjustXY(ctx.Images[0], lc.X, lc.Y)
 		circleYShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], ox, oy, lx, ly+circleYShift, 32, 16, flags...)
+		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], o.X, o.Y, lc.X, lc.Y+circleYShift, 32, 16, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -197,9 +197,9 @@ func TestBakeAlphaMaskRadial(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		ox, oy := w/2-Size/2, h/2-Size/2
 		if justClicked {
-			lx, ly := ctx.LeftClickF32()
+			lc := ctx.LeftClickF32()
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
-			ctx.Renderer.BakeAlphaMaskRadial(ctx.Images[1], lx-ox, ly-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
+			ctx.Renderer.BakeAlphaMaskRadial(ctx.Images[1], lc.X-ox, lc.Y-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 

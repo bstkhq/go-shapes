@@ -96,9 +96,9 @@ func TestMapQuadTilt(t *testing.T) {
 		cox, coy, cw, ch := rectOriginSizeF32(canvas.Bounds())
 		cx, cy := cox+cw/2, coy+ch/2
 		xOff := float32(-CardWidth/2 + math.Abs(tilt)*CardWidth/2)
-		lx, rx := cx+xOff, cx-xOff
+		lcx, rcx := cx+xOff, cx-xOff
 		ty, by := cy-CardHeight/2, cy+CardHeight/2
-		pts := [4]PointF32{{lx, ty}, {rx, ty}, {rx, by}, {lx, by}}
+		pts := [4]PointF32{{lcx, ty}, {rcx, ty}, {rcx, by}, {lcx, by}}
 
 		yOff := float32(tilt) * 15.00
 		pts[0].Y -= yOff

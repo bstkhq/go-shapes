@@ -19,12 +19,12 @@ func TestMorphExpansion(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 128, 128, 255})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius+expansion)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius+expansion)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		x := float32(ctx.DistAnim(float64(expansion), 1.0))
-		ctx.Renderer.MorphExpansion(canvas, ctx.Images[0], lx-radius, ly-radius, x)
+		ctx.Renderer.MorphExpansion(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, x)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -43,18 +43,18 @@ func TestMorphExpansionRect(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		expansion := float32(ctx.DistAnim(Expansion, 1.0))
-		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[0], lx-Radius, ly-Radius, expansion)
-		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[1], rx-Radius, ry-Radius, expansion)
+		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, expansion)
+		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[1], rc.X-Radius, rc.Y-Radius, expansion)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lx-Radius, ly-Radius)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lx-Radius-Expansion, ly-Radius-Expansion)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rx-Radius, ry-Radius)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rx-Radius-Expansion, ry-Radius-Expansion)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lc.X-Radius, lc.Y-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lc.X-Radius-Expansion, lc.Y-Radius-Expansion)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rc.X-Radius, rc.Y-Radius)
+		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rc.X-Radius-Expansion, rc.Y-Radius-Expansion)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -76,20 +76,20 @@ func TestMorphErosion(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius-erosion)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius-erosion)
 
 		r := float32(ctx.DistAnim(float64(erosion), 1.0))
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, r)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rx-128, ry-82, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rc.X-128, rc.Y-82, r)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -114,21 +114,21 @@ func TestMorphOutline(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius+thick/2+1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius+thick/2+1.0)
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius-thick/2-1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius-thick/2-1.0)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lx-radius, ly-radius, thick)
+		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, thick)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		if ctx.SpacePressed {
-			ctx.DrawAtF32(canvas, ctx.Images[0], rx-radius, ry-radius)
+			ctx.DrawAtF32(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius)
 		} else {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rx-radius, ry-radius, thick)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, thick)
 		}
 	}
 
@@ -452,9 +452,9 @@ func TestJFMHeat(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Clear()
 		px, py := ebiten.CursorPosition()
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.FillCircle(canvas, float32(px), float32(py), 128.0)
-		ctx.Renderer.FillCircle(canvas, rx, ry, 96.0)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, 96.0)
 		if ebiten.IsKeyPressed(ebiten.KeySpace) {
 			return
 		}

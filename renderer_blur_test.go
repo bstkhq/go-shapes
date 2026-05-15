@@ -20,17 +20,17 @@ func TestBlur(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.RGBA{0, 0, 255, 255})
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColorF32(0, 0, 0, 1.0)
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius+fxRadius)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.Blur(canvas, ctx.Images[0], lx-radius, ly-radius, modRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, modRadius)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.Blur(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -52,29 +52,29 @@ func TestBlur2(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
 		rAux := float32(ctx.DistAnim(float64(auxRadius), 1.0))
 		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, rAux, r)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, rAux, r)
 		} else {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, r, rAux)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, r, rAux)
 		}
-		ctx.Renderer.Blur(canvas, ctx.Images[0], lx+radius, ly-radius, r)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lc.X+radius, lc.Y-radius, r)
 		if ctx.SpacePressed {
 			// NOTE: there are still differences between blur and blur2, due to colors
 			// being quantized to RGBA8 in the middle of the blur2 process. This causes
 			// a precision loss that's unavoidable without higher depth textures
 			ctx.Renderer.Options().Blend = ebiten.BlendXor
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx+radius, ly-radius, r, r)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lc.X+radius, lc.Y-radius, r, r)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius, fxRadius)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, fxRadius, fxRadius)
 		ctx.Renderer.SetTint(0)
 	}
 
@@ -93,15 +93,15 @@ func TestDirBlur(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		r := float32(ctx.DistAnim(float64(fxRadius), 1.0))
-		ctx.Renderer.blurVert(canvas, ctx.Images[0], lx-radius, ly-radius, r)
+		ctx.Renderer.blurVert(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, r)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.blurHorz(canvas, ctx.Images[0], rx-radius, ry-radius, fxRadius)
+		ctx.Renderer.blurHorz(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, fxRadius)
 		ctx.Renderer.SetTint(0)
 
 		rect := image.Rect(480-8, 96-16, 480+80-8, 96+16)
@@ -147,28 +147,28 @@ func TestBlurK(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		if ctx.SpacePressed {
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], lx-radius, ly-radius, 16.0, 16.0)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, 16.0, 16.0)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
-			ctx.Renderer.BlurK(canvas, ctx.Images[0], lx-radius, ly-radius, kOpts)
+			ctx.Renderer.BlurK(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, kOpts)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
-		ctx.Renderer.FillCircle(canvas, lx, ly, radius)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		k := GaussK9
 		if ctx.SpacePressed {
 			r := float32(k.Radius() * dscale.Factor())
 			r = min(r, 32)
-			ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-radius, ry-radius, r, r)
+			ctx.Renderer.Blur2(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, r, r)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k}
 			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
-			ctx.Renderer.BlurK(canvas, ctx.Images[0], rx-radius, ry-radius, kOpts)
+			ctx.Renderer.BlurK(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, kOpts)
 		}
 
 		_, ch := rectSizeF32(canvas.Bounds())
@@ -196,7 +196,7 @@ func TestBlurKLoop(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 255, 255})
 		const mink, maxk = GaussK3, GaussK17
 
@@ -207,12 +207,12 @@ func TestBlurKLoop(t *testing.T) {
 		ebiten.SetWindowTitle(fmt.Sprintf("kern size: %d, radius: %d", kern.Size(), kern.Radius()))
 
 		kOpts := KernelOptions{Downscaling: DownscaleX4, HorzKernel: kern, VertKernel: kern}
-		ctx.Renderer.BlurK(canvas, ctx.Images[0], lx-Radius, ly-Radius, kOpts)
+		ctx.Renderer.BlurK(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, kOpts)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		r := float32(kern.Radius() * kOpts.Downscaling.Factor())
 		r = min(r, 32.0)
-		ctx.Renderer.Blur2(canvas, ctx.Images[0], rx-Radius, ry-Radius, r, r)
+		ctx.Renderer.Blur2(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius, r, r)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -290,15 +290,15 @@ func TestApplyBlurVogel(t *testing.T) {
 
 		ctx.Renderer.BlurVogel(canvas, ctx.Images[1], cw-float32(ctx.Images[1].Bounds().Dx())-16, 16, FxRadius, sampling, downscale, seed)
 
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
-		ctx.Renderer.Blur(canvas, ctx.Images[0], lx-radius, ly-radius, FxRadius)
+		ctx.Renderer.Blur(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, FxRadius)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.BlurVogel(canvas, ctx.Images[0], rx-radius, ry-radius, FxRadius, sampling, downscale, seed)
+		ctx.Renderer.BlurVogel(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, FxRadius, sampling, downscale, seed)
 		ctx.Renderer.SetTint(0)
 	}
 
