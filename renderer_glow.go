@@ -13,14 +13,16 @@ func (r *Renderer) glowVert(shader *ebiten.Shader, target *ebiten.Image, mask *e
 	r.setSrcRectCoords(sox, soy-ceilRadius, sox+sw, soy+sh+ceilRadius)
 	r.setFlatCustomVAs(radius, threshStart, threshEnd, r.tint)
 
+	var memoBlend ebiten.Blend
 	if blend != nil {
-		r.opts.Blend, blend = *blend, &r.opts.Blend
+		memoBlend = r.opts.Blend
+		r.opts.Blend = *blend
 	}
 	r.opts.Images[0] = mask
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 	if blend != nil {
-		r.opts.Blend = *blend
+		r.opts.Blend = memoBlend
 	}
 }
 
@@ -33,14 +35,16 @@ func (r *Renderer) glowHorz(shader *ebiten.Shader, target *ebiten.Image, mask *e
 	r.setSrcRectCoords(sox-ceilRadius, soy, sox+sw+ceilRadius, soy+sh)
 	r.setFlatCustomVAs(radius, threshStart, threshEnd, r.tint)
 
+	var memoBlend ebiten.Blend
 	if blend != nil {
-		r.opts.Blend, blend = *blend, &r.opts.Blend
+		memoBlend = r.opts.Blend
+		r.opts.Blend = *blend
 	}
 	r.opts.Images[0] = mask
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 	if blend != nil {
-		r.opts.Blend = *blend
+		r.opts.Blend = memoBlend
 	}
 }
 
@@ -114,7 +118,7 @@ func (r *Renderer) GlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowHorzKern.Load(), &r.opts)
-	}, true)
+	}, &ebiten.BlendLighter)
 }
 
 // GlowDark2 is the "negative" version of [Renderer.Glow2](). Instead of using additive
@@ -142,23 +146,24 @@ func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy fl
 	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
 	vertRadius = r.warnClampNonNegArgF32(vertRadius, 32, WarnRadiusClamped)
 	if horzRadius == 0 {
-		r.glowVert(shaderGlowDarkVert.Load(), target, mask, ox, oy, vertRadius, threshStart, threshEnd, &blendDarkGlow)
+		r.glowVert(shaderGlowDarkVert.Load(), target, mask, ox, oy, vertRadius, threshStart, threshEnd, &BlendMultiply)
 		return
 	} else if vertRadius == 0 {
-		r.glowHorz(shaderGlowDarkHorz.Load(), target, mask, ox, oy, horzRadius, threshStart, threshEnd, &blendDarkGlow)
+		r.glowHorz(shaderGlowDarkHorz.Load(), target, mask, ox, oy, horzRadius, threshStart, threshEnd, &BlendMultiply)
 		return
 	}
 
 	ceilVertRadius := ceilF32(vertRadius)
 	w32, h32 := rectSizeF32(mask.Bounds())
 	h32 += 2.0 * ceilVertRadius
-	tmp, _ := r.getTemp(0, int(w32), int(h32), true)
-	r.glowVert(shaderGlowDarkVert.Load(), tmp, mask, 0, ceilVertRadius, vertRadius, threshStart, threshEnd, &blendDarkGlow)
+	tmp, _ := r.getTemp(0, int(w32), int(h32), false)
+	preBlend := r.opts.Blend
+	r.opts.Blend = ebiten.BlendCopy
+	r.glowVert(shaderGlowDarkVert.Load(), tmp, mask, 0, ceilVertRadius, vertRadius, threshStart, threshEnd, nil)
 
 	memo := r.tint
 	r.tint = 0.0
-	preBlend := r.opts.Blend
-	r.opts.Blend = ebiten.BlendSourceOver
+	r.opts.Blend = BlendMultiply
 	r.blurHorz(target, tmp, ox, oy-ceilVertRadius, horzRadius)
 	r.opts.Blend = preBlend
 	r.tint = memo
@@ -172,16 +177,11 @@ func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy fl
 //
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
-//
-// TODO: untested
 func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, threshStart, threshEnd float32, opts KernelOptions) {
 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
-		preBlend := r.opts.Blend
-		r.opts.Blend = blendDarkGlow
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowDarkHorzKern.Load(), &r.opts)
-		r.opts.Blend = preBlend
-	}, false)
+	}, &BlendMultiply)
 }
 
 // GlowColor2 is the color-similarity version of [Renderer.Glow2](). Instead of applying
@@ -244,8 +244,6 @@ func (r *Renderer) GlowColor2(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 //
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
-//
-// TODO: untested
 func (r *Renderer) GlowColorK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, rgb [3]float32, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -257,5 +255,5 @@ func (r *Renderer) GlowColorK(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowColorHorzKern.Load(), &r.opts)
 		delete(r.opts.Uniforms, "RGB")
-	}, true)
+	}, &ebiten.BlendLighter)
 }

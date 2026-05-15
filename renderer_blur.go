@@ -118,7 +118,7 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 		r.setFlatCustomVA0(r.tint)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderBlurHorzKern.Load(), &r.opts)
 	}
-	r.applyKernel(target, mask, ox, oy, opts, invokeShader, false)
+	r.applyKernel(target, mask, ox, oy, opts, invokeShader, nil)
 }
 
 // BlurVogel applies a gaussian blur using numSamples distributed with a vogel disk.

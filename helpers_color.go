@@ -25,14 +25,6 @@ var (
 		BlendOperationRGB:           ebiten.BlendOperationAdd,
 		BlendOperationAlpha:         ebiten.BlendOperationAdd,
 	}
-	blendDarkGlow = ebiten.Blend{
-		BlendFactorSourceRGB:        ebiten.BlendFactorOneMinusDestinationColor,
-		BlendFactorSourceAlpha:      ebiten.BlendFactorOneMinusDestinationColor,
-		BlendFactorDestinationRGB:   ebiten.BlendFactorOne,
-		BlendFactorDestinationAlpha: ebiten.BlendFactorOne,
-		BlendOperationRGB:           ebiten.BlendOperationReverseSubtract,
-		BlendOperationAlpha:         ebiten.BlendOperationAdd,
-	}
 )
 
 // RGBAF32 converts a color to float32 format (R, G, B, A).

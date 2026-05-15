@@ -223,8 +223,8 @@ func TestGlowCompare(t *testing.T) {
 			xAnim, yAnim := float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666))
 			x0, x1, x2, x3 = x0+xAnim, x1+xAnim, x2+xAnim, x3+xAnim
 			y0, y1, y2, y3 = y0+yAnim, y1+yAnim, y2+yAnim, y3+yAnim
-			hRadius -= float32(ctx.DistAnim(1.0, 0.6))
-			vRadius -= float32(ctx.DistAnim(1.0, 0.8))
+			hRadius = max(hRadius-float32(ctx.DistAnim(1.0, 0.6)), 0)
+			vRadius = max(vRadius-float32(ctx.DistAnim(1.0, 0.8)), 0)
 		}
 
 		if ctx.SpacePressed {

@@ -98,13 +98,17 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 
 // Internal function used by BlurK, GlowK and GlowColorK. It downscales the mask,
 // applies a custom horizontal kernel shader, then a standard vertical blur shader, and
-// upscales the result back, optionally with a BlendLighter blend. At invokeShader,
-// KernelLen and Kernel uniforms have been set, as well as the downscaled source image,
-// but other uniforms and custom VAs have to be set during invocation.
+// upscales the result back, optionally with a custom blend.
+//
+// At invokeShader:
+//   - KernelLen and Kernel uniforms have been set, as well as the downscaled source image
+//     as Image[0], but other uniforms and custom VAs have to be set during invocation.
+//   - The blend is BlendCopy. It can be changed, but then opts.clearOffscreen might need
+//     to be set to true.
 //
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
-func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image), lighterBlend bool) {
+func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image), blend *ebiten.Blend) {
 	if !opts.Downscaling.valid() {
 		panic("invalid downscaling value")
 	}
@@ -117,7 +121,7 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	}
 
 	if opts.Downscaling == DownscaleNone {
-		r.applyKernelDirect(target, mask, ox, oy, opts, invokeShader, lighterBlend)
+		r.applyKernelDirect(target, mask, ox, oy, opts, invokeShader, blend)
 		return
 	}
 
@@ -155,19 +159,19 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	r.applyKernelOp(down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
 
 	// upscale
-	if lighterBlend {
-		r.opts.Blend = ebiten.BlendLighter
+	if blend != nil {
+		r.opts.Blend = *blend
 	} else {
 		r.opts.Blend = preBlend
 	}
 	fx, fy := ox+-df32-float32(halfHorzMargin)*df32, oy+-df32-float32(halfVertMargin)*df32
 	r.Scale(target, dkern, fx, fy, df32, opts.Scaling)
-	if lighterBlend {
+	if blend != nil {
 		r.opts.Blend = preBlend
 	}
 }
 
-func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(horzTarget *ebiten.Image), lighterBlend bool) {
+func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(horzTarget *ebiten.Image), blend *ebiten.Blend) {
 	horzKernelLen := opts.HorzKernel.Size()
 	ceilHRadius := float32(horzKernelLen)
 	ox32, oy32, w32, h32 := rectOriginSizeF32(mask.Bounds())
@@ -191,9 +195,10 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	r.setDstRectCoords(dx, oy-ceilVRadius, dx+w32, oy+h32+ceilVRadius)
 	r.setSrcRectCoords(0, -ceilVRadius, w32, h32+ceilVRadius)
 
-	r.opts.Blend = preBlend
-	if lighterBlend {
-		r.opts.Blend = ebiten.BlendLighter
+	if blend != nil {
+		r.opts.Blend = *blend
+	} else {
+		r.opts.Blend = preBlend
 	}
 	r.opts.Uniforms["Radius"] = opts.VertKernel.Radius()
 	r.opts.Uniforms["Kernel"] = gaussKernels[opts.VertKernel]
@@ -201,7 +206,9 @@ func (r *Renderer) applyKernelDirect(target, mask *ebiten.Image, ox, oy float32,
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderKernVertFinish.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
-	r.opts.Blend = preBlend
+	if blend != nil {
+		r.opts.Blend = preBlend
+	}
 }
 
 func (r *Renderer) applyKernelOp(down, dkern, dkernHorz *ebiten.Image, dkernW64, dkernH64, downW64, downH64 float64, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image)) {
