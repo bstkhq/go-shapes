@@ -12,8 +12,3 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }
-
-func SquaredDistance(a, b vec2) float {
-	dx, dy := b.x-a.x, b.y-a.y
-	return dx*dx + dy*dy
-}

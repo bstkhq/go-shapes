@@ -291,7 +291,7 @@ func lineIntersect(p1, d1, p2, d2 PointF32) PointF32 {
 }
 
 // precondition: angles must be normalized by normURads, outRadius >= inRadius
-func circSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
+func radialSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	ss, sc := math.Sincos(startRads)
 	es, ec := math.Sincos(endRads)
 	ss32, sc32, es32, ec32 := float32(ss), float32(sc), float32(es), float32(ec)
@@ -313,6 +313,45 @@ func circSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, en
 	}
 	if uradsWithinCW(RadsTop, startRads, endRads) {
 		minY = cy - outRadius
+	}
+	return minX, minY, maxX, maxY
+}
+
+func circularSectorBounds(cx, cy, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
+	order := func(min, max float32) (float32, float32) {
+		if min <= max {
+			return min, max
+		}
+		return max, min
+	}
+	expand := func(min, max, v float32) (float32, float32) {
+		if v < min {
+			return v, max
+		}
+		if v > max {
+			return min, v
+		}
+		return min, max
+	}
+
+	ss, sc := math.Sincos(startRads)
+	es, ec := math.Sincos(endRads)
+	minX, maxX = order(cx+radius*float32(sc), cx+radius*float32(ec))
+	minY, maxY = order(cy+radius*float32(ss), cy+radius*float32(es))
+	minX, maxX = expand(minX, maxX, cx)
+	minY, maxY = expand(minY, maxY, cy)
+
+	if uradsWithinCW(RadsRight, startRads, endRads) {
+		maxX = cx + radius
+	}
+	if uradsWithinCW(RadsBottom, startRads, endRads) {
+		maxY = cy + radius
+	}
+	if uradsWithinCW(RadsLeft, startRads, endRads) {
+		minX = cx - radius
+	}
+	if uradsWithinCW(RadsTop, startRads, endRads) {
+		minY = cy - radius
 	}
 	return minX, minY, maxX, maxY
 }

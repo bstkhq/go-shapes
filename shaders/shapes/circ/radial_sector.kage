@@ -5,7 +5,7 @@ package main
 // t = 0 is right, t = pi/2 is down and so on
 var WedgeNormal vec2
 var InRadius float
-var Rounding float
+var Rounding float // can only be zero or positive
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
@@ -23,7 +23,7 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	return color * pow(alpha, 1.0/2.2)
 }
 
-// rounding must be negative for inner rounding, positive for outer rounding
+// rounding can only be zero or positive
 func sdfCircSector(pos vec2, wedgeNormal vec2, inRadius, outRadius, rounding float) float {
 	inRounding, outRounding := -min(rounding, 0.0), max(rounding, 0.0)
 	outRadius -= inRounding
@@ -34,9 +34,6 @@ func sdfCircSector(pos vec2, wedgeNormal vec2, inRadius, outRadius, rounding flo
 	lenPos := length(pos)
 	l := max(lenPos-outRadius, inRadius-lenPos)
 
-	// TODO: failed to do inRounding for the side edges
-	// pos.y -= inRounding / wedgeNormal.x
-	// m is sdSegment(pos, wedgeNormal*inRadius, wedgeNormal*outRadius)
 	m := length(pos - wedgeNormal*clamp(dot(pos, wedgeNormal), inRadius, outRadius))
 	m *= sign(wedgeNormal.y*pos.x - wedgeNormal.x*pos.y)
 	return max(l, m) - inRounding - outRounding

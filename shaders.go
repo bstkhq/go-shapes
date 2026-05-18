@@ -94,17 +94,17 @@ var shaderCircle = shaderRef{src: shaderCircleSrc}
 var shaderStrokeCircleSrc []byte
 var shaderStrokeCircle = shaderRef{src: shaderStrokeCircleSrc}
 
-//go:embed shaders/shapes/circ/sector.kage
-var shaderCircSectorSrc []byte
-var shaderCircSector = shaderRef{src: shaderCircSectorSrc}
+//go:embed shaders/shapes/circ/radial_sector.kage
+var shaderRadialSectorSrc []byte
+var shaderRadialSector = shaderRef{src: shaderRadialSectorSrc}
 
-//go:embed shaders/shapes/circ/stroke_sector.kage
-var shaderStrokeCircSectorSrc []byte
-var shaderStrokeCircSector = shaderRef{src: shaderStrokeCircSectorSrc}
+//go:embed shaders/shapes/circ/radial_sector_segment.kage
+var shaderRadialSectorSegmentSrc []byte
+var shaderRadialSectorSegment = shaderRef{src: shaderRadialSectorSegmentSrc}
 
-//go:embed shaders/shapes/circ/sector_segment.kage
-var shaderCircSectorSegmentSrc []byte
-var shaderCircSectorSegment = shaderRef{src: shaderCircSectorSegmentSrc}
+//go:embed shaders/shapes/circ/circular_sector_inner.kage
+var shaderCircularSectorInnerSrc []byte
+var shaderCircularSectorInner = shaderRef{src: shaderCircularSectorInnerSrc}
 
 //go:embed shaders/shapes/circ/ellipse.kage
 var shaderEllipseSrc []byte

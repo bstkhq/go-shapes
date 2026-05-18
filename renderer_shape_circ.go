@@ -39,7 +39,7 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32) {
 // [-thickness/2, thickness/2] around the radius. If thickness < 0, the outline goes from
 // [-thickness, 0].
 //
-// For arcs, see [Renderer.StrokeCircArc]().
+// For arcs, see [Renderer.StrokeArc]().
 func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
 	if thickness == 0 {
 		return // nothing to draw
@@ -64,9 +64,9 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
 }
 
-// StrokeCircArc draws an arc of the given radius. For stroking full circles,
+// StrokeArc draws an arc of the given radius. For stroking full circles and rings,
 // consider [Renderer.StrokeCircle]() instead.
-func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
+func (r *Renderer) StrokeArc(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
 	if thickness <= 0 {
 		if thickness < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
@@ -95,7 +95,7 @@ func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads
 	// bounds
 	cx32, cy32, radius32, thick32 := float32(cx), float32(cy), float32(radius), float32(thickness)
 	hthick32 := thick32 / 2.0
-	minX, minY, maxX, maxY := circSectorBounds(cx32, cy32, radius32, radius32, startRads, endRads)
+	minX, minY, maxX, maxY := radialSectorBounds(cx32, cy32, radius32, radius32, startRads, endRads)
 	minX, minY = minX-hthick32-1.0, minY-hthick32-1.0
 	maxX, maxY = maxX+hthick32+1.0, maxY+hthick32+1.0
 
@@ -111,11 +111,57 @@ func (r *Renderer) StrokeCircArc(target *ebiten.Image, cx, cy, radius, startRads
 	clear(r.opts.Uniforms)
 }
 
-// fillCircWedge draws a circular sector with the contact points at the inner and
-// outer radius being controlled by inAperture and outAperture, which must be in
+func (r *Renderer) fillCircularSector(target *ebiten.Image, cx, cy float32, radius, startRads, endRads, rounding float64) {
+	if rounding >= 0 {
+		panic("unimplemented")
+	}
+	centralAngle := uradsDeltaCW(startRads, endRads)
+	halfCtrAngle := centralAngle * 0.5
+	centerDir := uradsAddCW(startRads, halfCtrAngle)
+	halfCtrAngleSin, halfCtrAngleCos := math.Sincos(halfCtrAngle)
+	centerDirSin, centerDirCos := math.Sincos(centerDir)
+
+	r.innerRoundingFillCircularSector(target, cx, cy, startRads, endRads, radius, centerDirSin, centerDirCos, halfCtrAngleSin, halfCtrAngleCos, -rounding)
+}
+
+func (r *Renderer) innerRoundingFillCircularSector(target *ebiten.Image, cx, cy float32, startRads, endRads, radius, centerDirSin, centerDirCos, halfCtrAngleSin, halfCtrAngleCos, rounding float64) {
+	if rounding <= 0 {
+		panic("rounding <= 0")
+	}
+
+	nearDist := rounding / halfCtrAngleSin
+	if nearDist >= radius {
+		pointRadius := radius - nearDist + rounding
+		if pointRadius > 0 {
+			pcx, pcy := centerDirCos*radius, centerDirSin*radius
+			r.FillCircle(target, cx+float32(pcx), cy+float32(pcy), float32(pointRadius))
+		}
+		return
+	}
+
+	outDist := radius - rounding
+	distToFarCircTangent := math.Sqrt(radius*radius - 2*radius*rounding) // derived from d^2 + rounding^2 = (radius - rounding)^2
+	farCenterX := distToFarCircTangent*halfCtrAngleCos + rounding*halfCtrAngleSin
+	farCenterY := distToFarCircTangent*halfCtrAngleSin - rounding*halfCtrAngleCos
+
+	r.opts.Uniforms["CircleDists"] = [2]float32{float32(nearDist), float32(outDist)}
+	r.opts.Uniforms["FarCircCenter"] = [2]float32{float32(farCenterX), float32(farCenterY)}
+	r.opts.Uniforms["Rotation"] = [2]float32{float32(centerDirCos), float32(centerDirSin)}
+
+	// TODO: handle cos division /0
+	r.setFlatCustomVAs(cx, cy, float32(halfCtrAngleSin*(1.0/halfCtrAngleCos)), float32(rounding))
+	minX, minY, maxX, maxY := circularSectorBounds(cx, cy, float32(radius), startRads, endRads)
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircularSectorInner.Load(), &r.opts)
+	clear(r.opts.Uniforms)
+}
+
+// fillRadialWedge draws a circular sector/annulus with the contact points at the inner
+// and outer radius being controlled by inAperture and outAperture, which must be in
 // [0..2*Pi]. inner rounding is not implemented because of analytical geometry skill
 // issue with the many edge cases.
-func (r *Renderer) fillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
+func (r *Renderer) fillRadialWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, inAperture, outAperture, rounding float64) {
 	inRadius = warnZeroNegativeValue(r, inRadius)
 	outRadius = warnZeroNegativeValue(r, outRadius)
 	if inRadius == outRadius && rounding <= 0 {
@@ -163,19 +209,22 @@ func (r *Renderer) innerFillCircWedge(target *ebiten.Image, cx, cy, inRadius, ou
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(float32(cx)-tox, float32(cy)-toy, float32(rounding), 0)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircSectorSegment.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderRadialSectorSegment.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
-// FillCircSector draws a smooth circular sector. Use inRadius = 0 for pie shapes, inRadius > 0 for
-// rings. Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice
-// that inwards rounding requires non-trivial CPU precalculations and a different shader from outwards
-// or no rounding.
+// FillRadialSector draws a smooth radial sector.
+//   - Use inRadius = 0 for pie shapes (circular sectors).
+//   - Use inRadius > 0 for rings (annular sectors).
+//
+// Rounding can be positive for outwards rounding, or negative for inwards rounding.
+// Notice that inwards rounding requires non-trivial CPU precalculations and different
+// shaders from outwards or no rounding.
 //
 // Consider [RadsSpan]() if you need to derive (startRads, endRads) from a central direction.
 //
 // See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
+func (r *Renderer) FillRadialSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
 	if inRadius >= outRadius || outRadius < 0 || startRads == endRads {
 		return // skip empty draws
 	}
@@ -206,22 +255,26 @@ func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRad
 	}
 
 	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalFillCircSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
+	r.internalFillRadialSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
 }
 
 // precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalFillCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
-	delta := uradsDeltaCW(startRads, endRads)
-	halfDelta := delta * 0.5
-	centerDir := uradsAddCW(startRads, halfDelta)
-	ws, wc := math.Sincos(halfDelta)
-
+func (r *Renderer) internalFillRadialSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
 	if rounding < 0 {
-		r.innerRoundingFillCircSector(target, float64(cx), float64(cy), centerDir, halfDelta, ws, wc, float64(inRadius), float64(outRadius), startRads, endRads, float64(-rounding))
+		if inRadius == 0 {
+			r.fillCircularSector(target, cx, cy, float64(outRadius), startRads, endRads, float64(rounding))
+		} else {
+			r.innerRoundingFillAnnularSector(target, float64(cx), float64(cy), float64(inRadius), float64(outRadius), startRads, endRads, float64(-rounding))
+		}
 		return
 	}
 
-	pieMinX, pieMinY, pieMaxX, pieMaxY := circSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
+	centralAngle := uradsDeltaCW(startRads, endRads)
+	halfCtrAngle := centralAngle * 0.5
+	centerDir := uradsAddCW(startRads, halfCtrAngle)
+	halfCtrAngleSin, halfCtrAngleCos := math.Sincos(halfCtrAngle)
+
+	pieMinX, pieMinY, pieMaxX, pieMaxY := radialSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
 	if rounding > 0 {
 		pieMinX -= rounding
 		pieMinY -= rounding
@@ -230,17 +283,17 @@ func (r *Renderer) internalFillCircSector(target *ebiten.Image, cx, cy, inRadius
 	}
 
 	r.setDstRectCoords(float32(pieMinX), float32(pieMinY), float32(pieMaxX), float32(pieMaxY))
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
+	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(halfCtrAngleSin), float32(halfCtrAngleCos)}
 	r.opts.Uniforms["InRadius"] = inRadius
 	r.opts.Uniforms["Rounding"] = rounding
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircSector.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderRadialSector.Load(), &r.opts)
 	clear(r.opts.Uniforms)
 }
 
 // precondition: rounding must be > 0. ws, wc are sin and cos of halfDelta
-func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, centerDir, halfDelta, ws, wc, inRadius, outRadius, startRads, endRads, rounding float64) {
+func (r *Renderer) innerRoundingFillAnnularSector(target *ebiten.Image, cx, cy, inRadius, outRadius, startRads, endRads, rounding float64) {
 	if rounding <= 0 {
 		panic("rounding <= 0")
 	}
@@ -264,92 +317,34 @@ func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, cen
 	}
 
 	// compute cut sector origin, which is displaced alongside centerDir
-	dirOffset := rounding / ws
+	centralAngle := uradsDeltaCW(startRads, endRads)
+	halfCtrAngle := centralAngle * 0.5
+	centerDir := uradsAddCW(startRads, halfCtrAngle)
+	halfCtrAngleSin, halfCtrAngleCos := math.Sincos(halfCtrAngle)
+	dirOffset := rounding / halfCtrAngleSin
 	cds, cdc := math.Sincos(centerDir)
 
 	// handle shape collapses
-	if dirOffset >= inRadius && halfDelta < math.Pi/2 {
-		// note: when aperture is very large, point and cone collapse can't happen.
-		// we check delta < math.Pi as a broad estimate, but I'm not sure this is
+	if dirOffset >= inRadius && halfCtrAngle < math.Pi/2 {
+		// note: when aperture is very large, point and circular sector collapse can't
+		// happen. we check delta < math.Pi as a broad estimate, but I'm not sure this is
 		// always correct / sufficient.
 
-		// point collapse
-		if dirOffset >= outRadius {
-			radius := outRadius - dirOffset + rounding
-			if radius > 0 {
-				cx, cy := cx+cdc*outRadius, cy+cds*outRadius
-				r.FillCircle(target, float32(cx), float32(cy), float32(radius))
-			}
-			return
-		}
-
-		// cone collapse
-		// TODO: this is incorrect, as soon as we shift the center, the expansion of the
-		// outer circular boundary becomes slower (smaller circle radius). I don't see
-		// the way to deal with this outside an additional custom shader
-		cutCX, cutCY := cx+cdc*dirOffset, cy+cds*dirOffset
-		r.internalFillCircSector(target, float32(cutCX), float32(cutCY), 0, float32(outRadius-dirOffset), startRads, endRads, float32(rounding-arcCollapse))
+		// collapse into circular sector
+		// TODO: I don't think arc collapse can ever be hit here?
+		r.innerRoundingFillCircularSector(target, float32(cx), float32(cy), startRads, endRads, outRadius, cds, cdc, halfCtrAngleSin, halfCtrAngleCos, rounding)
 		return
 	}
 
 	var relInCut, relOutCut [2]float64
 	if inRadius > 0 {
-		relInCut, _, _ = circIntersect(0, 0, inRadius, wc*inRadius, ws*inRadius, rounding)
+		relInCut, _, _ = circIntersect(0, 0, inRadius, halfCtrAngleCos*inRadius, halfCtrAngleSin*inRadius, rounding)
 	} else { // inRadius <= 0, treat separately as a collapsed pie
 		relInCut[0], relInCut[1] = dirOffset, 0
 	}
 
-	relOutCut, _, _ = circIntersect(0, 0, outRadius, wc*outRadius, ws*outRadius, rounding)
+	relOutCut, _, _ = circIntersect(0, 0, outRadius, halfCtrAngleCos*outRadius, halfCtrAngleSin*outRadius, rounding)
 	r.innerFillCircWedge(target, cx, cy, inRadius, outRadius, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
-}
-
-// StrokeCircSector draws the outline of a circular sector. Thickness must be >= 0.
-// Rounding can be positive for outwards rounding, or negative for inwards rounding.
-// Notice that inwards rounding requires non-trivial CPU precalculations.
-//
-// See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) StrokeCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
-	if inRadius >= outRadius || outRadius < 0 || startRads == endRads || thickness <= 0 {
-		return // skip empty draws
-	}
-	inRadius = warnZeroNegativeValue(r, inRadius)
-	if endRads >= startRads+2*math.Pi {
-		r.StrokeCircle(target, cx, cy, inRadius, thickness)
-		r.StrokeCircle(target, cx, cy, outRadius, thickness)
-		return
-	}
-
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalStrokeCircSector(target, cx, cy, inRadius, outRadius, thickness, startRads, endRads, rounding)
-}
-
-// precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalStrokeCircSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := circSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
-	if rounding != 0 {
-		r := abs(rounding)
-		pieMinX -= r
-		pieMinY -= r
-		pieMaxX += r
-		pieMaxY += r
-	}
-	pieMinX -= thickness / 2.0
-	pieMinY -= thickness / 2.0
-	pieMaxX += thickness / 2.0
-	pieMaxY += thickness / 2.0
-
-	r.setDstRectCoords(pieMinX, pieMinY, pieMaxX, pieMaxY)
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	ws, wc := math.Sincos(delta / 2.0)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["InRadius"] = inRadius
-	r.opts.Uniforms["Rounding"] = rounding
-	r.opts.Uniforms["Thickness"] = thickness
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircSector.Load(), &r.opts)
-	clear(r.opts.Uniforms)
 }
 
 // FillEllipse draws a smooth filled ellipse.

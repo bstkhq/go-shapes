@@ -1,0 +1,64 @@
+//kage:unit pixels
+package main
+
+var CircleDists vec2 // near, far (distances to near and far circle centers)
+var FarCircCenter vec2
+var Rotation vec2 // (cos, sin) of dir
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	center := customVAs.xy
+	cornerPlaneRefY := customVAs.z // for plane test
+	rounding := customVAs.w        // always positive (used for inwards rounding)
+
+	relCoords := targetCoords.xy - imageDstOrigin()
+	relCenterCoords := relCoords - center
+
+	// rotate and mirror
+	p := rotate(relCenterCoords, Rotation)
+	p.y = abs(p.y)
+
+	// compute basic distances and aux circ dist and plane sign
+	distToCenter := length(p)
+	distToRing := max(distToCenter-(CircleDists[1]+rounding), CircleDists[0]-distToCenter)
+
+	var circCenter vec2
+	if distToCenter < CircleDists[0]+(CircleDists[1]-CircleDists[0])*0.5 { // before mid-ring
+		circCenter = vec2(CircleDists[0], 0)
+		// return vec4(0.5, 0, 0, 1)
+	} else {
+		circCenter = FarCircCenter
+		// return vec4(0, 0.5, 0, 1)
+	}
+	distToCirc := distance(p, circCenter) - rounding
+	// return colorwave(distToCirc)
+
+	var splitDir vec2
+	if distToCenter < CircleDists[1] {
+		splitDir = vec2(1.0, cornerPlaneRefY)
+	} else {
+		splitDir = FarCircCenter
+	}
+	halfPlaneSign := sign(splitDir.x*p.y - splitDir.y*p.x)
+	if halfPlaneSign > 0 {
+		distToRing = 1.0
+	}
+
+	// put it all together
+	dist := min(distToRing, distToCirc)
+	alpha := 1.0 - smoothstep(-AAMargin, 0.0, dist)
+	return color * pow(alpha, 1.0/2.2)
+}
+
+func rotate(p, dir vec2) vec2 {
+	return vec2(p.x*dir.x+p.y*dir.y, -p.x*dir.y+p.y*dir.x)
+}
+
+func colorwave(sdf float) vec4 {
+	out := mix(vec4(0.941, 0.227, 0.278, 1.0), vec4(1.000, 0.713, 0.152, 1.0), 0.1*sin(sdf*0.02))
+	in := mix(vec4(0.223, 0.486, 0.345, 1.0), vec4(0.352, 0.901, 0.980, 1.0), 0.85+0.3*sin(sdf*0.6))
+	presenceOut := clamp(1.05+0.20*sin(sdf*0.44), 0, 1) * clamp(+sdf, 0, 1)
+	presenceIn := clamp(1.15+0.32*sin(sdf*0.83), 0, 1) * clamp(-sdf, 0, 1)
+	return out*presenceOut + in*presenceIn
+}

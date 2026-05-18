@@ -76,7 +76,7 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 		minX, minY = cx-outRadius, cy-outRadius
 		maxX, maxY = cx+outRadius, cy+outRadius
 	} else {
-		minX, minY, maxX, maxY = circSectorBounds(cx, cy, inRadius, outRadius, startRads, normURads(rads+radsHalfDelta))
+		minX, minY, maxX, maxY = radialSectorBounds(cx, cy, inRadius, outRadius, startRads, normURads(rads+radsHalfDelta))
 	}
 
 	minX, minY, maxX, maxY = minX-1.0, minY-1.0, maxX+1.0, maxY+1.0

@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"testing"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestStrokeCircArc$ . -count 1
-func TestStrokeCircArc(t *testing.T) {
+// go test -run ^TestStrokeArc$ . -count 1
+func TestStrokeArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
 	var thickness, radius float64 = 16.0, 96.0
 
@@ -28,10 +29,10 @@ func TestStrokeCircArc(t *testing.T) {
 		w, h := rectSizeF64(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.StrokeCircArc(canvas, cx, cy, radius, startRads, endRads, thickness)
+		ctx.Renderer.StrokeArc(canvas, cx, cy, radius, startRads, endRads, thickness)
 
 		ctx.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
-		ctx.Renderer.FillCircSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)      // reference
+		ctx.Renderer.FillRadialSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)    // reference
 		ctx.Renderer.StrokeLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
 		ctx.Renderer.FillCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                          // for thickness
 	}
@@ -78,8 +79,8 @@ func TestStrokeCircle(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawEllipse$ . -count 1
-func TestDrawEllipse(t *testing.T) {
+// go test -run ^TestFillEllipse$ . -count 1
+func TestFillEllipse(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		lc := ctx.LeftClickF32()
@@ -104,8 +105,39 @@ func TestDrawEllipse(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillCircSector$ . -count 1
-func TestFillCircSector(t *testing.T) {
+// go test -run ^TestFillCircularSectorInner$ . -count 1
+func TestFillCircularSectorInner(t *testing.T) {
+	animRounding := false
+	updater := func(ctx TestAppCtx) {
+		animRounding = updateToggle(ctx, ebiten.KeyR, animRounding)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.RGBA{0, 0, 64, 255})
+		w, h := rectSizeF32(canvas.Bounds())
+		cx, cy := w/2.0, h/2.0
+
+		startRads, endRads := -math.Pi/6, math.Pi/6
+		radius := 120.0
+		rounding := -8.0
+		if animRounding {
+			rounding -= ctx.DistAnim(16.0, 1.0)
+		}
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		// ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		ctx.Renderer.fillCircularSector(canvas, cx, cy, radius, startRads, endRads, rounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
+		ctx.Renderer.FillRadialSector(canvas, cx, cy, 0, float32(radius), startRads, endRads, 0.0)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillRadialSector$ . -count 1
+func TestFillRadialSector(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		w, h := rectSizeF32(canvas.Bounds())
@@ -118,9 +150,9 @@ func TestFillCircSector(t *testing.T) {
 		}
 
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
+		ctx.Renderer.FillRadialSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, float32(-16.0+ctx.DistAnim(32.0, 1.0)))
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
+		ctx.Renderer.FillRadialSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -129,8 +161,8 @@ func TestFillCircSector(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillCircSectorRounding$ . -count 1
-func TestFillCircSectorRounding(t *testing.T) {
+// go test -run ^TestFillRadialSectorRounding$ . -count 1
+func TestFillRadialSectorRounding(t *testing.T) {
 	var startRads, aperture float64 = 0, math.Pi / 4.0
 	var inRadius, outRadius float32 = 64.0, 128.0
 	var rounding float32 = -16.0
@@ -171,10 +203,10 @@ func TestFillCircSectorRounding(t *testing.T) {
 		endRads := uradsAddCW(startRads, max(aperture+apertureAnim, 0))
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0)
+			ctx.Renderer.FillRadialSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0)
 		} else {
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, rounding+roundingAnim)
+			ctx.Renderer.FillRadialSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, rounding+roundingAnim)
 		}
 	}
 
@@ -184,37 +216,8 @@ func TestFillCircSectorRounding(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeCircSector$ . -count 1
-func TestStrokeCircSector(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		startRads := ctx.ModAnim(2*math.Pi, 1.0)
-		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
-
-		ctx.Renderer.SetColorF32(0, 0, 0.5, 0.5)
-		inRadius, outRadius := float32(48.0), float32(128.0)
-		if ctx.SpacePressed {
-			inRadius = 0.0
-		}
-		ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		thick := float32(ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 0.0)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.StrokeCircSector(canvas, cx, cy, inRadius, outRadius, thick, startRads, endRads, 8.0)
-	}
-
-	app := NewTestApp(updater, drawer)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestFillCircWedge$ . -count 1
-func TestFillCircWedge(t *testing.T) {
+// go test -run ^TestFillRadialWedge$ . -count 1
+func TestFillRadialWedge(t *testing.T) {
 	var inRate, outRate float64 = 0.2, 0.35
 	var rotate bool = true
 
@@ -258,7 +261,7 @@ func TestFillCircWedge(t *testing.T) {
 		// draw wedge
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
-		ctx.Renderer.fillCircWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
+		ctx.Renderer.fillRadialWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
 	}
 
 	app := NewTestApp(updater, drawer)
