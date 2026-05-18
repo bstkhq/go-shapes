@@ -134,31 +134,41 @@ func TestFillCircSectorRounding(t *testing.T) {
 	var startRads, aperture float64 = 0, math.Pi / 4.0
 	var inRadius, outRadius float32 = 64.0, 128.0
 	var rounding float32 = -16.0
+	var anim bool
 
 	updater := func(ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf(
-			"%s  [startRads: %.02f (S), aperture: %.02f (A), inRadius: %.02f (Q), outRadius: %.02f (W), rounding: %.02f (R)]",
-			ctx.Title(), startRads, aperture, inRadius, outRadius, rounding,
-		))
-
-		const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 16.0
+		const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 32.0
 		const RadiusChange, RoundingChange = 16.0, 4.0
 		startRads = updateParam(ctx, ebiten.KeyS, startRads, 0, 2.0*math.Pi, StartRadsChange)
 		aperture = updateParam(ctx, ebiten.KeyA, aperture, 0, 2.0*math.Pi, ApertureChange)
 		inRadius = updateParam(ctx, ebiten.KeyQ, inRadius, 0, outRadius, RadiusChange)
 		outRadius = updateParam(ctx, ebiten.KeyW, outRadius, inRadius, 384.0, RadiusChange)
 		rounding = updateParam(ctx, ebiten.KeyR, rounding, -48.0, 48.0, RoundingChange)
+		anim = updateToggle(ctx, ebiten.KeyE, anim)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		info := fmt.Sprintf(
+			"startRads: %.02f [S]\naperture: %.02f [A]\nin/out radius: %.02f / %.02f [Q / W]\nrounding: %.02f [R]\nAnim: %t [E]",
+			startRads, aperture, inRadius, outRadius, rounding, anim,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		var apertureAnim float64
+		if anim {
+			apertureAnim = -math.Pi/8.0 + ctx.DistAnim(math.Pi/4.0, 1.0)
+		}
+
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 
+		endRads := uradsAddCW(startRads, max(aperture+apertureAnim, 0))
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), 0)
+			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0)
 		} else {
 			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, uradsAddCW(startRads, aperture), rounding)
+			ctx.Renderer.FillCircSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
 		}
 	}
 

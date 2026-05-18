@@ -258,9 +258,13 @@ func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, cen
 
 	// handle shape collapses
 	if dirOffset >= inRadius {
-		panic("TODO: validate later")
 		if dirOffset >= outRadius {
-			return // treat as fully collapsed
+			radius := outRadius - dirOffset + rounding
+			if radius > 0 {
+				cx, cy := cx+cdc*outRadius, cy+cds*outRadius
+				r.FillCircle(target, float32(cx), float32(cy), float32(radius))
+			}
+			return
 		}
 
 		// cone collapse
