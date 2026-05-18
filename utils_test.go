@@ -33,6 +33,8 @@ type TestAppCtx struct {
 	LeftClick    image.Point
 	RightClick   image.Point
 	SpacePressed bool
+
+	slomo uint8
 }
 
 func (ctx *TestAppCtx) LeftClickF32() PointF32 {
@@ -62,6 +64,13 @@ func (ctx *TestAppCtx) Title() string {
 		"Clicks L(%d, %d) R(%d, %d) [%.02f FPS]",
 		ctx.LeftClick.X, ctx.LeftClick.Y, ctx.RightClick.X, ctx.RightClick.Y, ebiten.ActualFPS(),
 	)
+}
+
+func updateToggle(ctx TestAppCtx, key ebiten.Key, value bool) bool {
+	if inpututil.IsKeyJustPressed(key) {
+		return !value
+	}
+	return value
 }
 
 func updateParam[T float32 | float64 | ~int | ~uint8 | ~int8](ctx TestAppCtx, key ebiten.Key, value, minValue, maxValue, delta T) T {
@@ -130,8 +139,17 @@ func NewTestApp(updater func(TestAppCtx), drawer func(canvas *ebiten.Image, ctx 
 
 func (app *TestApp) Update() error {
 	if !ebiten.IsKeyPressed(ebiten.KeyPeriod) {
-		app.Ticks += 1
+		if ebiten.IsKeyPressed(ebiten.KeyComma) {
+			app.slomo += 1
+			if app.slomo > 4 {
+				app.slomo = 0
+				app.Ticks += 1
+			}
+		} else {
+			app.Ticks += 1
+		}
 	}
+
 	app.SpacePressed = ebiten.IsKeyPressed(ebiten.KeySpace)
 	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)

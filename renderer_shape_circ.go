@@ -35,8 +35,9 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32) {
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
 }
 
-// StrokeCircle draws a circle outline. If thickness > 0, the outline expands [-thickness/2, thickness/2]
-// around the radius. If thickness < 0, the outline goes from [-thickness, 0].
+// StrokeCircle draws a circle outline or ring. If thickness > 0, the outline expands
+// [-thickness/2, thickness/2] around the radius. If thickness < 0, the outline goes from
+// [-thickness, 0].
 //
 // For arcs, see [Renderer.StrokeCircArc]().
 func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
@@ -189,8 +190,18 @@ func (r *Renderer) FillCircSector(target *ebiten.Image, cx, cy, inRadius, outRad
 	}
 
 	if endRads >= startRads+2*math.Pi {
-		thickness := outRadius - inRadius + max(rounding, 0)
-		r.StrokeCircle(target, cx, cy, outRadius-thickness/2, thickness)
+		var thickChange float32
+		if rounding < 0 {
+			deltaRadius := (outRadius - inRadius)
+			thickChange = min(0, deltaRadius/2.0+rounding)
+		} else {
+			thickChange = rounding
+		}
+
+		thickness := thickChange*2.0 + (outRadius - inRadius)
+		if thickness > 0 {
+			r.StrokeCircle(target, cx, cy, (outRadius+inRadius)/2.0, thickness)
+		}
 		return
 	}
 
@@ -257,7 +268,12 @@ func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, cen
 	cds, cdc := math.Sincos(centerDir)
 
 	// handle shape collapses
-	if dirOffset >= inRadius {
+	if dirOffset >= inRadius && halfDelta < math.Pi/2 {
+		// note: when aperture is very large, point and cone collapse can't happen.
+		// we check delta < math.Pi as a broad estimate, but I'm not sure this is
+		// always correct / sufficient.
+
+		// point collapse
 		if dirOffset >= outRadius {
 			radius := outRadius - dirOffset + rounding
 			if radius > 0 {
@@ -268,6 +284,9 @@ func (r *Renderer) innerRoundingFillCircSector(target *ebiten.Image, cx, cy, cen
 		}
 
 		// cone collapse
+		// TODO: this is incorrect, as soon as we shift the center, the expansion of the
+		// outer circular boundary becomes slower (smaller circle radius). I don't see
+		// the way to deal with this outside an additional custom shader
 		cutCX, cutCY := cx+cdc*dirOffset, cy+cds*dirOffset
 		r.internalFillCircSector(target, float32(cutCX), float32(cutCY), 0, float32(outRadius-dirOffset), startRads, endRads, float32(rounding-arcCollapse))
 		return
