@@ -1,9 +1,10 @@
 //kage:unit pixels
 package main
 
-var CircleDists vec2 // near, far (distances to near and far circle centers)
-var FarCircCenter vec2
-var Rotation vec2 // (cos, sin) of dir
+var RingDists vec2     // near, far
+var NearCircDist float // near circle center does not match ring near dist (center vs tangent)
+var FarCircCenter vec2 // far circ distance matches far ring dist
+var Rotation vec2      // (cos, sin) of dir
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
@@ -21,21 +22,19 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 
 	// compute basic distances and aux circ dist and plane sign
 	distToCenter := length(p)
-	distToRing := max(distToCenter-(CircleDists[1]+rounding), CircleDists[0]-distToCenter)
+	distToRing := max(distToCenter-(RingDists[1]+rounding), RingDists[0]-distToCenter)
 
 	var circCenter vec2
-	if distToCenter < CircleDists[0]+(CircleDists[1]-CircleDists[0])*0.5 { // before mid-ring
-		circCenter = vec2(CircleDists[0], 0)
-		// return vec4(0.5, 0, 0, 1)
+	if distToCenter < RingDists[0]+(RingDists[1]-RingDists[0])*0.5 { // before mid-ring
+		circCenter = vec2(NearCircDist, 0)
 	} else {
 		circCenter = FarCircCenter
-		// return vec4(0, 0.5, 0, 1)
 	}
 	distToCirc := distance(p, circCenter) - rounding
 	// return colorwave(distToCirc)
 
 	var splitDir vec2
-	if distToCenter < CircleDists[1] {
+	if distToCenter < RingDists[1] {
 		splitDir = vec2(1.0, cornerPlaneRefY)
 	} else {
 		splitDir = FarCircCenter

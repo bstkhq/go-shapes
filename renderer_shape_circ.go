@@ -129,9 +129,9 @@ func (r *Renderer) innerRoundingFillCircularSector(target *ebiten.Image, cx, cy 
 		panic("rounding <= 0")
 	}
 
-	nearDist := rounding / halfCtrAngleSin
-	if nearDist >= radius {
-		pointRadius := radius - nearDist + rounding
+	nearCircDist := rounding / halfCtrAngleSin
+	if nearCircDist >= radius { // TODO: isn't it nearCircDist + rounding?
+		pointRadius := radius - nearCircDist + rounding
 		if pointRadius > 0 {
 			pcx, pcy := centerDirCos*radius, centerDirSin*radius
 			r.FillCircle(target, cx+float32(pcx), cy+float32(pcy), float32(pointRadius))
@@ -144,12 +144,13 @@ func (r *Renderer) innerRoundingFillCircularSector(target *ebiten.Image, cx, cy 
 	farCenterX := distToFarCircTangent*halfCtrAngleCos + rounding*halfCtrAngleSin
 	farCenterY := distToFarCircTangent*halfCtrAngleSin - rounding*halfCtrAngleCos
 
-	r.opts.Uniforms["CircleDists"] = [2]float32{float32(nearDist), float32(outDist)}
+	nearDist := float32(math.Sqrt(nearCircDist*nearCircDist - rounding*rounding))
+	r.opts.Uniforms["RingDists"] = [2]float32{float32(nearDist), float32(outDist)}
+	r.opts.Uniforms["NearCircDist"] = float32(nearCircDist)
 	r.opts.Uniforms["FarCircCenter"] = [2]float32{float32(farCenterX), float32(farCenterY)}
 	r.opts.Uniforms["Rotation"] = [2]float32{float32(centerDirCos), float32(centerDirSin)}
 
-	// TODO: handle cos division /0
-	r.setFlatCustomVAs(cx, cy, float32(halfCtrAngleSin*(1.0/halfCtrAngleCos)), float32(rounding))
+	r.setFlatCustomVAs(cx, cy, float32(halfCtrAngleSin*(1.0/max(halfCtrAngleCos, 0.0001))), float32(rounding))
 	minX, minY, maxX, maxY := circularSectorBounds(cx, cy, float32(radius), startRads, endRads)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
