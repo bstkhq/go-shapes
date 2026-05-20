@@ -130,10 +130,11 @@ func (r *Renderer) innerRoundingFillCircularSector(target *ebiten.Image, cx, cy 
 	}
 
 	nearCircDist := rounding / halfCtrAngleSin
-	if nearCircDist >= radius { // TODO: isn't it nearCircDist + rounding?
-		pointRadius := radius - nearCircDist + rounding
+	if nearCircDist+rounding >= radius {
+		pointRadius := radius - nearCircDist // rounding - (nearCircDist + rounding - radius)
 		if pointRadius > 0 {
-			pcx, pcy := centerDirCos*radius, centerDirSin*radius
+			pointDist := radius - (rounding+pointRadius)*0.5
+			pcx, pcy := centerDirCos*pointDist, centerDirSin*pointDist
 			r.FillCircle(target, cx+float32(pcx), cy+float32(pcy), float32(pointRadius))
 		}
 		return

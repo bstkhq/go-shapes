@@ -120,7 +120,7 @@ func TestFillCircularSectorInner(t *testing.T) {
 		radius := 120.0
 		rounding := -8.0
 		if animRounding {
-			rounding -= ctx.DistAnim(16.0, 1.0)
+			rounding -= ctx.DistAnim(48.0, 1.0)
 		}
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		// ctx.Renderer.Options().Blend = ebiten.BlendCopy
