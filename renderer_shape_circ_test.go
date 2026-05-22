@@ -107,12 +107,14 @@ func TestFillEllipse(t *testing.T) {
 
 // go test -run ^TestFillCircularSectorInner$ . -count 1
 func TestFillCircularSectorInner(t *testing.T) {
-	animRounding := false
+	var animRounding, animSpin, debugBounds bool
 	updater := func(ctx TestAppCtx) {
 		animRounding = updateToggle(ctx, ebiten.KeyR, animRounding)
+		animSpin = updateToggle(ctx, ebiten.KeyS, animSpin)
+		debugBounds = updateToggle(ctx, ebiten.KeyB, debugBounds)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.RGBA{0, 0, 64, 255})
+		canvas.Fill(color.RGBA{0, 0, 128, 255})
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 
@@ -122,8 +124,15 @@ func TestFillCircularSectorInner(t *testing.T) {
 		if animRounding {
 			rounding -= ctx.DistAnim(48.0, 1.0)
 		}
+		if animSpin {
+			shift := math.Pi/2.0 - ctx.DistAnim(math.Pi, 0.666)
+			startRads = uradsAddCW(startRads, shift)
+			endRads = uradsAddCW(endRads, shift)
+		}
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		// ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		if debugBounds {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
 		ctx.Renderer.fillCircularSector(canvas, cx, cy, radius, startRads, endRads, rounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)

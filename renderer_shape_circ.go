@@ -140,14 +140,14 @@ func (r *Renderer) innerRoundingFillCircularSector(target *ebiten.Image, cx, cy 
 		return
 	}
 
-	outDist := radius - rounding
 	distToFarCircTangent := math.Sqrt(radius*radius - 2*radius*rounding) // derived from d^2 + rounding^2 = (radius - rounding)^2
 	farCenterX := distToFarCircTangent*halfCtrAngleCos + rounding*halfCtrAngleSin
 	farCenterY := distToFarCircTangent*halfCtrAngleSin - rounding*halfCtrAngleCos
 
 	nearDist := float32(math.Sqrt(nearCircDist*nearCircDist - rounding*rounding))
-	r.opts.Uniforms["RingDists"] = [2]float32{float32(nearDist), float32(outDist)}
+	r.opts.Uniforms["TangentDists"] = [2]float32{float32(nearDist), float32(distToFarCircTangent)}
 	r.opts.Uniforms["NearCircDist"] = float32(nearCircDist)
+	r.opts.Uniforms["OutRadius"] = float32(radius)
 	r.opts.Uniforms["FarCircCenter"] = [2]float32{float32(farCenterX), float32(farCenterY)}
 	r.opts.Uniforms["Rotation"] = [2]float32{float32(centerDirCos), float32(centerDirSin)}
 

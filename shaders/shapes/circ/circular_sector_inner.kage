@@ -1,8 +1,9 @@
 //kage:unit pixels
 package main
 
-var RingDists vec2     // near, far
-var NearCircDist float // near circle center does not match ring near dist (center vs tangent)
+var TangentDists vec2 // near circ, far circ
+var OutRadius float
+var NearCircDist float
 var FarCircCenter vec2 // far circ distance matches far ring dist
 var Rotation vec2      // (cos, sin) of dir
 
@@ -19,39 +20,39 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	// rotate and mirror
 	p := rotate(relCenterCoords, Rotation)
 	p.y = abs(p.y)
-
-	// compute basic distances and aux circ dist and plane sign
 	distToCenter := length(p)
-	distToRing := max(distToCenter-(RingDists[1]+rounding), RingDists[0]-distToCenter)
 
+	// select circle and plane to use
 	var circCenter vec2
-	if distToCenter < RingDists[0]+(RingDists[1]-RingDists[0])*0.5 { // before mid-ring
+	if distToCenter < TangentDists[0]+(TangentDists[1]-TangentDists[0])*0.5 { // before mid-ring
 		circCenter = vec2(NearCircDist, 0)
 	} else {
 		circCenter = FarCircCenter
 	}
 	distToCirc := distance(p, circCenter) - rounding
-	// return colorwave(distToCirc)
 
 	var splitDir vec2
-	if distToCenter < RingDists[1] {
+	if distToCenter < TangentDists[1] {
 		splitDir = vec2(1.0, cornerPlaneRefY)
 	} else {
 		splitDir = FarCircCenter
 	}
-	halfPlaneSign := sign(splitDir.x*p.y - splitDir.y*p.x)
-	if halfPlaneSign > 0 {
-		distToRing = 1.0
-	}
 
-	// put it all together
-	dist := min(distToRing, distToCirc)
+	// put distances together
+	distToRing := max(distToCenter-OutRadius, TangentDists[0]-distToCenter)
+	distToSide := sdfRay(p, splitDir)
+	dist := min(max(distToRing, distToSide), distToCirc)
 	alpha := 1.0 - smoothstep(-AAMargin, 0.0, dist)
 	return color * pow(alpha, 1.0/2.2)
 }
 
 func rotate(p, dir vec2) vec2 {
 	return vec2(p.x*dir.x+p.y*dir.y, -p.x*dir.y+p.y*dir.x)
+}
+
+func sdfRay(p, dir vec2) float {
+	dir = normalize(dir)
+	return dir.x*p.y - dir.y*p.x
 }
 
 func colorwave(sdf float) vec4 {
