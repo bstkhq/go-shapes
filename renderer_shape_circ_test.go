@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestStrokeArc$ . -count 1
@@ -229,28 +228,24 @@ func TestFillRadialSectorRounding(t *testing.T) {
 func TestFillRadialWedge(t *testing.T) {
 	var inRate, outRate float64 = 0.2, 0.35
 	var rotate bool = true
+	var showBounds bool
 
 	updater := func(ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf("%s  [inRate: %.02f (shift + up/down), outRate: %.02f (up/down), rotate: %t (R)]", ctx.Title(), inRate, outRate, rotate))
-		if inpututil.IsKeyJustPressed(ebiten.KeyR) {
-			rotate = !rotate
-		}
-
-		const Change = 0.05
-		change := 0.0
-		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-			change = Change
-		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-			change = -Change
-		}
-
-		if ebiten.IsKeyPressed(ebiten.KeyShift) {
-			inRate = wrap(inRate+change, 0.0, 1.0)
-		} else {
-			outRate = wrap(outRate+change, 0.0, 1.0)
-		}
+		rotate = updateToggle(ctx, ebiten.KeyR, rotate)
+		showBounds = updateToggle(ctx, ebiten.KeyB, showBounds)
+		inRate = updateParam(ctx, ebiten.KeyI, inRate, 0.0, 1.0, 0.05)
+		outRate = updateParam(ctx, ebiten.KeyO, outRate, 0.0, 1.0, 0.05)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.RGBA{32, 0, 128, 255})
+
+		info := fmt.Sprintf(
+			"In/OutRate: %.02f / %.02f [I/O]\nRotate: %t [R]\nShow bounds: %t [B]",
+			inRate, outRate, rotate, showBounds,
+		)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		inRadius, outRadius := 128.0, 192.0
@@ -270,7 +265,11 @@ func TestFillRadialWedge(t *testing.T) {
 		// draw wedge
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		rounding := -16.0 + ctx.DistAnim(32.0, 1.0)
+		if showBounds {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
 		ctx.Renderer.fillRadialWedge(canvas, float64(cx), float64(cy), inRadius, outRadius, centerDir, inRate*2*math.Pi, outRate*2*math.Pi, rounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)

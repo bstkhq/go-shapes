@@ -77,6 +77,10 @@ func lerp[Float float32 | float64](a, b, t Float) Float {
 	return a + t*(b-a)
 }
 
+func rotate[Float float32 | float64](x, y, sin, cos Float) (Float, Float) {
+	return x*cos - y*sin, x*sin + y*cos
+}
+
 // umod returns the non-negative remainder of x mod m, similar
 // to rust's [rem_euclid]. This is often used in the package for
 // normalizing angles.
@@ -317,13 +321,36 @@ func radialSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, 
 	return minX, minY, maxX, maxY
 }
 
-func circularSectorBounds(cx, cy, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
-	order := func(min, max float32) (float32, float32) {
-		if min <= max {
-			return min, max
-		}
-		return max, min
+// inX, inY, outX, outY are relative to centerDir = 0 (right).
+func radialWedgeBounds(cx, cy, outRadius, inX, inY, outX, outY, dir, dirSin, dirCos float64) (minX, minY, maxX, maxY float32) {
+	ri1x, ri1y := rotate(inX, inY, dirSin, dirCos)
+	ri2x, ri2y := rotate(inX, -inY, dirSin, dirCos)
+	ro1x, ro1y := rotate(outX, outY, dirSin, dirCos)
+	ro2x, ro2y := rotate(outX, -outY, dirSin, dirCos)
+
+	minX64, minY64 := min(ri1x, ri2x, ro1x, ro2x), min(ri1y, ri2y, ro1y, ro2y)
+	maxX64, maxY64 := max(ri1x, ri2x, ro1x, ro2x), max(ri1y, ri2y, ro1y, ro2y)
+
+	deltaRads := math.Atan2(outY, outX)
+	startRads := uradsAddCW(dir, -deltaRads)
+	outRads := uradsAddCW(dir, deltaRads)
+	if uradsWithinCW(RadsRight, startRads, outRads) {
+		maxX64 = outRadius
 	}
+	if uradsWithinCW(RadsBottom, startRads, outRads) {
+		maxY64 = outRadius
+	}
+	if uradsWithinCW(RadsLeft, startRads, outRads) {
+		minX64 = -outRadius
+	}
+	if uradsWithinCW(RadsTop, startRads, outRads) {
+		minY64 = -outRadius
+	}
+
+	return float32(cx + minX64), float32(cy + minY64), float32(cx + maxX64), float32(cy + maxY64)
+}
+
+func circularSectorBounds(cx, cy, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	expand := func(min, max, v float32) (float32, float32) {
 		if v < min {
 			return v, max
@@ -336,8 +363,10 @@ func circularSectorBounds(cx, cy, radius float32, startRads, endRads float64) (m
 
 	ss, sc := math.Sincos(startRads)
 	es, ec := math.Sincos(endRads)
-	minX, maxX = order(cx+radius*float32(sc), cx+radius*float32(ec))
-	minY, maxY = order(cy+radius*float32(ss), cy+radius*float32(es))
+	sx, ex := cx+radius*float32(sc), cx+radius*float32(ec)
+	minX, maxX = min(sx, ex), max(sx, ex)
+	sy, ey := cy+radius*float32(ss), cy+radius*float32(es)
+	minY, maxY = min(sy, ey), max(sy, ey)
 	minX, maxX = expand(minX, maxX, cx)
 	minY, maxY = expand(minY, maxY, cy)
 

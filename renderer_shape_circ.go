@@ -193,17 +193,19 @@ func (r *Renderer) fillRadialWedge(target *ebiten.Image, cx, cy, inRadius, outRa
 	inX, inY = lineCircIntersect(inRadius, inX, inY, outX, outY)
 
 	centerDirSin, centerDirCos := math.Sincos(centerDir)
-	r.innerFillCircWedge(target, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding)
+	r.innerFillRadialWedge(target, cx, cy, inRadius, outRadius, centerDir, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding)
 }
 
 // precondition: inX, inY, outX and outY given relative to centerDir = 0 (right), distances match inRadius and outRadius
-func (r *Renderer) innerFillCircWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding float64) {
-	// TODO: bounding can use min(inX, outX), min(-inY, -outY), max(inX, outX), max(inY, outY) probably?
-	// minX, maxX := min(inX, outX), max(inX, outX)
-	// minY, maxY := min(-inY, -outY), max(inY, outY)
-	minX, maxX := -outRadius-rounding, outRadius+rounding // TODO: unbounded
-	minY, maxY := -outRadius-rounding, outRadius+rounding
-	r.setDstRectCoords(float32(cx+minX), float32(cy+minY), float32(cx+maxX), float32(cy+maxY))
+func (r *Renderer) innerFillRadialWedge(target *ebiten.Image, cx, cy, inRadius, outRadius, centerDir, centerDirSin, centerDirCos, inX, inY, outX, outY, rounding float64) {
+	minX, minY, maxX, maxY := radialWedgeBounds(cx, cy, outRadius, inX, inY, outX, outY, centerDir, centerDirSin, centerDirCos)
+	margin := float32(rounding)
+	minX -= margin
+	maxX += margin
+	minY -= margin
+	maxY += margin
+
+	r.setDstRectCoords(float32(minX), float32(minY), float32(maxX), float32(maxY))
 	r.opts.Uniforms["Radiuses"] = [2]float32{float32(inRadius), float32(outRadius)}
 	r.opts.Uniforms["InPoint"] = [2]float32{float32(inX), float32(inY)}
 	r.opts.Uniforms["OutPoint"] = [2]float32{float32(outX), float32(outY)}
@@ -346,7 +348,7 @@ func (r *Renderer) innerRoundingFillAnnularSector(target *ebiten.Image, cx, cy, 
 	}
 
 	relOutCut, _, _ = circIntersect(0, 0, outRadius, halfCtrAngleCos*outRadius, halfCtrAngleSin*outRadius, rounding)
-	r.innerFillCircWedge(target, cx, cy, inRadius, outRadius, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
+	r.innerFillRadialWedge(target, cx, cy, inRadius, outRadius, centerDir, cds, cdc, relInCut[0], relInCut[1], relOutCut[0], relOutCut[1], rounding-arcCollapse)
 }
 
 // FillEllipse draws a smooth filled ellipse.
