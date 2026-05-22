@@ -63,3 +63,11 @@ func (p PointF32) Normalize() PointF32 {
 	}
 	return PointF32{p.X / l, p.Y / l}
 }
+
+// Rotate rotates the point by the given radians. For rotations with non-zero
+// origins, use p.Sub(origin).Rotate(rads).Add(origin).
+func (p PointF32) Rotate(rads float64) PointF32 {
+	s, c := math.Sincos(rads)
+	s32, c32 := float32(s), float32(c)
+	return PointF32{X: p.X*c32 - p.Y*s32, Y: p.X*s32 + p.Y*c32}
+}

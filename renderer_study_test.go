@@ -47,6 +47,50 @@ func TestStudyRadians(t *testing.T) {
 	}
 }
 
+// go test -run ^TestStudyRotation$ . -count 1
+func TestStudyRotation(t *testing.T) {
+	const CircRadius = 64.0
+	const PointRadius = 3.5
+	const AngleDelta = math.Pi * 1.618033988749895
+
+	rotation := 0.0
+	updater := func(ctx TestAppCtx) {
+		if ebiten.IsKeyPressed(ebiten.KeyR) {
+			delta := mapBool(ebiten.IsKeyPressed(ebiten.KeyShift), 0.03, -0.03)
+			rotation = uradsAddCW(rotation, delta)
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+		w, h := rectSizeF32(canvas.Bounds())
+
+		const Rows, Cols = 2, 2
+		rowHeight := h / Rows
+		colWidth := w / Cols
+
+		ref := PtF32(CircRadius, 0)
+		for y := range Rows {
+			cy := float32(y)*rowHeight + rowHeight/2.0
+			for x := range Cols {
+				cx := float32(x)*colWidth + colWidth/2.0
+				ctx.Renderer.SetColorF32(0.3, 0.3, 0.3, 0.3)
+				ctx.Renderer.FillCircle(canvas, cx, cy, CircRadius)
+
+				ctx.Renderer.SetColorF32(1, 1, 1, 1)
+				p := ref.Rotate(rotation)
+				ctx.Renderer.FillCircle(canvas, cx, cy, PointRadius)
+				ctx.Renderer.FillCircle(canvas, cx+p.X, cy+p.Y, PointRadius)
+				ref = ref.Rotate(AngleDelta)
+			}
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStudyGaussian$ . -count 1
 func TestStudyGaussian(t *testing.T) {
 	const Radius = 64.0
