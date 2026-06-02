@@ -26,7 +26,8 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	offset := majorAxis * 0.25
 	c1 := imageBiSrc0At(texPos - offset)
 	c2 := imageBiSrc0At(texPos + offset)
-	return ((c1 + c2) * 0.5) * color
+	out := (c1 + c2) * 0.5
+	return mix(out, color*out, customVAs[0])
 }
 
 func imageBiSrc0At(coords vec2) vec4 {

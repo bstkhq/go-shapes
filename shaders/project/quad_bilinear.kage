@@ -7,10 +7,12 @@ package main
 
 var Homography mat3
 
-func Fragment(targetCoords vec4, _ vec2, color vec4) vec4 {
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	relCoords := targetCoords.xy - imageDstOrigin()
 	uvw := Homography * vec3(relCoords, 1.0)
-	return imageBiSrc0At(imageSrc0Origin()+(uvw.xy/uvw.z)*imageSrc0Size()) * color
+
+	out := imageBiSrc0At(imageSrc0Origin() + (uvw.xy/uvw.z)*imageSrc0Size())
+	return mix(out, color*out, customVAs[0])
 }
 
 func imageBiSrc0At(coords vec2) vec4 {

@@ -37,8 +37,10 @@ func TestMap(t *testing.T) {
 		ctx.Renderer.mapQuad2(canvas, ctx.Images[0], card.Quad(c1x, c1y))
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y))
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetTint(0)
 		if (ctx.Ticks/180)&1 == 1 {
 			ctx.Renderer.SetColorF32(0, 0, 0, 0, 2, 3)
+			ctx.Renderer.SetTint(1)
 		}
 		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))

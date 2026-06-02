@@ -16,7 +16,7 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 
 	minX, minY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
-	r.setFlatCustomVAs01(1.0, 1.0)
+	r.setFlatCustomVAs(1.0, 1.0, r.tint, 0.0)
 	r.opts.Images[0] = source
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMapBilinear.Load(), &r.opts)
 	r.opts.Images[0] = nil
@@ -29,8 +29,7 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 //
 // quad must be given in clockwise order starting from top-left.
 //
-// The renderer's color is applied multiplicatively as a color scale; set it to white for
-// neutral operation.
+// This operation is affected by [Renderer.Tint].
 func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
@@ -48,7 +47,7 @@ func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 	r.vertices = append(r.vertices, ctrVert)
 
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
-	r.setFlatCustomVAs01(1.0, 1.0)
+	r.setFlatCustomVAs(1.0, 1.0, r.tint, 0.0)
 	r.opts.Images[0] = source
 	r.indices = r.indices[:0]
 	r.indices = slices.Grow(r.indices, 12)[:12]
@@ -85,13 +84,15 @@ func quadCenter(quad [4]PointF32) PointF32 {
 // quad must be given in clockwise order starting from top-left.
 //
 // The anisotropic flag can be set to true to reduce texture distortion at extreme
-// angles, at the price of sampling 8 times instead of 4.
+// angles, at the price of sampling 8 times per pixel instead of 4.
 //
-// To avoid jaggy edges, it's recommended to have one pixel of transparent padding in the
-// source texture.
+// Quads are drawn using two triangles with vertices at the exact given quad
+// coordinates. This means that some edges can be cut during the triangle
+// rasterization process; to avoid jaggy edges, consider keeping one or two
+// pixels of transparent padding in the source texture (the more extreme the
+// quad projection, the more padding might be needed).
 //
-// The renderer's color is applied multiplicatively as a color scale; set it to white
-// for neutral operation.
+// This operation is affected by [Renderer.Tint].
 func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, anisotropic bool) {
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)
@@ -109,6 +110,7 @@ func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, aniso
 		homography[1], homography[4], homography[7],
 		homography[2], homography[5], homography[8],
 	}
+	r.setFlatCustomVA0(r.tint)
 	r.opts.Images[0] = source
 	var shader *ebiten.Shader
 	if anisotropic {

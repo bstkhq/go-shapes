@@ -12,7 +12,8 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	delta := min(fract(sourceCoords+vec2(+halfPercent.x, +halfPercent.y)), percent) / percent
 	top := mix(tl, tr, delta.x)
 	bottom := mix(bl, br, delta.x)
-	return mix(top, bottom, delta.y) * color
+	out := mix(top, bottom, delta.y)
+	return mix(out, color*out, customVAs[2])
 }
 
 func getMinMaxSourceCoords() (vec2, vec2) {

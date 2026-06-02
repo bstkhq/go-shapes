@@ -20,7 +20,9 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	acc += imageSrc0UnsafeAt(clamp(blCoords, minCoords, maxCoords))
 	brCoords := texCoords(normCoords + vec2(+Offset, +Offset))
 	acc += imageSrc0UnsafeAt(clamp(brCoords, minCoords, maxCoords))
-	return (acc / 4.0) * color
+
+	out := acc / 4.0
+	return mix(out, color*out, customVAs[0])
 }
 
 func texCoords(normCoords vec2) vec2 {
