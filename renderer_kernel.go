@@ -96,6 +96,9 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 	}
 }
 
+// TODO: consider samplePosMultiplier float32 for KernelOptions
+// func KernelOptsAuto(downscaling Downscaling, radius float32) KernelOptions {}
+
 // Internal function used by BlurK, GlowK and GlowColorK. It downscales the mask,
 // applies a custom horizontal kernel shader, then a standard vertical blur shader, and
 // upscales the result back, optionally with a custom blend.

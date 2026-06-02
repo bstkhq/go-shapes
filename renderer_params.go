@@ -106,10 +106,41 @@ const (
 	noFlag Flag = iota
 
 	// Use bilinear instead of nearest filtering.
+	//
+	// Bilinear filtering is required when rendering images and effects at
+	// non-integer coordinates. This is particularly visible when attempting
+	// to smoothly animate image coordinates.
+	//
+	// Bilinear filtering is expensive, typically requiring at least 4 samples
+	// per fragment instead of 1.
 	Bilinear
 
 	// Apply dithering.
+	//
+	// Dithering is critical in slow alpha and color transitions, where large
+	// areas of the output share the same color and even small changes become
+	// distinguishable color jumps (banding).
+	//
+	// Dithering in this package is often implemented with blue noise textures.
 	Dithered
+
+	// Improves rendering bounds where supported by switching from axis
+	// aligned bounding boxes (AABBs) to shape-specific hulls.
+	//
+	// For example, the AABB of a triangle has a ~50% of ineffective pixels.
+	// Using a hull can severely reduce overdraw. For strokes and outlines,
+	// the impact is even greater.
+	//
+	// Unfortunately, hulls have multiple downsides:
+	//  - Computing hulls can be non-trivial and increase the number of
+	//    triangles to render.
+	//  - Color interpolation, although approximated within reason, becomes
+	//    notably different from AABB rendering when vertices have different
+	//    colors.
+	//
+	// Therefore, hulls are left as an opt-in optimization tool for stroked
+	// and medium to large shapes that support it.
+	Hull
 
 	// sentinel
 	numFlags
@@ -121,6 +152,8 @@ func (f Flag) String() string {
 		return "Bilinear"
 	case Dithered:
 		return "Dithered"
+	case Hull:
+		return "Hull"
 	default:
 		return "Flag#" + strconv.Itoa(int(f))
 	}

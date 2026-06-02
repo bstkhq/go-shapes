@@ -6,6 +6,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// NOTE: see https://blog.frost.kiwi/dual-kawase/ for the best breakdown
+// of blur techniques
+
 // Blur applies a naive, quadratic gaussian blur to the given mask and draws it onto
 // the given target.
 //

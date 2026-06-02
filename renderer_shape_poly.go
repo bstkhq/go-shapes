@@ -18,7 +18,7 @@ func (r *Renderer) NewFilledRect(width, height int) *ebiten.Image {
 	return img
 }
 
-// FillRect is the [image.Rectangle]-compatible equivalent of [Renderer.FillRect]().
+// FillIntRect is the [image.Rectangle]-compatible equivalent of [Renderer.FillRect]().
 //
 // For rectangle creation, consider [image.Rect]() and [RectWithSize]().
 func (r *Renderer) FillIntRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
@@ -87,6 +87,58 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 	r.opts.Uniforms["Rounding"] = rounding
 	margins := NewMargins(hmargin, vmargin)
 	r.DrawRectShader(target, ox, oy, w, h, margins, shaderRect.Load())
+	clear(r.opts.Uniforms)
+}
+
+// FillRectSoft draws a rect like [Renderer.FillRect]() but with a soft edge. This is
+// ideal for rect shadows in UIs and avoiding the more expensive raster-based blurs.
+//
+// Rounding can be zero, positive for outwards rounding, or negative for inwards
+// rounding. When positive, the soft radius will extend [-softEdge, +softEdge] around the
+// boundary, closely approximating a gaussian blur. When negative, the softening will
+// extend inwards [-softEdge, 0].
+func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softEdge float32) {
+	if w < 0 {
+		w = -w
+		ox -= w
+	}
+	if h < 0 {
+		h = -h
+		oy -= h
+	}
+
+	// always make rounding negative (inwards)
+	if rounding > 0 {
+		r2 := rounding + rounding
+		w, h = w+r2, h+r2
+		ox -= rounding
+		oy -= rounding
+		rounding = -rounding
+	}
+
+	// collapse case
+	if rounding+max(softEdge, 0) < -max(w, h)*2 {
+		return // ignore
+	}
+
+	var shader *ebiten.Shader
+	if softEdge > 0 {
+		rounding -= softEdge / 1.65 // empirical adjustment
+		shader = shaderRectSoftBlur.Load()
+	} else {
+		softEdge = -softEdge
+		shader = shaderRectSoftIn.Load()
+		if ebiten.IsKeyPressed(ebiten.KeyQ) {
+			shader = shaderRectSoftInSmoothstep.Load()
+		}
+	}
+
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
+	r.opts.Uniforms["InRounding"] = -rounding
+	r.opts.Uniforms["BlurRadius"] = softEdge
+	margin := max(softEdge, 0)
+	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shader)
 	clear(r.opts.Uniforms)
 }
 
@@ -308,6 +360,10 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 	r.drawTriangle(target, points, thickness, rounding)
 }
 
+// TODO: bounds should be tightened up like quads. while three vertex colors could be used in order,
+// this will actually make the function incompatible with the rest, so tightening bounds might be
+// preferable. and tightening bounds here cuts number of pixels to process in half, so it's quite
+// important. improve color interpolation
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
 	area := abs((points[0].X*(points[1].Y-points[2].Y) + points[1].X*(points[2].Y-points[0].Y) + points[2].X*(points[0].Y-points[1].Y)) / 2)
 	if area < 1e-6 {
@@ -442,82 +498,83 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 // NOTE: FillQuad and FillQuadSoft could have general rounding implemented, but the maths
 // are actually not trivial (straight skeleton, handle cases for line and point collapse)
 
-// FillQuad renders a convex quad with the current renderer colors.
-// The thickening acts as a rounding parameter that extends the shape outwards.
-// Thickening must be >= 0. Notice that non-zero thickening involves additional
-// CPU-side precomputations.
+// FillQuad renders a simple quadrilateral (not self-intersecting) with the
+// current renderer colors. TODO: concaves are not solved yet
 //
 // quad must be given in clockwise order starting from top-left.
-func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, thickening float32) {
-	r.FillQuadSoft(target, quad, thickening, 1.3333)
-}
-
-// TODO: inconsistent softEdge between FillRectSoft and this?
-
-// FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
-// creates a shadow-like soft edge.
-func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
-	for i, pt := range expandQuad(quad, thickening) {
-		r.vertices[i].DstX = pt.X
-		r.vertices[i].DstY = pt.Y
+//
+// Rounding can be zero, positive for outwards rounding, or negative for
+// inwards rounding. Notice that non-zero rounding triggers additional
+// precomputations, which are complex for inner rounding.
+//
+// Unlike with triangles, varying vertex colors map to the quad's bounding
+// box, not the vertices themselves. This is because
+func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
+	if rounding < 0 {
+		quad, shape := offsetQuad(quad, rounding)
+		switch shape {
+		case shapePoint:
+			// TODO: correct color interpolation is missing and difficult
+			r.FillCircle(target, quad[0].X, quad[0].Y, quad[1].X)
+		case shapeLine:
+			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(quad[2].X))
+		case shapeTriangle:
+			// TODO: color interpolation won't work, triangles operate differently.
+			// Either we make triangles also operate in bounding box color, or idk
+			var tri [3]PointF32
+			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]
+			r.FillTriangle(target, tri, -rounding)
+		case shapeQuad:
+			r.FillQuad(target, quad, -rounding)
+		default:
+			panic(shape) // broken code
+		}
+		return
 	}
 
-	r.setFlatCustomVAs01(thickening, softEdge)
+	// r.hullBuff = quadHull(r.hullBuff, quad)
+	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X))
+	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y))
+	r.setDstRectCoords(minX, maxX, minY, maxY)
+
 	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVA0(rounding)
 	r.opts.Uniforms["Quad"] = [8]float32{
 		quad[0].X - tox, quad[0].Y - toy, quad[1].X - tox, quad[1].Y - toy,
 		quad[2].X - tox, quad[2].Y - toy, quad[3].X - tox, quad[3].Y - toy,
 	}
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
 	clear(r.opts.Uniforms)
+
+	r.FillQuadSoft(target, quad, rounding, -1.3333)
 }
 
-// FillRectSoft2 draws a rect like [Renderer.FillRect]() but with a soft edge. This is
-// ideal for batch rendering rect shadows in UIs avoiding the more expensive raster-
-// based blurs.
+// FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
+// creates a shadow-like soft edge.
 //
-// Rounding can be zero, positive for outwards rounding, or negative for inwards
-// rounding. When positive, the soft radius will extend [-softEdge, +softEdge] around the
-// boundary, closely approximating a gaussian blur. When negative, the softening will
-// extend inwards [-softEdge, 0].
-func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softEdge float32) {
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
+// TODO: thickening -> rounding, soft edge both positive and negative (inwards)
+func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, offset, softEdge float32) {
+	quad, shape := offsetQuad(quad, offset)
+	switch shape {
+	case shapeLine:
+		panic("unimplemented soft shapeLine")
+	case shapePoint:
+		panic("unimplemented soft shapePoint")
+	case shapeTriangle:
+		panic("unimplemented soft shapeTriangle")
+	case shapeQuad:
+		for i, pt := range quad {
+			r.vertices[i].DstX = pt.X
+			r.vertices[i].DstY = pt.Y
+		}
 
-	// always make rounding negative (inwards)
-	if rounding > 0 {
-		r2 := rounding + rounding
-		w, h = w+r2, h+r2
-		ox -= rounding
-		oy -= rounding
-		rounding = -rounding
+		r.setFlatCustomVAs01(offset, softEdge)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.opts.Uniforms["Quad"] = [8]float32{
+			quad[0].X - tox, quad[0].Y - toy, quad[1].X - tox, quad[1].Y - toy,
+			quad[2].X - tox, quad[2].Y - toy, quad[3].X - tox, quad[3].Y - toy,
+		}
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
+		clear(r.opts.Uniforms)
 	}
-
-	// collapse case
-	if rounding+max(softEdge, 0) < -max(w, h)*2 {
-		return // ignore
-	}
-
-	var shader *ebiten.Shader
-	if softEdge > 0 {
-		rounding -= softEdge / 1.65 // empirical adjustment
-		shader = shaderRectSoftBlur.Load()
-	} else {
-		softEdge = -softEdge
-		shader = shaderRectSoftIn.Load()
-	}
-
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
-	r.opts.Uniforms["InRounding"] = -rounding
-	r.opts.Uniforms["BlurRadius"] = softEdge
-	margin := max(softEdge, 0)
-	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shader)
-	clear(r.opts.Uniforms)
 }
