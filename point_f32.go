@@ -36,12 +36,17 @@ func (p PointF32) AddXY(x, y float32) PointF32 {
 	return PointF32{p.X + x, p.Y + y}
 }
 
+// Mul returns the component-wise product of p*o.
+func (p PointF32) Mul(o PointF32) PointF32 {
+	return PointF32{X: p.X * o.X, Y: p.Y * o.Y}
+}
+
 // Scale returns p*s.
 func (p PointF32) Scale(s float32) PointF32 {
 	return PointF32{p.X * s, p.Y * s}
 }
 
-// Dot returns p*o.
+// Dot returns p.X*o.X + p.Y*o.Y.
 func (p PointF32) Dot(o PointF32) float32 {
 	return p.X*o.X + p.Y*o.Y
 }
