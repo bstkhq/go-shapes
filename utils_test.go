@@ -162,7 +162,7 @@ func (app *TestApp) Update() error {
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyO) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyDigit0) {
 		if app.origin.Eq(image.Pt(0, 0)) {
 			offset := 32
 			if rand.Float64() < 0.5 {
