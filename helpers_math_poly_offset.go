@@ -3,6 +3,7 @@ package shapes
 import (
 	"cmp"
 	"math"
+	"slices"
 	"strconv"
 )
 
@@ -348,16 +349,60 @@ func shoelaceArea(quad [4]PointF32) float32 {
 }
 
 // normalizeTriangleCW checks the winding of the triangle and makes it CW
-func normalizeTriangleCW(points [3]PointF32) {
+func normalizeTriangleCW(points [3]PointF32) [3]PointF32 {
 	cross := (points[1].X-points[0].X)*(points[2].Y-points[0].Y) - (points[1].Y-points[0].Y)*(points[2].X-points[0].X)
 	if cross < 0 {
 		points[1], points[2] = points[2], points[1]
 	}
+	return points
 }
 
 // normalizeQuadCW checks the winding of the quad and makes it CW
-func normalizeQuadCW(points [4]PointF32) {
+func normalizeQuadCW(points [4]PointF32) [4]PointF32 {
 	if shoelaceArea(points) < 0 {
 		points[1], points[3] = points[3], points[1]
 	}
+	return points
+}
+
+// canonicalizeQuadCW converts the quad to its canonical form: CW orientation,
+// if concave then quad[2] contains the reflex angle. The method returns false
+// if the quad can't be canonicalized (self-intersecting)
+func canonicalizeQuadCW(points [4]PointF32) ([4]PointF32, bool) {
+	turn := func(a, b, c PointF32) float32 {
+		ab, bc := a.Sub(b), b.Sub(c)
+		return ab.X*bc.Y - ab.Y*bc.X
+	}
+	turns := [4]float32{
+		turn(points[0], points[1], points[2]),
+		turn(points[1], points[2], points[3]),
+		turn(points[2], points[3], points[0]),
+		turn(points[3], points[0], points[1]),
+	}
+
+	var pos, neg int
+	for _, t := range turns {
+		if t > 0 {
+			pos += 1
+		} else if t < 0 {
+			neg += 1
+		}
+	}
+
+	switch {
+	case pos > 1 && neg > 1:
+		return points, false // self-intersecting
+	case pos == 1 && neg > 1: // CW concave
+		reflex := slices.IndexFunc(turns[:], func(t float32) bool { return t > 0 })
+		points[0], points[1], points[2], points[3] = points[(reflex+1)&3], points[(reflex+2)&3], points[reflex], points[(reflex+3)&3]
+	case neg == 1 && pos > 1: // CCW concave
+		// this is the same as CW concave, but with reflex reversal and points 1<->3 swap fused
+		reflex := (3 - slices.IndexFunc(turns[:], func(t float32) bool { return t < 0 })) & 3
+		points[0], points[1], points[2], points[3] = points[(reflex+1)&3], points[(reflex+3)&3], points[reflex], points[(reflex+2)&3]
+	default: // convex or line or point
+		if pos > neg {
+			points[1], points[3] = points[3], points[1]
+		}
+	}
+	return points, true
 }
