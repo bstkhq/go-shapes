@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"cmp"
 	"math"
 	"strconv"
 )
@@ -74,10 +75,10 @@ func offsetQuadNaiveWithEdges(quad [4]PointF32, edges [4]PointF32, offset float3
 	}
 
 	return [4]PointF32{
-		bisectorSlideInwards(quad[0], edges[3], edges[0], -offset),
-		bisectorSlideInwards(quad[1], edges[0], edges[1], -offset),
-		bisectorSlideInwards(quad[2], edges[1], edges[2], -offset),
-		bisectorSlideInwards(quad[3], edges[2], edges[3], -offset),
+		bisectorSlide(quad[0], edges[3], edges[0], offset),
+		bisectorSlide(quad[1], edges[0], edges[1], offset),
+		bisectorSlide(quad[2], edges[1], edges[2], offset),
+		bisectorSlide(quad[3], edges[2], edges[3], offset),
 	}
 }
 
@@ -244,8 +245,26 @@ func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32, maxOffset floa
 	offset23, inter23 := vertsCollapse(quad[2], bisectors[2], quad[3], bisectors[3], edges[2])
 	offset30, inter30 := vertsCollapse(quad[3], bisectors[3], quad[0], bisectors[0], edges[3])
 
-	// line collapse (technically it might also be a point, but line covers it as well)
+	// handle degenerate point/line cases
 	out := skeletonOffset{Shape: shapeLine}
+	if offset01 == math.MaxFloat32 && offset12 == math.MaxFloat32 && offset23 == math.MaxFloat32 && offset30 == math.MaxFloat32 {
+		dir := cmp.Or(edges[0], edges[1], edges[2], edges[3])
+		if dir == (PointF32{}) {
+			out.Shape = shapePoint
+			out.Points[0] = quad[0]
+			return out
+		}
+
+		ext1 := (quad[1].X-quad[0].X)*dir.X + (quad[1].Y-quad[0].Y)*dir.Y
+		ext2 := (quad[2].X-quad[0].X)*dir.X + (quad[2].Y-quad[0].Y)*dir.Y
+		ext3 := (quad[3].X-quad[0].X)*dir.X + (quad[3].Y-quad[0].Y)*dir.Y
+		minExt, maxExt := min(0, ext1, ext2, ext3), max(0, ext1, ext2, ext3)
+		out.Points[0] = PointF32{X: quad[0].X + dir.X*minExt, Y: quad[0].Y + dir.Y*minExt}
+		out.Points[1] = PointF32{X: quad[0].X + dir.X*maxExt, Y: quad[0].Y + dir.Y*maxExt}
+		return out
+	}
+
+	// line collapse (technically it might also be a point, but line covers it as well)
 	if offset01 < math.MaxFloat32 && abs(offset01-offset23) < 1e-4 {
 		out.Offset = offset01
 		out.Points[0], out.Points[1] = inter01, inter23
@@ -266,20 +285,20 @@ func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32, maxOffset floa
 	switch out.Offset {
 	case offset01:
 		out.Points[0] = inter01
-		out.Points[1] = bisectorSlideInwards(quad[2], edges[1], edges[2], out.Offset)
-		out.Points[2] = bisectorSlideInwards(quad[3], edges[2], edges[3], out.Offset)
+		out.Points[1] = bisectorSlide(quad[2], edges[1], edges[2], -out.Offset)
+		out.Points[2] = bisectorSlide(quad[3], edges[2], edges[3], -out.Offset)
 	case offset12:
-		out.Points[0] = bisectorSlideInwards(quad[0], edges[3], edges[0], out.Offset)
+		out.Points[0] = bisectorSlide(quad[0], edges[3], edges[0], -out.Offset)
 		out.Points[1] = inter12
-		out.Points[2] = bisectorSlideInwards(quad[3], edges[2], edges[3], out.Offset)
+		out.Points[2] = bisectorSlide(quad[3], edges[2], edges[3], -out.Offset)
 	case offset23:
-		out.Points[0] = bisectorSlideInwards(quad[0], edges[3], edges[0], out.Offset)
-		out.Points[1] = bisectorSlideInwards(quad[1], edges[0], edges[1], out.Offset)
+		out.Points[0] = bisectorSlide(quad[0], edges[3], edges[0], -out.Offset)
+		out.Points[1] = bisectorSlide(quad[1], edges[0], edges[1], -out.Offset)
 		out.Points[2] = inter23
 	case offset30:
 		out.Points[0] = inter30
-		out.Points[1] = bisectorSlideInwards(quad[1], edges[0], edges[1], out.Offset)
-		out.Points[2] = bisectorSlideInwards(quad[2], edges[1], edges[2], out.Offset)
+		out.Points[1] = bisectorSlide(quad[1], edges[0], edges[1], -out.Offset)
+		out.Points[2] = bisectorSlide(quad[2], edges[1], edges[2], -out.Offset)
 	default:
 		panic("NaN?") // this shouldn't be possible by construction
 	}
@@ -303,17 +322,42 @@ func distanceToNormalizedLine(p, lineOrigin, lineDir PointF32) float32 {
 	return abs(v.X*lineDir.Y - v.Y*lineDir.X) // cross product
 }
 
-// bisectorSlideInwards slides a corner vertex inward by a perpendicular
-// offset distance from the edges. the edge vectors must be normalized.
-func bisectorSlideInwards(v, edgeIn, edgeOut PointF32, offset float32) PointF32 {
+// bisectorSlide slides a corner vertex inward by a perpendicular offset
+// distance from the edges. the edge vectors must be normalized.
+func bisectorSlide(v, edgeIn, edgeOut PointF32, offset float32) PointF32 {
 	bisector := edgeOut.Sub(edgeIn)
 
 	// cross product magnitude (perpendicular projection factor)
-	denom := abs(bisector.X*edgeOut.Y - bisector.Y*edgeOut.X)
-	if denom < 1e-6 {
+	denom := bisector.X*edgeOut.Y - bisector.Y*edgeOut.X
+	if abs(denom) < 1e-6 {
 		return v // parallel
 	}
 
 	// scale factor along the bisector
 	return v.Add(bisector.Scale(offset / denom))
+}
+
+// see shoelace formula. the function returns a positive value for CW quads,
+// negative for CCW and 0 for degenerate cases (self-intersecting, all points
+// on a line)
+func shoelaceArea(quad [4]PointF32) float32 {
+	return (quad[1].X-quad[0].X)*(quad[1].Y+quad[0].Y) +
+		(quad[2].X-quad[1].X)*(quad[2].Y+quad[1].Y) +
+		(quad[3].X-quad[2].X)*(quad[3].Y+quad[2].Y) +
+		(quad[0].X-quad[3].X)*(quad[0].Y+quad[3].Y)
+}
+
+// normalizeTriangleCW checks the winding of the triangle and makes it CW
+func normalizeTriangleCW(points [3]PointF32) {
+	cross := (points[1].X-points[0].X)*(points[2].Y-points[0].Y) - (points[1].Y-points[0].Y)*(points[2].X-points[0].X)
+	if cross < 0 {
+		points[1], points[2] = points[2], points[1]
+	}
+}
+
+// normalizeQuadCW checks the winding of the quad and makes it CW
+func normalizeQuadCW(points [4]PointF32) {
+	if shoelaceArea(points) < 0 {
+		points[1], points[3] = points[3], points[1]
+	}
 }

@@ -7,6 +7,62 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+func TestQuadSkeletonShape(t *testing.T) {
+	tests := []struct {
+		quad     [4]PointF32
+		outShape shape
+	}{
+		{ // normal quad A
+			quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 0), PtF32(100, 100), PtF32(20, 90)},
+			outShape: shapeTriangle,
+		},
+		{ // normal quad B
+			quad:     [4]PointF32{PtF32(10, 0), PtF32(8, 10), PtF32(0, 4), PtF32(0, 1)},
+			outShape: shapeTriangle,
+		},
+		{ // trapezoid with flat top/bottom
+			quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 0), PtF32(120, 100), PtF32(20, 100)},
+			outShape: shapeLine,
+		},
+		{ // symmetric quad A
+			quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 0), PtF32(100, 100), PtF32(10, 90)},
+			outShape: shapeLine,
+		},
+		{ // point
+			quad:     [4]PointF32{PtF32(50, 50), PtF32(50, 50), PtF32(50, 50), PtF32(50, 50)},
+			outShape: shapePoint,
+		},
+		{ // line A
+			quad:     [4]PointF32{PtF32(0, 50), PtF32(100, 50), PtF32(100, 50), PtF32(0, 50)},
+			outShape: shapeLine,
+		},
+		{ // line B
+			quad:     [4]PointF32{PtF32(0, 0), PtF32(0, 0), PtF32(10, 0), PtF32(0, 0)},
+			outShape: shapeLine,
+		},
+		// { // symmetric bowtie A
+		// 	quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 100), PtF32(100, 0), PtF32(0, 100)},
+		// 	outShape: shapeNonSimple,
+		// },
+		// { // symmetric bowtie B
+		// 	quad:     [4]PointF32{PtF32(6, 8), PtF32(0, 0), PtF32(6, 0), PtF32(0, 8)},
+		// 	outShape: shapeNonSimple,
+		// },
+		// { // asymmetric bowtie A
+		// 	quad:     [4]PointF32{PtF32(0, 0), PtF32(10, 10), PtF32(0, 9), PtF32(0, 10)},
+		// 	outShape: shapeNonSimple,
+		// },
+	}
+
+	for i, test := range tests {
+		edges := quadNormalizedEdges(test.quad)
+		result := firstQuadSkeletonOffset(test.quad, edges, Float32Inf())
+		if result.Shape != test.outShape {
+			t.Errorf("test #%d: expected shape %v, got %v", i, test.outShape, result.Shape)
+		}
+	}
+}
+
 // go test -run ^TestOffsetQuad$ . -count 1
 func TestOffsetQuad(t *testing.T) {
 	var points [4]PointF32
