@@ -3,12 +3,17 @@ package shapes
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"math"
 	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
+
+// color that's dark but distinguishable against BlendClears used to
+// test bounds
+var backTestColor = color.RGBA{48, 0, 128, 255}
 
 type BaseTestApp struct{}
 

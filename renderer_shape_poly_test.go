@@ -455,23 +455,63 @@ func TestFillRectRounding(t *testing.T) {
 
 // go test -run ^TestFillQuad$ . -count 1
 func TestFillQuad(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lc := ctx.LeftClickF32()
-		rc := ctx.RightClickF32()
+	regions := [][2]PointF32{ // origin and sizes
+		{PtF32(0.0, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.333, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.666, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.0, 0.5), PtF32(0.333, 0.5)},
+		{PtF32(0.333, 0.5), PtF32(0.333, 0.5)},
+		{PtF32(0.666, 0.5), PtF32(0.333, 0.5)},
+	}
+	quads := [][4]PointF32{
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.9), PtF32(0.4, 0.6), PtF32(0.6, 0.4)}, // self-intersecting (doesn't have to render properly, but don't panic)
+		{PtF32(0.5, 0.1), PtF32(0.8, 0.8), PtF32(0.5, 0.4), PtF32(0.2, 0.8)}, // arrow quad (concave)
+		{PtF32(0.2, 0.1), PtF32(0.25, 0.2), PtF32(0.75, 0.75), PtF32(0.25, 0.9)},
+		{PtF32(0.2, 0.9), PtF32(0.7, 0.8), PtF32(0.8, 0.2), PtF32(0.1, 0.1)}, // CCW quad
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.1), PtF32(0.1, 0.9), PtF32(0.9, 0.9)}, // symmetric bow-tie (self-intersecting)
+		{PtF32(0.1, 0.4), PtF32(0.8, 0.4), PtF32(0.9, 0.6), PtF32(0.2, 0.6)}, // short trapeze
+	}
+	if len(regions) != len(quads) {
+		panic("each quad must have a region defined")
+	}
 
-		w, h := rectSizeF32(canvas.Bounds())
-		quad := [4]PointF32{
-			{X: lc.X, Y: lc.Y},
-			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rc.X, Y: rc.Y},
-			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
+	rounding := float32(0.0)
+	animRounding := false
+	updater := func(ctx TestAppCtx) {
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -100.0, +100.0, 2.0)
+		animRounding = updateToggle(ctx, ebiten.KeyA, animRounding)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf("Rounding: %.02f [R]\nAnim Rounding: %t [A]", rounding, animRounding)
+		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendClear
 		}
-		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.FillQuad(canvas, quad, thickening)
+		roundingOffset := float32(0.0)
+		if animRounding {
+			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
+		}
+		w, h := rectSizeF32(canvas.Bounds())
+		size := PtF32(w, h)
+		for i, region := range regions {
+			quad := quads[i]
+			for v := range 4 {
+				quad[v] = (region[0].Mul(size)).Add(quad[v].Mul(size).Mul(region[1]))
+			}
+			ctx.Renderer.FillQuad(canvas, quad, rounding+roundingOffset)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)
+	app.Renderer.Warnings.SetHandler(func(warning Warning, value any, alreadySeen bool) {
+		if warning != WarnSelfIntersectingGeom { // ignore self-intersections during visual testing
+			panicHandlerFunc(warning, value, alreadySeen)
+		}
+	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

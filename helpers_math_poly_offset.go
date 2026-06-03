@@ -40,17 +40,16 @@ func (s shape) String() string {
 }
 
 // offsetQuad applies a signed offset to the given quad. the returned shapes
-// can be shapeQuad, shapeTriangle, shapeLine and shapePoint. in the case of
-// shapePoint (total collapse), the returned float will be > 0, and it
-// indicates the leftover offset. this is relevant during rendering, to
-// compensate possible expansions during inwards rounding operations.
+// can be shapeQuad, shapeTriangle, shapeLine and shapePoint. the float is the
+// offset reached (signed, used to detect the maximum collapse into a point)
 //
 // quad points must be given in clockwise order, +y axis goes down
 func offsetQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) {
 	if offset > 0 {
-		return offsetQuadNaive(quad, offset), shapeQuad, 0
+		return offsetQuadNaive(quad, offset), shapeQuad, offset
 	}
-	return shrinkQuad(quad, -offset)
+	out, shape, offsetReached := shrinkQuad(quad, -offset)
+	return out, shape, -offsetReached
 }
 
 // offsetQuadNaive applies a naive offsetting of the edges of the quad. in the
@@ -118,9 +117,8 @@ func lineIntersect(p1, d1, p2, d2 PointF32) PointF32 {
 	}
 }
 
-// shrinkQuad returns the quad with the edges offset inwards by offset,
-// the resulting shape and the potentially leftover offset (e.g. we collapsed
-// into a final point without going all the way through the offset)
+// shrinkQuad returns the quad with the edges offset inwards by offset, the
+// resulting shape and the offset reached (magnitude)
 //
 // offset is a magnitude, so it must be >= 0. quad points must be given
 // in clockwise order, +y axis goes down
@@ -129,7 +127,7 @@ func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) 
 		panic("offset must be non-negative")
 	}
 	if offset == 0 {
-		return quad, shapeQuad, 0.0
+		return quad, shapeQuad, offset
 	}
 
 	// compute first straight skeleton intersection
@@ -138,25 +136,25 @@ func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) 
 
 	// simple case (no collapse)
 	if offset < skeleton.Offset {
-		return offsetQuadNaiveWithEdges(quad, edges, -offset), shapeQuad, 0.0
+		return offsetQuadNaiveWithEdges(quad, edges, -offset), shapeQuad, offset
 	}
 
 	// hard cases (collapse)
 	switch skeleton.Shape {
 	case shapeLine:
-		p1, p2, shape, leftoverOffset := shrinkLine(skeleton.Points[0], skeleton.Points[1], offset-skeleton.Offset)
-		return [4]PointF32{p1, p2}, shape, leftoverOffset
+		p1, p2, shape, offsetReached := shrinkLine(skeleton.Points[0], skeleton.Points[1], offset-skeleton.Offset)
+		return [4]PointF32{p1, p2}, shape, offsetReached + skeleton.Offset
 	case shapeTriangle:
 		pi1, pi2, pi3 := skeleton.Points[0], skeleton.Points[1], skeleton.Points[2]
-		po1, po2, po3, shape, leftoverOffset := shrinkTriangle(pi1, pi2, pi3, offset-skeleton.Offset)
-		return [4]PointF32{po1, po2, po3}, shape, leftoverOffset
+		po1, po2, po3, shape, offsetReached := shrinkTriangle(pi1, pi2, pi3, offset-skeleton.Offset)
+		return [4]PointF32{po1, po2, po3}, shape, offsetReached + skeleton.Offset
 	default:
 		panic(skeleton.Shape)
 	}
 }
 
-// offset is a magnitude (>= 0). the returned float32 is the leftover offset.
-// if the shape collapses into shapePoint, leftover offset can be > 0
+// offset is a magnitude (>= 0). the returned float32 is the offset reached
+// (magnitude)
 func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shape, float32) {
 	if offset < 0 {
 		panic("offset must be >= 0")
@@ -166,16 +164,16 @@ func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shape, flo
 	segmentLength := segmentVector.Length()
 	maxOffset := segmentLength * 0.5
 	if offset > maxOffset-1e-6 {
-		return p1.Add(segmentVector.Scale(0.5)), PointF32{}, shapePoint, max(offset-maxOffset, 0)
+		return p1.Add(segmentVector.Scale(0.5)), PointF32{}, shapePoint, maxOffset
 	}
 
 	dir := segmentVector.Scale(1.0 / segmentLength)
 	shift := dir.Scale(offset)
-	return p1.Add(shift), p2.Sub(shift), shapeLine, 0
+	return p1.Add(shift), p2.Sub(shift), shapeLine, offset
 }
 
-// offset is a magnitude (>= 0). the returned float32 is the leftover offset.
-// if the shape collapses into shapePoint, leftover offset can be > 0.
+// offset is a magnitude (>= 0). the returned float32 is the offset reached
+// (magnitude)
 //
 // triangle points must be given in clockwise order, +y axis goes down
 func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, PointF32, shape, float32) {
@@ -196,7 +194,7 @@ func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, Po
 	if offset >= maxOffset {
 		cx := (l23*p1.X + l31*p2.X + l12*p3.X) / perimeter
 		cy := (l23*p1.Y + l31*p2.Y + l12*p3.Y) / perimeter
-		return PtF32(cx, cy), PointF32{}, PointF32{}, shapePoint, offset - maxOffset
+		return PtF32(cx, cy), PointF32{}, PointF32{}, shapePoint, maxOffset
 	}
 
 	// no collapse, finish calculations
@@ -208,7 +206,7 @@ func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, Po
 	p1.X, p1.Y = shortCramer(a31, b31, c31, a12, b12, c12)
 	p2.X, p2.Y = shortCramer(a12, b12, c12, a23, b23, c23)
 	p3.X, p3.Y = shortCramer(a23, b23, c23, a31, b31, c31)
-	return p1, p2, p3, shapeTriangle, 0
+	return p1, p2, p3, shapeTriangle, offset
 }
 
 type skeletonOffset struct {
@@ -374,33 +372,32 @@ func canonicalizeQuadCW(points [4]PointF32) ([4]PointF32, bool) {
 		return ab.X*bc.Y - ab.Y*bc.X
 	}
 	turns := [4]float32{
+		turn(points[3], points[0], points[1]),
 		turn(points[0], points[1], points[2]),
 		turn(points[1], points[2], points[3]),
 		turn(points[2], points[3], points[0]),
-		turn(points[3], points[0], points[1]),
 	}
 
-	var pos, neg int
+	var cw, ccw int // assume x+ right, y+ down
 	for _, t := range turns {
 		if t > 0 {
-			pos += 1
+			cw += 1
 		} else if t < 0 {
-			neg += 1
+			ccw += 1
 		}
 	}
 
 	switch {
-	case pos > 1 && neg > 1:
+	case cw > 1 && ccw > 1:
 		return points, false // self-intersecting
-	case pos == 1 && neg > 1: // CW concave
+	case ccw == 1 && cw > 1: // CW concave
+		reflex := slices.IndexFunc(turns[:], func(t float32) bool { return t < 0 })
+		points[0], points[1], points[2], points[3] = points[(reflex+2)&3], points[(reflex+3)&3], points[reflex], points[(reflex+1)&3]
+	case cw == 1 && ccw > 1: // CCW concave
 		reflex := slices.IndexFunc(turns[:], func(t float32) bool { return t > 0 })
-		points[0], points[1], points[2], points[3] = points[(reflex+1)&3], points[(reflex+2)&3], points[reflex], points[(reflex+3)&3]
-	case neg == 1 && pos > 1: // CCW concave
-		// this is the same as CW concave, but with reflex reversal and points 1<->3 swap fused
-		reflex := (3 - slices.IndexFunc(turns[:], func(t float32) bool { return t < 0 })) & 3
-		points[0], points[1], points[2], points[3] = points[(reflex+1)&3], points[(reflex+3)&3], points[reflex], points[(reflex+2)&3]
+		points[0], points[1], points[2], points[3] = points[(reflex+2)&3], points[(reflex+1)&3], points[reflex], points[(reflex+3)&3]
 	default: // convex or line or point
-		if pos > neg {
+		if ccw > cw {
 			points[1], points[3] = points[3], points[1]
 		}
 	}

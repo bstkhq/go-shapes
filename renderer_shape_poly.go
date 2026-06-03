@@ -498,26 +498,37 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 // NOTE: FillQuad and FillQuadSoft could have general rounding implemented, but the maths
 // are actually not trivial (straight skeleton, handle cases for line and point collapse)
 
-// FillQuad renders a simple quadrilateral (not self-intersecting) with the
-// current renderer colors. TODO: concaves are not solved yet
-//
-// quad must be given in clockwise order starting from top-left.
+// FillQuad renders a simple quadrilateral (convex or concave, but not
+// self-intersecting) with the current renderer colors.
 //
 // Rounding can be zero, positive for outwards rounding, or negative for
 // inwards rounding. Notice that non-zero rounding triggers additional
 // precomputations, which are complex for inner rounding.
-//
-// Unlike with triangles, varying vertex colors map to the quad's bounding
-// box, not the vertices themselves. This is because
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
+	var simple bool
+	quad, simple = canonicalizeQuadCW(quad)
+	if !simple {
+		r.Warnings.report(WarnSelfIntersectingGeom, quad)
+	}
+
 	if rounding < 0 {
-		quad, shape := offsetQuad(quad, rounding)
+		// dbgX, dbgY := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X), min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)
+		quad, shape, offsetReached := offsetQuad(quad, rounding)
+		// r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f", shape.String(), offsetReached), dbgX, dbgY, TextOpts(1.0, BottomLeft))
 		switch shape {
 		case shapePoint:
-			// TODO: correct color interpolation is missing and difficult
-			r.FillCircle(target, quad[0].X, quad[0].Y, quad[1].X)
+			radius := rounding - offsetReached*2
+			if radius <= 0 {
+				return // empty
+			}
+			r.FillCircle(target, quad[0].X, quad[0].Y, radius)
 		case shapeLine:
-			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(quad[2].X))
+			// TODO: this isn't being hit, some trapezes are collapsing into a quad
+			thick := rounding - offsetReached*2
+			if thick <= 0 {
+				return // empty
+			}
+			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(thick))
 		case shapeTriangle:
 			// TODO: color interpolation won't work, triangles operate differently.
 			// Either we make triangles also operate in bounding box color, or idk
@@ -532,10 +543,12 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 		return
 	}
 
-	// r.hullBuff = quadHull(r.hullBuff, quad)
-	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X))
-	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y))
-	r.setDstRectCoords(minX, maxX, minY, maxY)
+	// if opts.include(Hull) {
+	//     r.hullBuff = quadHull(r.hullBuff, quad, rounding)
+	// }
+	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-rounding), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+rounding)
+	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-rounding), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+rounding)
+	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVA0(rounding)
@@ -545,8 +558,6 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	}
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
 	clear(r.opts.Uniforms)
-
-	r.FillQuadSoft(target, quad, rounding, -1.3333)
 }
 
 // FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
@@ -554,7 +565,8 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 //
 // TODO: thickening -> rounding, soft edge both positive and negative (inwards)
 func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, offset, softEdge float32) {
-	quad, shape := offsetQuad(quad, offset)
+	quad, shape, offsetReached := offsetQuad(quad, offset)
+	_ = offsetReached
 	switch shape {
 	case shapeLine:
 		panic("unimplemented soft shapeLine")

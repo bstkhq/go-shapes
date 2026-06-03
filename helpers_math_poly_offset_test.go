@@ -85,8 +85,8 @@ func TestOffsetQuad(t *testing.T) {
 			firstDraw = false
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		out, shape, leftoverOffset := offsetQuad(points, rounding)
-		info := fmt.Sprintf("Press and drag the points\nRounding: %.02f [R]\nShape: %s\nLeftover offset: %.02f", rounding, shape, leftoverOffset)
+		out, shape, offsetReached := offsetQuad(points, rounding)
+		info := fmt.Sprintf("Press and drag the points\nRounding: %.02f [R]\nShape: %s\nOffset reached: %.02f", rounding, shape, offsetReached)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		for _, p := range points {
@@ -125,10 +125,10 @@ func TestShrinkTriangle(t *testing.T) {
 			points[2] = PtF32(w*0.2, h*0.9)
 			firstDraw = false
 		}
-		p1, p2, p3, shape, leftoverOffset := shrinkTriangle(points[0], points[1], points[2], offset)
+		p1, p2, p3, shape, offsetReached := shrinkTriangle(points[0], points[1], points[2], offset)
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		info := fmt.Sprintf("Press and drag the points\nShrink offset: %.02f [O]\nShape: %s\nLeftover offset: %.02f", offset, shape.String(), leftoverOffset)
+		info := fmt.Sprintf("Press and drag the points\nShrink offset: %.02f [O]\nShape: %s\nOffset reached: %.02f", offset, shape.String(), offsetReached)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		for _, p := range points {
@@ -180,4 +180,63 @@ func (pd *pointsDragger) Update(points []PointF32) {
 		points[dragPtIndex] = p
 	}
 	pd.wasPressed = true
+}
+
+func TestCanonicalizeQuadCW(t *testing.T) {
+	tests := []struct {
+		in               [4]PointF32
+		out              [4]PointF32
+		selfIntersecting bool
+	}{
+		{ // convex CW
+			in:  [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(1, 1), PtF32(0, 1)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(1, 1), PtF32(0, 1)},
+		},
+		{ // convex CCW
+			in:  [4]PointF32{PtF32(0, 0), PtF32(0, 1), PtF32(1, 1), PtF32(1, 0)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(1, 1), PtF32(0, 1)},
+		},
+		{ // concave CW
+			in:  [4]PointF32{PtF32(0, 0), PtF32(3, 0), PtF32(1, 1), PtF32(0, 3)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(3, 0), PtF32(1, 1), PtF32(0, 3)},
+		},
+		{ // concave CW (shifted)
+			in:  [4]PointF32{PtF32(3, 0), PtF32(1, 1), PtF32(0, 3), PtF32(0, 0)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(3, 0), PtF32(1, 1), PtF32(0, 3)},
+		},
+		{ // concave CCW
+			in:  [4]PointF32{PtF32(0, 0), PtF32(0, 3), PtF32(1, 1), PtF32(3, 0)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(3, 0), PtF32(1, 1), PtF32(0, 3)},
+		},
+		{ // bow-tie
+			in:               [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(0, 1), PtF32(1, 1)},
+			selfIntersecting: true,
+		},
+		{ // degenerate triangle
+			in:  [4]PointF32{PtF32(0, 0), PtF32(0, 1), PtF32(1, 0), PtF32(1, 0)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(1, 0), PtF32(0, 1)},
+		},
+		{ // collinear
+			in:  [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(2, 0), PtF32(3, 0)},
+			out: [4]PointF32{PtF32(0, 0), PtF32(1, 0), PtF32(2, 0), PtF32(3, 0)},
+		},
+	}
+
+	for i, test := range tests {
+		out, ok := canonicalizeQuadCW(test.in)
+		selfIntersecting := !ok
+		if selfIntersecting != test.selfIntersecting {
+			t.Fatalf("test#%d: expected selfIntersecting=%t, got %t", i, test.selfIntersecting, selfIntersecting)
+		}
+		if test.selfIntersecting {
+			continue
+		}
+
+		for pi, p := range test.out {
+			if out[pi] != p {
+				t.Fatalf("test#%d: expected %v, got %v", i, test.out, out)
+				continue
+			}
+		}
+	}
 }

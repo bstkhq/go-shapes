@@ -1,37 +1,28 @@
 //kage:unit pixels
 package main
 
-// NOTE: thickening can also be converted to rounding if precomputed on the CPU
-// like we do for triangles.
-
-var Quad [4]vec2
+var Quad [4]vec2 // quad must be canonicalized: CW, and if convex reflex vertex at quad[2]
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
 	relCoords := targetCoords.xy - imageDstOrigin()
-	thickening := customVAs[0]
-	softEdge := customVAs[1]
-	dist := distanceToQuadThick(relCoords, Quad, thickening)
-	alpha := 1.0 - smoothstep(-softEdge, 0, dist)
+	rounding := customVAs[0] // can't be negative
+	dist := distanceToQuadThick(relCoords, Quad, rounding)
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }
 
-func distanceToQuadThick(p vec2, quad [4]vec2, thickening float) float {
+func distanceToQuadThick(p vec2, quad [4]vec2, rounding float) float {
 	dist := udistanceToQuad(p, quad)
-	inside := true
-	if thickening > 0 {
-		s0 := cross2(quad[1]-quad[0], p-quad[0])
-		s1 := cross2(quad[2]-quad[1], p-quad[1])
-		s2 := cross2(quad[3]-quad[2], p-quad[2])
-		s3 := cross2(quad[0]-quad[3], p-quad[3])
-		inside = (s0 >= 0.0 && s1 >= 0.0 && s2 >= 0.0 && s3 >= 0.0)
+	if insideTriangle(p, quad[0], quad[1], quad[2]) || insideTriangle(p, quad[0], quad[2], quad[3]) {
+		dist = -dist // inside quad
 	}
+	return dist - rounding
+}
 
-	if inside {
-		return -dist - thickening
-	} else {
-		return dist - thickening
-	}
+func insideTriangle(p, a, b, c vec2) bool {
+	return cross2(b-a, p-a) >= 0 && cross2(c-b, p-b) >= 0 && cross2(a-c, p-c) >= 0
 }
 
 func cross2(a, b vec2) float {
@@ -48,12 +39,11 @@ func udistanceToQuad(p vec2, quad [4]vec2) float {
 	return sqrt(min(min(d01, d12), min(d23, d30)))
 }
 
-// sd2Segment returns the distance to the segment squared.
+// distSqSegment returns the distance to the segment squared.
 // in the case of quads, we can leave the square root for only
 // one segment instead of computing all 4 of them
 func distSqSegment(p, a, b vec2) float {
-	pa := p - a
-	ba := b - a
+	pa, ba := p-a, b-a
 	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
 	s := pa - h*ba
 	return dot(s, s) // squared distance

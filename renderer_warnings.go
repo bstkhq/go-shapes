@@ -44,6 +44,7 @@ const (
 	WarnTooManyVertexAttribs
 	WarnTooManyColorsClamped
 	WarnInvalidApertureClamped
+	WarnSelfIntersectingGeom
 
 	warnSentinel
 )
@@ -99,6 +100,8 @@ func (w Warning) Message() string {
 		return "too many color values, clamped to max"
 	case WarnInvalidApertureClamped:
 		return "aperture out of [0, 2*Pi], clamped"
+	case WarnSelfIntersectingGeom:
+		return "self-intersecting geometry is not supported"
 	default:
 		return fmt.Sprintf("%s 0x%08x", unknownWarningPrefix, w)
 	}
@@ -136,20 +139,24 @@ type Warnings struct {
 // that panics right away. Useful during debug to discover where the
 // issues are coming from.
 func NewWarningPanicHandler() func(Warning, any, bool) {
-	return func(warning Warning, value any, _ bool) {
-		panic(fmt.Sprintf("%s (value=%v)", warning.Message(), value))
-	}
+	return panicHandlerFunc
+}
+
+func panicHandlerFunc(warning Warning, value any, _ bool) {
+	panic(fmt.Sprintf("%s (value=%v)", warning.Message(), value))
 }
 
 // NewWarningLogOnceHandler returns a handler for [Warnings.SetHandler]()
 // that logs warnings only the first time they are seen. Useful as a
 // default handler on production/release builds.
 func NewWarningLogOnceHandler() func(Warning, any, bool) {
-	return func(warning Warning, value any, alreadySeen bool) {
-		if !alreadySeen {
-			ts := time.Now().Format("Mon Jan 2 15:04:05")
-			fmt.Fprintf(os.Stderr, "[%s] WARNING: %s value=%v valtype=%T ctx=shapes.Renderer", warning.Message(), value, value, ts)
-		}
+	return logOnceHandlerFunc
+}
+
+func logOnceHandlerFunc(warning Warning, value any, alreadySeen bool) {
+	if !alreadySeen {
+		ts := time.Now().Format("Mon Jan 2 15:04:05")
+		fmt.Fprintf(os.Stderr, "[%s] WARNING: %s value=%v valtype=%T ctx=shapes.Renderer", warning.Message(), value, value, ts)
 	}
 }
 
