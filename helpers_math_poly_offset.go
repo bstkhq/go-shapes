@@ -73,26 +73,12 @@ func offsetQuadNaiveWithEdges(quad [4]PointF32, edges [4]PointF32, offset float3
 		return quad
 	}
 
-	// get and scale normals
-	normal01 := PointF32{X: edges[0].Y, Y: -edges[0].X}.Scale(offset)
-	normal12 := PointF32{X: edges[1].Y, Y: -edges[1].X}.Scale(offset)
-	normal23 := PointF32{X: edges[2].Y, Y: -edges[2].X}.Scale(offset)
-	normal30 := PointF32{X: edges[3].Y, Y: -edges[3].X}.Scale(offset)
-
-	// offset points
-	offP0 := quad[0].Add(normal01)
-	offP1 := quad[1].Add(normal12)
-	offP2 := quad[2].Add(normal23)
-	offP3 := quad[3].Add(normal30)
-
-	// final intersection
-	out := [4]PointF32{
-		lineIntersect(offP3, edges[3], offP0, edges[0]),
-		lineIntersect(offP0, edges[0], offP1, edges[1]),
-		lineIntersect(offP1, edges[1], offP2, edges[2]),
-		lineIntersect(offP2, edges[2], offP3, edges[3]),
+	return [4]PointF32{
+		bisectorSlideInwards(quad[0], edges[3], edges[0], -offset),
+		bisectorSlideInwards(quad[1], edges[0], edges[1], -offset),
+		bisectorSlideInwards(quad[2], edges[1], edges[2], -offset),
+		bisectorSlideInwards(quad[3], edges[2], edges[3], -offset),
 	}
-	return out
 }
 
 // quadHull computes a hull for the given quad, applying mitering if/when
@@ -146,7 +132,7 @@ func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) 
 
 	// compute first straight skeleton intersection
 	edges := quadNormalizedEdges(quad)
-	skeleton := firstQuadSkeletonOffset(quad, edges)
+	skeleton := firstQuadSkeletonOffset(quad, edges, offset)
 
 	// simple case (no collapse)
 	if offset < skeleton.Offset {
@@ -234,7 +220,7 @@ type skeletonOffset struct {
 // straight skeleton algorithms
 //
 // precondition: edges = quadNormalizedEdges(quad)
-func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32) skeletonOffset {
+func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32, maxOffset float32) skeletonOffset {
 	// bisectors for each vertex (unnormalized)
 	var bisectors [4]PointF32
 	bisectors[0] = edges[0].Sub(edges[3])
@@ -274,15 +260,26 @@ func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32) skeletonOffset
 	// triangle collapse
 	out.Shape = shapeTriangle
 	out.Offset = min(offset01, offset12, offset23, offset30)
+	if out.Offset > maxOffset {
+		return out // performance cutoff
+	}
 	switch out.Offset {
 	case offset01:
-		out.Points[0], out.Points[1], out.Points[2] = inter01, quad[2], quad[3]
+		out.Points[0] = inter01
+		out.Points[1] = bisectorSlideInwards(quad[2], edges[1], edges[2], out.Offset)
+		out.Points[2] = bisectorSlideInwards(quad[3], edges[2], edges[3], out.Offset)
 	case offset12:
-		out.Points[0], out.Points[1], out.Points[2] = quad[0], inter12, quad[3]
+		out.Points[0] = bisectorSlideInwards(quad[0], edges[3], edges[0], out.Offset)
+		out.Points[1] = inter12
+		out.Points[2] = bisectorSlideInwards(quad[3], edges[2], edges[3], out.Offset)
 	case offset23:
-		out.Points[0], out.Points[1], out.Points[2] = quad[0], quad[1], inter23
+		out.Points[0] = bisectorSlideInwards(quad[0], edges[3], edges[0], out.Offset)
+		out.Points[1] = bisectorSlideInwards(quad[1], edges[0], edges[1], out.Offset)
+		out.Points[2] = inter23
 	case offset30:
-		out.Points[0], out.Points[1], out.Points[2] = inter30, quad[1], quad[2]
+		out.Points[0] = inter30
+		out.Points[1] = bisectorSlideInwards(quad[1], edges[0], edges[1], out.Offset)
+		out.Points[2] = bisectorSlideInwards(quad[2], edges[1], edges[2], out.Offset)
 	default:
 		panic("NaN?") // this shouldn't be possible by construction
 	}
@@ -304,4 +301,19 @@ func intersectRays(p1, d1, p2, d2 PointF32) (float32, bool) {
 func distanceToNormalizedLine(p, lineOrigin, lineDir PointF32) float32 {
 	v := p.Sub(lineOrigin)
 	return abs(v.X*lineDir.Y - v.Y*lineDir.X) // cross product
+}
+
+// bisectorSlideInwards slides a corner vertex inward by a perpendicular
+// offset distance from the edges. the edge vectors must be normalized.
+func bisectorSlideInwards(v, edgeIn, edgeOut PointF32, offset float32) PointF32 {
+	bisector := edgeOut.Sub(edgeIn)
+
+	// cross product magnitude (perpendicular projection factor)
+	denom := abs(bisector.X*edgeOut.Y - bisector.Y*edgeOut.X)
+	if denom < 1e-6 {
+		return v // parallel
+	}
+
+	// scale factor along the bisector
+	return v.Add(bisector.Scale(offset / denom))
 }

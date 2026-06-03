@@ -29,7 +29,8 @@ func TestOffsetQuad(t *testing.T) {
 			firstDraw = false
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		info := fmt.Sprintf("Press and drag the points\nRounding: %.02f [R]", rounding)
+		out, shape, leftoverOffset := offsetQuad(points, rounding)
+		info := fmt.Sprintf("Press and drag the points\nRounding: %.02f [R]\nShape: %s\nLeftover offset: %.02f", rounding, shape, leftoverOffset)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		for _, p := range points {
@@ -37,8 +38,6 @@ func TestOffsetQuad(t *testing.T) {
 		}
 
 		ctx.Renderer.SetColorF32(0, 0.5, 0, 0.5)
-		out, shape, leftoverOffset := offsetQuad(points, rounding)
-		_ = leftoverOffset
 		for _, p := range out[:shape.NumPoints()] {
 			ctx.Renderer.FillCircle(canvas, p.X, p.Y, 3.0)
 		}
