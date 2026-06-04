@@ -264,12 +264,13 @@ func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32, maxOffset floa
 	}
 
 	// line collapse (technically it might also be a point, but line covers it as well)
-	if offset01 < math.MaxFloat32 && abs(offset01-offset23) < 1e-4 {
+	hasLine01_23 := (offset01 < math.MaxFloat32 && abs(offset01-offset23) < 1e-4)
+	hasLine12_30 := (offset12 < math.MaxFloat32 && abs(offset12-offset30) < 1e-4)
+	if hasLine01_23 && (!hasLine12_30 || offset12 > offset01) { // disambiguation is for parallelograms
 		out.Offset = offset01
 		out.Points[0], out.Points[1] = inter01, inter23
 		return out
-	}
-	if offset12 < math.MaxFloat32 && abs(offset12-offset30) < 1e-4 {
+	} else if hasLine12_30 {
 		out.Offset = offset12
 		out.Points[0], out.Points[1] = inter30, inter12
 		return out

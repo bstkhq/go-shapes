@@ -20,7 +20,7 @@ func TestQuadSkeletonShape(t *testing.T) {
 			quad:     [4]PointF32{PtF32(10, 0), PtF32(8, 10), PtF32(0, 4), PtF32(0, 1)},
 			outShape: shapeTriangle,
 		},
-		{ // trapezoid with flat top/bottom
+		{ // parallelogram with flat top/bottom
 			quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 0), PtF32(120, 100), PtF32(20, 100)},
 			outShape: shapeLine,
 		},
