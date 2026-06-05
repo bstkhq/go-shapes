@@ -363,28 +363,14 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 
 // TODO: support Hull flag
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
-	var area float32
-	points, area = normalizeTriangleCW(points)
-	if area < 1e-6 {
-		return // empty triangle
-	}
-
-	if rounding < 0 {
-		var shape shapeType
-		var offsetReached float32
-		points[0], points[1], points[2], shape, offsetReached = shrinkTriangle(points[0], points[1], points[2], area, -rounding)
-		if shape == shapePoint {
-			radius := offsetReached*2 + rounding
-			if thickness == 0 {
-				if radius > 0 {
-					r.FillCircle(target, points[0].X, points[0].Y, radius)
-				}
-			} else {
-				r.StrokeCircle(target, points[0].X, points[0].Y, radius, thickness)
-			}
-			return
+	points, shape, rounding := preprocessTriangle(points, rounding)
+	if shape == shapePoint {
+		if thickness == 0 {
+			r.FillCircle(target, points[0].X, points[0].Y, max(rounding, 0))
+		} else {
+			r.StrokeCircle(target, points[0].X, points[0].Y, rounding, thickness)
 		}
-		rounding = -rounding
+		return
 	}
 
 	minX, maxX := min(points[0].X, points[1].X, points[2].X), max(points[0].X, points[1].X, points[2].X)
@@ -400,6 +386,34 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 	r.setFlatCustomVAs01(abs(rounding), thickness)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
 	clear(r.opts.Uniforms)
+}
+
+// preprocessTriangle handles inner rounding, shrinking the geometry and
+// converting to outer rounding while also handling collapse cases. notice
+// that outer rounding can still be negative, as thickness might have to
+// be applied on top
+func preprocessTriangle(points [3]PointF32, rounding float32) ([3]PointF32, shapeType, float32) {
+	area := triangleSignedArea(points[0], points[1], points[2])
+	if area < 0 { // normalize as CW
+		points[1], points[2] = points[2], points[1]
+		area = -area
+	}
+	if area < 1e-6 {
+		midpoint := points[0].Add(points[1]).Add(points[2]).Scale(1.0 / 3.0)
+		return [3]PointF32{midpoint}, shapePoint, rounding // notice: rounding result can be negative
+	}
+
+	if rounding > 0 {
+		return points, shapeTriangle, rounding
+	}
+
+	var shape shapeType
+	var offsetReached float32
+	points[0], points[1], points[2], shape, offsetReached = shrinkTriangle(points[0], points[1], points[2], area, -rounding)
+	if shape == shapePoint {
+		return points, shapePoint, offsetReached*2 + rounding // notice: rounding result can be negative
+	}
+	return points, shapeTriangle, -rounding
 }
 
 // Sqrt3Div2 is commonly used to derive a hexagon's apothem from its radius, or
@@ -468,15 +482,15 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 	clear(r.opts.Uniforms)
 }
 
-// NOTE: FillQuad and FillQuadSoft could have general rounding implemented, but the maths
-// are actually not trivial (straight skeleton, handle cases for line and point collapse)
-
-// FillQuad renders a simple quadrilateral (convex or concave, but not
-// self-intersecting) with the current renderer colors.
+// FillQuad renders a quadrilateral with the current renderer colors.
 //
 // Rounding can be zero, positive for outwards rounding, or negative for
-// inwards rounding. Notice that non-zero rounding triggers additional
-// precomputations, which are complex for inner rounding.
+// inwards rounding. Notice that non-zero rounding or self-intersecting quads
+// triggers additional precomputations, which are particularly complex for
+// inner rounding.
+//
+// Limitations: self-intersecting quads with inner rounding are drawn as two
+// triangles, so multi-vertex color is only approximated.
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
 	var simple bool
 	quad, simple = canonicalizeQuadCW(quad)
@@ -504,8 +518,6 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			}
 			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(radius*2.0))
 		case shapeTriangle:
-			// TODO: color interpolation won't work, triangles operate differently.
-			// Either we make triangles also operate in bounding box color, or idk
 			var tri [3]PointF32
 			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]
 			r.FillTriangle(target, tri, -rounding)
