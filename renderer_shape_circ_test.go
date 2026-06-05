@@ -237,7 +237,7 @@ func TestFillRadialWedge(t *testing.T) {
 		outRate = updateParam(ctx, ebiten.KeyO, outRate, 0.0, 1.0, 0.05)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.RGBA{32, 0, 128, 255})
+		canvas.Fill(backTestColor)
 
 		info := fmt.Sprintf(
 			"In/OutRate: %.02f / %.02f [I/O]\nRotate: %t [R]\nShow bounds: %t [B]",

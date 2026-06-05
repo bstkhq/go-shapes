@@ -63,6 +63,42 @@ func TestQuadSkeletonShape(t *testing.T) {
 	}
 }
 
+func TestShrinkLine(t *testing.T) {
+	tests := []struct {
+		in1           PointF32
+		in2           PointF32
+		offset        float32
+		out1          PointF32
+		out2          PointF32
+		offsetReached float32
+		shape         shapeType
+	}{
+		// zero offset
+		{in1: PtF32(-1, 0), in2: PtF32(1, 0), offset: 0.0, out1: PtF32(-1, 0), out2: PtF32(1, 0), offsetReached: 0.0, shape: shapeLine},
+
+		// basic cases
+		{in1: PtF32(-1, 0), in2: PtF32(1, 0), offset: 0.5, out1: PtF32(-0.5, 0), out2: PtF32(0.5, 0), offsetReached: 0.5, shape: shapeLine},
+		{in1: PtF32(-1, 0), in2: PtF32(1, 0), offset: 1.0, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 1.0, shape: shapePoint},
+		{in1: PtF32(-1, 0), in2: PtF32(1, 0), offset: 1.5, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 1.0, shape: shapePoint},
+		{in1: PtF32(-1, 0), in2: PtF32(1, 0), offset: 50.0, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 1.0, shape: shapePoint},
+		{in1: PtF32(0, -2), in2: PtF32(0, 2), offset: 0.5, out1: PtF32(0, -1.5), out2: PtF32(0, 1.5), offsetReached: 0.5, shape: shapeLine},
+		{in1: PtF32(0, -2), in2: PtF32(0, 2), offset: 2.0, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 2.0, shape: shapePoint},
+		{in1: PtF32(0, -2), in2: PtF32(0, 2), offset: 2.5, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 2.0, shape: shapePoint},
+
+		// point inputs
+		{in1: PtF32(0, 0), in2: PtF32(0, 0), offset: 0.0, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 0.0, shape: shapePoint},
+		{in1: PtF32(0, 0), in2: PtF32(0, 0), offset: 1.0, out1: PtF32(0, 0), out2: PtF32(0, 0), offsetReached: 0.0, shape: shapePoint},
+		{in1: PtF32(10, 20), in2: PtF32(10, 20), offset: 5.0, out1: PtF32(10, 20), out2: PtF32(0, 0), offsetReached: 0.0, shape: shapePoint},
+	}
+
+	for i, test := range tests {
+		out1, out2, shape, offsetReached := shrinkLine(test.in1, test.in2, test.offset)
+		if out1 != test.out1 || out2 != test.out2 || shape != test.shape || offsetReached != test.offsetReached {
+			t.Errorf("test #%d: expected %v, %v, %s, %v, got %v, %v, %s, %v", i, test.out1, test.out2, test.shape.String(), test.offsetReached, out1, out2, shape.String(), offsetReached)
+		}
+	}
+}
+
 // go test -run ^TestOffsetQuad$ . -count 1
 func TestOffsetQuad(t *testing.T) {
 	var points [4]PointF32
