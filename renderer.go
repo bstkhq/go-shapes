@@ -395,25 +395,52 @@ func blendOnlyAffectsNonZeroSourceArea(blend ebiten.Blend) bool {
 		blend == BlendSubtract
 }
 
-func (r *Renderer) readFlags(flags ...Flag) (bilinear, dither bool) {
-	for _, f := range flags {
-		switch f {
-		case noFlag:
-			// ignore
+// read Bilinear and Dithered flags
+func (r *Renderer) readRenderFlags(flags ...Flag) (bilinear, dither bool) {
+	for _, flag := range flags {
+		switch flag {
 		case Bilinear:
 			if bilinear {
-				r.Warnings.report(WarnRepeatedFlag, f)
+				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
 			bilinear = true
 		case Dithered:
 			if dither {
-				r.Warnings.report(WarnRepeatedFlag, f)
+				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
 			dither = true
 		default:
-			r.Warnings.report(WarnInvalidFlag, f)
+			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
 
 	return bilinear, dither
+}
+
+// read AABB and ColorAABB flags (assumes defaults are Hull, ColorIntrinsic)
+func (r *Renderer) readAABBFlags(flags ...Flag) (bounding Flag, colorMode Flag) {
+	bounding, colorMode = noFlag, noFlag
+	for _, flag := range flags {
+		switch flag {
+		case AABB:
+			if bounding != noFlag {
+				r.Warnings.report(WarnRepeatedFlag, flag)
+			}
+			bounding = AABB
+		case ColorAABB:
+			if colorMode != noFlag {
+				r.Warnings.report(WarnRepeatedFlag, flag)
+			}
+			colorMode = ColorAABB
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
+	if bounding == noFlag {
+		bounding = Hull
+	}
+	if colorMode == noFlag {
+		colorMode = ColorIntrinsic
+	}
+	return bounding, colorMode
 }

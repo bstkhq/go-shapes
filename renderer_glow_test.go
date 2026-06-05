@@ -48,8 +48,8 @@ func TestGlow2(t *testing.T) {
 	const s, m = 96, 16
 	cross := ebiten.NewImage(s, s)
 	app.Renderer.SetColor(color.RGBA{96, 240, 240, 255})
-	app.Renderer.StrokeLine(cross, m, m, s-m, s-m, m/2)
-	app.Renderer.StrokeLine(cross, s-m, m, m, s-m, m/2)
+	app.Renderer.StrokeLine(cross, PtF32(m, m), PtF32(s-m, s-m), m/2)
+	app.Renderer.StrokeLine(cross, PtF32(s-m, m), PtF32(m, s-m), m/2)
 	app.Renderer.SetColor(color.RGBA{96, 120, 0, 255}, 2, 3)
 	circ := app.Renderer.NewFilledCircle(96)
 	app.Images = append(app.Images, cross, circ)
@@ -275,14 +275,14 @@ func TestGlowCompare(t *testing.T) {
 	cross := ebiten.NewImage(128, 128)
 	darkCross := ebiten.NewImage(128, 128)
 	app.Renderer.SetColorF32(1.0, 0.75, 0.5, 1.0, 0, 1)
-	app.Renderer.StrokeLine(cross, 128/2.0, 8.0, 128/2.0, 128.0-8.0, 6.0)
+	app.Renderer.StrokeLine(cross, PtF32(128/2.0, 8.0), PtF32(128/2.0, 128.0-8.0), 6.0)
 	swapDiagColors(app.Renderer)
-	app.Renderer.StrokeLine(cross, 8.0, 128/2.0, 128.0-8.0, 128/2.0, 6.0)
+	app.Renderer.StrokeLine(cross, PtF32(8.0, 128/2.0), PtF32(128.0-8.0, 128/2.0), 6.0)
 	app.Renderer.SetColorF32(0.0, 0.0, 0.0, 1.0, 0, 1)
 	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
-	app.Renderer.StrokeLine(darkCross, 128/2.0, 8.0, 128/2.0, 128.0-8.0, 6.0)
+	app.Renderer.StrokeLine(darkCross, PtF32(128/2.0, 8.0), PtF32(128/2.0, 128.0-8.0), 6.0)
 	swapDiagColors(app.Renderer)
-	app.Renderer.StrokeLine(darkCross, 8.0, 128/2.0, 128.0-8.0, 128/2.0, 6.0)
+	app.Renderer.StrokeLine(darkCross, PtF32(8.0, 128/2.0), PtF32(128.0-8.0, 128/2.0), 6.0)
 	app.Renderer.SetColorF32(1, 1, 1, 1)
 
 	app.Renderer.SetColorF32(1, 1, 1, 1)
@@ -295,10 +295,10 @@ func TestGlowCompare(t *testing.T) {
 func newCross(r *Renderer, size int) *ebiten.Image {
 	cross := ebiten.NewImage(size, size)
 	memo := r.memorizeColors()
-	s := float64(size)
+	s := float32(size)
 	th := s * 0.05
-	r.StrokeLine(cross, th*1.25, s/2.0, s-th*1.25, s/2.0, th)
-	r.StrokeLine(cross, s/2.0, th*1.25, s/2.0, s-th*1.25, th)
+	r.StrokeLine(cross, PtF32(th*1.25, s/2.0), PtF32(s-th*1.25, s/2.0), th)
+	r.StrokeLine(cross, PtF32(s/2.0, th*1.25), PtF32(s/2.0, s-th*1.25), th)
 	r.setColors(memo)
 	return cross
 }

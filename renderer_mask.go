@@ -10,7 +10,7 @@ import (
 //
 // Supported flags: [Bilinear] (in destination space for mask), [Dithered].
 func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flags ...Flag) {
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
@@ -38,7 +38,7 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32, flags ...Flag) {
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
@@ -69,7 +69,7 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 //
 // Supported flags: [Bilinear] (in destination space for mask).
 func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox, oy float32, flags ...Flag) {
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	if dither {
 		r.Warnings.report(WarnInvalidFlag, Dithered)
@@ -94,7 +94,7 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX float32, flags ...Flag) {
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {
@@ -134,7 +134,7 @@ func (r *Renderer) MaskCirc(target, source *ebiten.Image, ox, oy, circCX, circCY
 		return
 	}
 
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
 	if dither {

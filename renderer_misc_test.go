@@ -86,8 +86,8 @@ func TestWaveLines(t *testing.T) {
 
 		sin, cos := math.Sincos(normURads(dir))
 		ctx.Renderer.SetColorF32(0, 0.0, 0.0, 0.666)
-		w, h := rectSizeF64(canvas.Bounds())
-		ctx.Renderer.StrokeLine(canvas, w/2, h/2, w/2+(60.0*cos), h/2+(60.0*sin), 4.0)
+		w, h := rectSizeF32(canvas.Bounds())
+		ctx.Renderer.StrokeLine(canvas, PtF32(w/2, h/2), PtF32(w/2+float32(60.0*cos), h/2+float32(60.0*sin)), 4.0)
 	}
 
 	app := NewTestApp(updater, drawer)

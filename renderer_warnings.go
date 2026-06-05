@@ -33,18 +33,17 @@ const (
 	WarnInvalidRateClamped  // out of [0, 1] range
 	WarnInvalidBiasClamped  // out of [-1, 1] range
 	WarnInvalidTextAlign
-	WarnInvalidFlag
-	WarnLowToleranceRaised // below 0.1
-	WarnRepeatedFlag
 	WarnInconsistentRangeOpSkipped
 	WarnInconsistentRangeInvalidated
+	WarnLowToleranceRaised // below 0.1
+	WarnInvalidFlag
+	WarnRepeatedFlag
 
 	// implementation-specific
 	WarnInvalidNoiseSeedClamped
 	WarnTooManyVertexAttribs
 	WarnTooManyColorsClamped
 	WarnInvalidApertureClamped
-	WarnSelfIntersectingGeom
 
 	warnSentinel
 )
@@ -82,16 +81,16 @@ func (w Warning) Message() string {
 		return "tint value out of [0, 1] range, clamped"
 	case WarnInvalidTextAlign:
 		return "invalid text align"
-	case WarnInvalidFlag:
-		return "invalid Flag in context"
-	case WarnLowToleranceRaised:
-		return "CircleShaderOptions.Tolerance != 0 but below minimum of 0.1, raised to 0.1"
-	case WarnRepeatedFlag:
-		return "redundant repeated Flag"
 	case WarnInconsistentRangeOpSkipped:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation skipped"
 	case WarnInconsistentRangeInvalidated:
 		return "inconsistent range values (e.g. min/max, start/end, in/to/out), operation result invalidated"
+	case WarnLowToleranceRaised:
+		return "CircleShaderOptions.Tolerance != 0 but below minimum of 0.1, raised to 0.1"
+	case WarnInvalidFlag:
+		return "invalid Flag in context"
+	case WarnRepeatedFlag:
+		return "redundant repeated Flag"
 	case WarnInvalidNoiseSeedClamped:
 		return "noise seed out of [0, 1] range, clamped"
 	case WarnTooManyVertexAttribs:
@@ -100,8 +99,6 @@ func (w Warning) Message() string {
 		return "too many color values, clamped to max"
 	case WarnInvalidApertureClamped:
 		return "aperture out of [0, 2*Pi], clamped"
-	case WarnSelfIntersectingGeom:
-		return "self-intersecting geometry is not supported"
 	default:
 		return fmt.Sprintf("%s 0x%08x", unknownWarningPrefix, w)
 	}

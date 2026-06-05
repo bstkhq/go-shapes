@@ -17,9 +17,9 @@ func TestDrawShapes(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		lcx, lcy := ctx.LeftClickF64()
-		rcx, rcy := ctx.RightClickF64()
-		ctx.Renderer.StrokeLine(canvas, lcx, lcy, rcx, rcy, 6.0)
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
+		ctx.Renderer.StrokeLine(canvas, lc, rc, 6.0)
 
 		x, y := float64(160), float64(40)
 		var points [3]PointF32
@@ -53,6 +53,49 @@ func TestDrawShapes(t *testing.T) {
 		ctx.Renderer.FillHexagon(canvas, 100, 400, 60, rounding, float32(rads))
 		ctx.Renderer.ScaleAlphaBy(0.5)
 		ctx.Renderer.FillHexagon(canvas, 540, 80, 60, rounding, float32(rads))
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeLine$ . -count 1
+func TestStrokeLine(t *testing.T) {
+	var flags flagList
+	var thick float32 = 8.0
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(AABB, ebiten.KeyA)
+		flags.UpdateFlag(ColorAABB, ebiten.KeyC)
+		thick = updateParam(ctx, ebiten.KeyT, thick, 0.0, 32.0, 1.0)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf("Thickness: %.02f [T]\nColorAABB: %t [C]\nAABB: %t [A]", thick, flags.Has(ColorAABB), flags.Has(AABB))
+		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		center := PtF32(cw, ch).Scale(0.5)
+
+		s, c := math.Sincos(ctx.RadsAnim(0.666))
+		scale := 64.0 + float32(ctx.DistAnim(64.0, 1.0))
+		dir := PtF32(float32(s), float32(c))
+		origin := center.Sub(dir.Scale(scale))
+		end := center.Add(dir.Scale(scale))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
+		ctx.Renderer.StrokeLine(canvas, origin, end, thick, flags...)
+
+		br := PtF32(cw-16, ch-16)
+		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -494,6 +537,12 @@ func TestFillQuad(t *testing.T) {
 		if animRounding {
 			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
 		}
+
+		ctx.Renderer.SetColorF32(1.0, 0.3, 0.3, 1.0, 0)
+		ctx.Renderer.SetColorF32(0.3, 1.0, 0.75, 1.0, 1)
+		ctx.Renderer.SetColorF32(0.5, 0.3, 1.0, 1.0, 2)
+		ctx.Renderer.SetColorF32(0.75, 1.0, 0.3, 1.0, 3)
+
 		w, h := rectSizeF32(canvas.Bounds())
 		size := PtF32(w, h)
 		for i, region := range regions {
@@ -507,11 +556,6 @@ func TestFillQuad(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Renderer.Warnings.SetHandler(func(warning Warning, value any, alreadySeen bool) {
-		if warning != WarnSelfIntersectingGeom { // ignore self-intersections during visual testing
-			panicHandlerFunc(warning, value, alreadySeen)
-		}
-	})
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

@@ -144,37 +144,95 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 }
 
 // StrokeLine draws a smooth line between the given two points, with rounded ends.
-func (r *Renderer) StrokeLine(target *ebiten.Image, ox, oy, fx, fy float64, thickness float64) {
-	vdx, vdy := fx-ox, fy-oy // non-normalized vector
-	vpx, vpy := -vdy, vdx    // perpendicular vector
-	length := math.Hypot(vdx, vdy)
-	if length == 0 {
-		length = 1
+//
+// Supported flags: [AABB], [ColorAABB].
+func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickness float32, flags ...Flag) {
+	if thickness == 0 {
+		return
 	}
+	if thickness < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		return
+	}
+
+	bounding, colorMode := r.readAABBFlags(flags...)
+	switch bounding {
+	case AABB:
+		r.strokeAABBLine(target, origin, end, thickness)
+	case Hull:
+		r.strokeHullLine(target, origin, end, thickness, colorMode)
+	default:
+		panic(bounding)
+	}
+}
+
+func (r *Renderer) strokeAABBLine(target *ebiten.Image, origin, end PointF32, thickness float32) {
+	minX, maxX := floorF32(min(origin.X, end.X)-thickness), ceilF32(max(origin.X, end.X)+thickness)
+	minY, maxY := floorF32(min(origin.Y, end.Y)-thickness), ceilF32(max(origin.Y, end.Y)+thickness)
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+	tox, toy := rectOriginF32(target.Bounds())
+	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
+	r.opts.Uniforms["Thickness"] = float32(thickness)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
+	clear(r.opts.Uniforms)
+}
+
+func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, thickness float32, colorMode Flag) {
+	vd := end.Sub(origin)    // non-normalized direction vector
+	vp := PtF32(-vd.Y, vd.X) // perpendicular vector
+	length := vd.Length()
+	if length < 1e-6 { // treat as point
+		r.FillCircle(target, origin.X, origin.Y, thickness/2.0)
+		return
+	}
+
 	// scale for vector normalization
-	scale := (thickness / 2) / length
+	scale := (thickness/2 + 0.5) / length
 
 	// adjust bounding ends to include thickness rounding
-	box, boy := ox-vdx*scale, oy-vdy*scale
-	bfx, bfy := fx+vdx*scale, fy+vdy*scale
+	vds, vps := vd.Scale(scale), vp.Scale(scale)
+	bo, bf := origin.Sub(vds), end.Add(vds)
 
 	// compute bounding vertices applying the perpendicular offset
-	svpx, svpy := vpx*scale, vpy*scale
-	r.vertices[0].DstX = float32(box + svpx)
-	r.vertices[0].DstY = float32(boy + svpy)
-	r.vertices[1].DstX = float32(bfx + svpx)
-	r.vertices[1].DstY = float32(bfy + svpy)
-	r.vertices[2].DstX = float32(bfx - svpx)
-	r.vertices[2].DstY = float32(bfy - svpy)
-	r.vertices[3].DstX = float32(box - svpx)
-	r.vertices[3].DstY = float32(boy - svpy)
+	// TODO: this hull isn't sufficiently padded
+	r.vertices[0].DstX = bo.X + vps.X
+	r.vertices[0].DstY = bo.Y + vps.Y
+	r.vertices[1].DstX = bf.X + vps.X
+	r.vertices[1].DstY = bf.Y + vps.Y
+	r.vertices[2].DstX = bf.X - vps.X
+	r.vertices[2].DstY = bf.Y - vps.Y
+	r.vertices[3].DstX = bo.X - vps.X
+	r.vertices[3].DstY = bo.Y - vps.Y
 
+	// apply ColorAABB if requested
+	var memo [16]float32
+	hasMemo := false
+	if colorMode == ColorAABB && !r.singleClr {
+		memo = r.memorizeColors()
+		hasMemo = true
+		minX, maxX := min(origin.X, end.X)-thickness, max(origin.X, end.X)+thickness
+		minY, maxY := min(origin.Y, end.Y)-thickness, max(origin.Y, end.Y)+thickness
+		size := PtF32(maxX-minX, maxY-minY)
+		tl, tr, br, bl := [4]float32(memo[0:4]), [4]float32(memo[4:8]), [4]float32(memo[8:12]), [4]float32(memo[12:16])
+		for i := range 4 {
+			clr := interpTriQuadColor(tl, tr, br, bl, PtF32(minX, minY), size, PtF32(r.vertices[i].DstX, r.vertices[i].DstY))
+			r.vertices[i].ColorR = clr[0]
+			r.vertices[i].ColorG = clr[1]
+			r.vertices[i].ColorB = clr[2]
+			r.vertices[i].ColorA = clr[3]
+		}
+	}
+
+	// render
 	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(float32(ox)-tox, float32(oy)-toy, float32(fx)-tox, float32(fy)-toy)
+	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
 	r.opts.Uniforms["Thickness"] = float32(thickness)
-
-	// draw shader
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
+
+	clear(r.opts.Uniforms)
+	if hasMemo {
+		r.setColors(memo)
+	}
 }
 
 func (r *Renderer) internalStrokeIntRect(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness int) {
@@ -391,7 +449,10 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 // preprocessTriangle handles inner rounding, shrinking the geometry and
 // converting to outer rounding while also handling collapse cases. notice
 // that outer rounding can still be negative, as thickness might have to
-// be applied on top
+// be applied on top.
+//
+// when normalizing as CW, the point 0 is always preserved, and the other
+// 2 are swapped
 func preprocessTriangle(points [3]PointF32, rounding float32) ([3]PointF32, shapeType, float32) {
 	area := triangleSignedArea(points[0], points[1], points[2])
 	if area < 0 { // normalize as CW
@@ -488,9 +549,6 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 // inwards rounding. Notice that non-zero rounding or self-intersecting quads
 // triggers additional precomputations, which are particularly complex for
 // inner rounding.
-//
-// Limitations: self-intersecting quads with inner rounding are drawn as two
-// triangles, so multi-vertex color is only approximated.
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
 	var simple bool
 	quad, simple = canonicalizeQuadCW(quad)
@@ -502,7 +560,7 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	if rounding < 0 {
 		dbgX, dbgY := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X), min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)
 		quad, shape, offsetReached := offsetQuad(quad, rounding)
-		r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f", shape.String(), offsetReached), dbgX, dbgY, TextOpts(1.0, BottomLeft))
+		r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f, radius: %.02f", shape.String(), offsetReached, rounding-offsetReached*2), dbgX, dbgY, TextOpts(1.0, BottomLeft))
 
 		switch shape {
 		case shapePoint:
@@ -516,7 +574,8 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			if radius <= 0 {
 				return // empty
 			}
-			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(radius*2.0))
+			r.Text(target, fmt.Sprintf("line from (%.02f, %.02f) - (%.02f, %.02f)", quad[0].X, quad[0].Y, quad[1].X, quad[1].Y), dbgX-12, dbgY-12, TextOpts(1.0, BottomLeft))
+			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB is precise enough with Hull that's not worth using strokeAABBLine
 		case shapeTriangle:
 			var tri [3]PointF32
 			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]

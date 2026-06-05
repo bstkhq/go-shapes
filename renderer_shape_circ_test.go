@@ -12,7 +12,7 @@ import (
 // go test -run ^TestStrokeArc$ . -count 1
 func TestStrokeArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
-	var thickness, radius float64 = 16.0, 96.0
+	var thickness, radius float32 = 16.0, 96.0
 
 	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(fmt.Sprintf(
@@ -25,15 +25,15 @@ func TestStrokeArc(t *testing.T) {
 		radius = updateParam(ctx, ebiten.KeyR, radius, 0, 256.0, 16.0)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF64(canvas.Bounds())
+		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.StrokeArc(canvas, cx, cy, radius, startRads, endRads, thickness)
+		ctx.Renderer.StrokeArc(canvas, float64(cx), float64(cy), float64(radius), startRads, endRads, float64(thickness))
 
 		ctx.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
-		ctx.Renderer.FillRadialSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)    // reference
-		ctx.Renderer.StrokeLine(canvas, 16+thickness, 16+thickness, 16+thickness, 16+max(32, thickness*4), thickness) // for thickness
-		ctx.Renderer.FillCircle(canvas, float32(cx-radius), float32(cy), float32(thickness))                          // for thickness
+		ctx.Renderer.FillRadialSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)                  // reference
+		ctx.Renderer.StrokeLine(canvas, PtF32(16+thickness, 16+thickness), PtF32(16+thickness, 16+max(32, thickness*4)), thickness) // for thickness
+		ctx.Renderer.FillCircle(canvas, cx-radius, cy, thickness)                                                                   // for thickness
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -260,7 +260,7 @@ func TestFillRadialWedge(t *testing.T) {
 		}
 		sin, cos := math.Sincos(centerDir)
 		r := outRadius + 32.0
-		ctx.Renderer.StrokeLine(canvas, float64(cx), float64(cy), float64(cx)+r*cos, float64(cy)+r*sin, 3.0)
+		ctx.Renderer.StrokeLine(canvas, PtF32(cx, cy), PtF32(cx+float32(r*cos), cy+float32(r*sin)), 3.0)
 
 		// draw wedge
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)

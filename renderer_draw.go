@@ -34,7 +34,7 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 		return
 	}
 
-	bilinear, dither := r.readFlags(flags...)
+	bilinear, dither := r.readRenderFlags(flags...)
 	if dither {
 		r.opts.Uniforms["Dither"] = 1
 		r.loadBlueNoise64RGBAt(1)

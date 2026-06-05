@@ -12,7 +12,7 @@ import (
 
 // go test -run ^TestDrawAt$ . -count 1
 func TestDrawAt(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) {
 		setMaskFlagsAndTitle(ctx, flags)
 	}

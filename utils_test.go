@@ -208,17 +208,41 @@ func (app *TestApp) Draw(canvas *ebiten.Image) {
 
 type flagList []Flag
 
-func newFlagList() flagList {
-	return make(flagList, numFlags)
+func (l *flagList) Has(f Flag) bool {
+	for _, flag := range *l {
+		if f == flag {
+			return true
+		}
+	}
+	return false
 }
 
-func (l flagList) Has(f Flag) bool {
-	return l[f] == f
+func (l *flagList) Flip(f Flag) {
+	if !l.Unset(f) {
+		l.Set(f)
+	}
 }
-func (l flagList) Flip(f Flag) {
-	l[f] = -(l[f] - f)
+
+func (l *flagList) Unset(f Flag) bool {
+	s := *l
+	for i, flag := range s {
+		if flag == f {
+			s[len(s)-1], s[i] = s[i], s[len(s)-1]
+			s = s[:len(s)-1]
+			*l = s
+			return true
+		}
+	}
+	return false
 }
-func (l flagList) UpdateFlag(f Flag, key ebiten.Key) {
+
+func (l *flagList) Set(f Flag) {
+	if !l.Has(f) {
+		*l = append(*l, f)
+	}
+}
+
+func (l *flagList) UpdateFlag(f Flag, key ebiten.Key) {
 	if inpututil.IsKeyJustPressed(key) {
 		l.Flip(f)
 	}

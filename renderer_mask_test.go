@@ -18,7 +18,7 @@ func setMaskFlagsAndTitle(ctx TestAppCtx, flags flagList) {
 
 // go test -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -58,7 +58,7 @@ func TestMask(t *testing.T) {
 
 // go test -run ^TestMaskAt$ . -count 1
 func TestMaskAt(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -88,7 +88,7 @@ func TestMaskAt(t *testing.T) {
 
 // go test -run ^TestMaskHorz$ . -count 1
 func TestMaskHorz(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -116,7 +116,7 @@ func TestMaskHorz(t *testing.T) {
 
 // go test -run ^TestMaskCirc$ . -count 1
 func TestMaskCirc(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -144,7 +144,7 @@ func TestMaskCirc(t *testing.T) {
 func TestMaskThreshold(t *testing.T) {
 	const Size = 256
 
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		reveal := -0.1 + float32(ctx.ModAnim(1.2, 0.5))
@@ -176,7 +176,7 @@ func TestBakeAlphaMaskRadial(t *testing.T) {
 	randomness := float32(0.3)
 	var justClicked bool
 
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) {
 		justClicked = false
 		setMaskFlagsAndTitle(ctx, flags)

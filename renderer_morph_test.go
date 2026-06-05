@@ -306,8 +306,8 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 	r.opts.Blend = ebiten.BlendSourceOver
 	r.SetColorF32(0.75, 0.5, 1.0, 1.0)
 	xSign := ebiten.NewImage(XW, XH)
-	r.StrokeLine(xSign, XMargin, XMargin, XW-XMargin, XH-XMargin, XThick)
-	r.StrokeLine(xSign, XW-XMargin, XMargin, XMargin, XH-XMargin, XThick)
+	r.StrokeLine(xSign, PtF32(XMargin, XMargin), PtF32(XW-XMargin, XH-XMargin), XThick)
+	r.StrokeLine(xSign, PtF32(XW-XMargin, XMargin), PtF32(XMargin, XH-XMargin), XThick)
 	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
 	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
 	r.FillCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)

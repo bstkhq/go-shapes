@@ -191,7 +191,7 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 
 // go test -run ^TestColorMix$ . -count 1
 func TestColorMix(t *testing.T) {
-	flags := newFlagList()
+	var flags flagList
 	updater := func(ctx TestAppCtx) {
 		setMaskFlagsAndTitle(ctx, flags)
 	}

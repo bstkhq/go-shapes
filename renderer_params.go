@@ -136,7 +136,7 @@ const (
 	//  - Skipping hull computations for small shapes.
 	AABB
 
-	// Use shape hull bounding geometry.
+	// Use hull bounding geometry.
 	//
 	// In general, shapes where Hull bounding is fast to compute, effective
 	// at trimming unused pixels and has no downsides for color interpolation,
@@ -164,8 +164,12 @@ func (f Flag) String() string {
 		return "Bilinear"
 	case Dithered:
 		return "Dithered"
-	case Hull:
-		return "Hull"
+	case AABB:
+		return "AABB"
+	case ColorAABB:
+		return "ColorAABB"
+	case ColorIntrinsic:
+		return "ColorIntrinsic"
 	default:
 		return "Flag#" + strconv.Itoa(int(f))
 	}

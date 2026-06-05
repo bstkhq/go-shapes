@@ -4,9 +4,11 @@ package main
 var Thickness float
 
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
 	a, b := customVAs.xy, customVAs.zw
 	dist := distanceToSegment(targetCoords.xy-imageDstOrigin(), a, b)
-	alpha := 1.0 - smoothstep(Thickness/2-1.333, Thickness/2, dist)
+	alpha := 1.0 - smoothstep(Thickness/2-AAMargin, Thickness/2, dist)
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }

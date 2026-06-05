@@ -51,6 +51,12 @@ func (p PointF32) Dot(o PointF32) float32 {
 	return p.X*o.X + p.Y*o.Y
 }
 
+// signed area of the parallelogram created by directions p x o.
+// or torque. or measure of perpendicularity. or...
+func (p PointF32) cross(o PointF32) float32 {
+	return p.X*o.Y - p.Y*o.X
+}
+
 // Length returns sqrt(p.X^2 + p.Y^2).
 func (p PointF32) Length() float32 {
 	return float32(math.Hypot(float64(p.X), float64(p.Y)))
