@@ -6,10 +6,8 @@ There are significant differences between a shader that "seems to work" and a hi
 
 A shader can't be bounded by simply taking mins/maxes of the requested coordinates:
 1) Even for axis-aligned rectangular shapes, floor/ceil need to be used to avoid triangle rasterization cutting part of the shape's edge. This is easy to miss with quick visual inspection alone, especially when no movement animation is tested.
-2) When it comes to more complex shapes, we must consider hulls. We default to AABBs, but a `Hull` flag allows the optimization of some shapes. See the flag's docs for more details. The short version is that a tight hull can reduce the number of ineffective pixels in 50% when drawing a shape like a triangle, but many other complications have to be balanced: color interpolation can break and hull calculations can be complex (e.g. tight edges might require mitering during padding).
-3) Stroked shapes are particularly problematic, as most pixels are ineffective when rendering thin outlines. Cases like these should definitely support hulls.
-
-Implementing hulls for shapes and effects that can heavily benefit from it is recommended, but it should be opt-in in most cases.
+2) When it comes to more complex shapes, shapes has `AABB` and `Hull` flags. Each shape defaults to the most natural and logical mode, but there are many cases where both must be carefully considered. Hulls seem always more optimal, but they have many complications that have to be balanced: color interpolation that matches the AABB coloring is not always perfectly possible, and hull calculations can be complex (e.g. tight edges might require mitering during padding).
+3) Stroked shapes are particularly problematic, as most pixels are ineffective when rendering thin outlines.
 
 ## Smoothness under subtle movement
 
@@ -80,4 +78,4 @@ Make sure to revise:
 - Bounds are being tightened during collapse.
 - Target origin is respected.
 - Tint is being passed and respected, probably through one of the custom VAs.
-- `Hull` flag has been considered as triangles have ~50% ineffective pixels when drawn within an AABB.
+- Hull vs AABB has been considered as triangles have ~50% ineffective pixels when drawn within an AABB (triangle should default to `Hull` and `ColorIntrinsic`).

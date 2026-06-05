@@ -1,7 +1,7 @@
 # shapes
 [![Go Reference](https://pkg.go.dev/badge/github.com/erparts/go-shapes.svg)](https://pkg.go.dev/github.com/erparts/go-shapes)
 
-`shapes` is a package for [**Ebitengine**](https://github.com/hajimehoshi/ebiten) (the 2D game library written by Hajime Hoshi) that allows rendering some common shapes and effects in complementary ways to the official [`vector`](https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2/vector) package. Some examples:
+`shapes` is a package for [**Ebitengine**](https://github.com/hajimehoshi/ebiten) (the 2D game library written by Hajime Hoshi) that allows rendering common shapes and effects in complementary ways to the official [`vector`](https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2/vector) package. Some examples:
 
 - Smooth circles, triangles, hexagons, ellipses, rings, rects... with rounding options.
 - High quality image blurs, glows and outlines.
@@ -10,7 +10,7 @@
 - Tiling patterns with dots, triangles and rectangles.
 - Many other effects like noise, warps, dithering, quad mapping, text...
 
-Unlike `vector`, `shapes` relies more on [Kage shaders](https://github.com/tinne26/kage-desk) instead of raw triangles rasterization. This means rendering tends to be smoother, but extra care has to be taken as changing shaders or some of its parameters will break [batching](https://github.com/tinne26/efficient-ebitengine).
+Unlike `vector`, which approximates geometry with triangles, `shapes` relies mainly on precise, high-quality [Kage shaders](https://github.com/tinne26/kage-desk). This means rendering tends to be smoother, but extra care has to be taken as changing shaders or some of its parameters will break [batching](https://github.com/tinne26/efficient-ebitengine).
 
 [TODO: simple UI surface example image]
 

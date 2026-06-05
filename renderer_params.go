@@ -101,6 +101,8 @@ func (o Origin) AdjustXY(bounded Bounded, x, y float32) PointF32 {
 type Flag int
 
 // Operation flags, read the descriptions for details.
+//
+// Notice that most operations support no flags or only a small subset of them.
 const (
 	// noFlag is ignored by any function accepting flags.
 	noFlag Flag = iota
@@ -124,23 +126,33 @@ const (
 	// Dithering in this package is often implemented with blue noise textures.
 	Dithered
 
-	// Improves rendering bounds where supported by switching from axis
-	// aligned bounding boxes (AABBs) to shape-specific hulls.
+	// Use axis-aligned bounding box geometry.
 	//
-	// For example, the AABB of a triangle has a ~50% of ineffective pixels.
-	// Using a hull can severely reduce overdraw. For strokes and outlines,
-	// the impact is even greater.
+	// The are three main use-cases to choose AABB when the default is already
+	// Hull bounding:
+	//  - Affect the entire shape area with blending modes like BlendCopy.
+	//  - Making color mapping match standard AABB shapes exactly (Hull
+	//    bounds can lead to less accurate color interpolation).
+	//  - Skipping hull computations for small shapes.
+	AABB
+
+	// Use shape hull bounding geometry.
 	//
-	// Unfortunately, hulls have multiple downsides:
-	//  - Computing hulls can be non-trivial and increase the number of
-	//    triangles to render.
-	//  - Color interpolation, although approximated within reason, becomes
-	//    notably different from AABB rendering when vertices have different
-	//    colors.
-	//
-	// Therefore, hulls are left as an opt-in optimization tool for stroked
-	// and medium to large shapes that support it.
+	// In general, shapes where Hull bounding is fast to compute, effective
+	// at trimming unused pixels and has no downsides for color interpolation,
+	// Hull bounding is already the default mode.
 	Hull
+
+	// Maps the vertex colors to the corners of the shape's bounding box.
+	//
+	// Notice that when Hull bounding is used, this might be an inexact
+	// approximation (depends a lot on the shape).
+	ColorAABB
+
+	// Map the vertex colors to the shape's hull.
+	//
+	// The exact interpretation depends on the primitive.
+	ColorIntrinsic
 
 	// sentinel
 	numFlags
