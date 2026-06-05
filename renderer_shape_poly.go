@@ -1,7 +1,6 @@
 package shapes
 
 import (
-	"fmt"
 	"image"
 	"math"
 
@@ -549,6 +548,8 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 // inwards rounding. Notice that non-zero rounding or self-intersecting quads
 // triggers additional precomputations, which are particularly complex for
 // inner rounding.
+//
+// TODO: line color doesn't match quad color ordering. something is off.
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
 	var simple bool
 	quad, simple = canonicalizeQuadCW(quad)
@@ -558,10 +559,7 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	}
 
 	if rounding < 0 {
-		dbgX, dbgY := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X), min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)
 		quad, shape, offsetReached := offsetQuad(quad, rounding)
-		r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f, radius: %.02f", shape.String(), offsetReached, rounding-offsetReached*2), dbgX, dbgY, TextOpts(1.0, BottomLeft))
-
 		switch shape {
 		case shapePoint:
 			radius := rounding - offsetReached*2
@@ -574,8 +572,7 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			if radius <= 0 {
 				return // empty
 			}
-			r.Text(target, fmt.Sprintf("line from (%.02f, %.02f) - (%.02f, %.02f)", quad[0].X, quad[0].Y, quad[1].X, quad[1].Y), dbgX-12, dbgY-12, TextOpts(1.0, BottomLeft))
-			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB is precise enough with Hull that's not worth using strokeAABBLine
+			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB should be precise enough with Hull..?
 		case shapeTriangle:
 			var tri [3]PointF32
 			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]
@@ -612,7 +609,62 @@ func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, roun
 
 // precondition: quad must be self-intersecting
 func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
-	// TODO
+	inter, ok := findSelfIntersection(quad)
+	if !ok { // collinear or almost collinear
+		if rounding > 0 {
+			r.internalFillQuad(target, quad, rounding)
+		}
+		return
+	}
+
+	triA := [3]PointF32{inter.A[0], inter.A[1], inter.Intersection}
+	triB := [3]PointF32{inter.B[0], inter.B[1], inter.Intersection}
+	var roundingA, roundingB float32
+
+	if rounding < 0 {
+		// treat as two triangles, but avoid FillTriangle directly to stay on
+		// the same shader and improve multi-vertex color interpolation
+		var shape shapeType
+		triA, shape, roundingA = preprocessTriangle([3]PointF32{inter.A[0], inter.A[1], inter.Intersection}, rounding)
+		if shape == shapePoint {
+			triA[1], triA[2] = triA[0], triA[0]
+		}
+		triB, _, roundingB = preprocessTriangle([3]PointF32{inter.B[0], inter.B[1], inter.Intersection}, rounding)
+		if shape == shapePoint {
+			triB[1], triB[2] = triB[0], triB[0]
+		}
+
+		if roundingA <= 0 {
+			if roundingB <= 0 {
+				return // nothing visible
+			}
+		}
+		roundingA = max(roundingA, 0)
+		roundingB = max(roundingB, 0)
+	} else {
+		// ensure A and B form clockwise triangles with CW ordering
+		if triangleSignedArea(triA[0], triA[1], triA[2]) < 0 {
+			triA[0], triA[1] = triA[1], triA[0]
+		}
+		if triangleSignedArea(triB[0], triB[1], triB[2]) < 0 {
+			triB[0], triB[1] = triB[1], triB[0]
+		}
+		roundingA, roundingB = rounding, rounding
+	}
+
+	minAX, minBX := min(triA[0].X, triA[1].X, triA[2].X)-roundingA, min(triB[0].X, triB[1].X, triB[2].X)-roundingB
+	minAY, minBY := min(triA[0].Y, triA[1].Y, triA[2].Y)-roundingA, min(triB[0].Y, triB[1].Y, triB[2].Y)-roundingB
+	maxAX, maxBX := max(triA[0].X, triA[1].X, triA[2].X)+roundingA, max(triB[0].X, triB[1].X, triB[2].X)+roundingB
+	maxAY, maxBY := max(triA[0].Y, triA[1].Y, triA[2].Y)+roundingA, max(triB[0].Y, triB[1].Y, triB[2].Y)+roundingB
+	minX, maxX := floorF32(min(minAX, minBX)), ceilF32(max(maxAX, maxBX))
+	minY, maxY := floorF32(min(minAY, minBY)), ceilF32(max(maxAY, maxBY))
+	r.setDstRectCoords(minX, minY, maxX, maxY)
+	r.setFlatCustomVAs01(roundingA, roundingB)
+	tox, toy := rectOriginF32(target.Bounds())
+	r.opts.Uniforms["TriangleA"] = [6]float32{triA[0].X - tox, triA[0].Y - toy, triA[1].X - tox, triA[1].Y - toy, triA[2].X - tox, triA[2].Y - toy}
+	r.opts.Uniforms["TriangleB"] = [6]float32{triB[0].X - tox, triB[0].Y - toy, triB[1].X - tox, triB[1].Y - toy, triB[2].X - tox, triB[2].Y - toy}
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuadSelfIntersect.Load(), &r.opts)
+	clear(r.opts.Uniforms)
 }
 
 // FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which

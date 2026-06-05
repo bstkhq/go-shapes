@@ -463,6 +463,40 @@ func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, r
 	return vertices
 }
 
+func segmentIntersect(segA, segB segmentF32) (PointF32, bool) {
+	segDirA, segDirB := segA.Dir(), segB.Dir()
+	denom := segDirA.cross(segDirB)
+	if abs(denom) < 1e-6 {
+		return PointF32{}, false
+	}
+
+	originDir := segB.Origin.Sub(segA.Origin)
+	tA := originDir.cross(segDirB) / denom
+	tB := originDir.cross(segDirA) / denom
+	if tA < 0 || tA > 1 || tB < 0 || tB > 1 {
+		return PointF32{}, false
+	}
+
+	return segA.Origin.Add(segDirA.Scale(tA)), true
+}
+
+func lineSegmentIntersect(line lineF32, segment segmentF32) (PointF32, bool) {
+	segDir := segment.Dir()
+	denom := line.Dir.cross(segDir)
+	if abs(denom) < 1e-6 {
+		return PointF32{}, false
+	}
+
+	originDir := segment.Origin.Sub(line.Origin)
+	tLine := originDir.cross(segDir) / denom
+	tSeg := originDir.cross(line.Dir) / denom
+	if tSeg < 0 || tSeg > 1 {
+		return PointF32{}, false
+	}
+
+	return line.Origin.Add(line.Dir.Scale(tLine)), true
+}
+
 // (cx, cy) is a point on circle, (ox, oy) is an outside point.
 // Circle center is assumed to be (0,0). this function will return
 // (cx, cy) unless the line from c to o crosses another point

@@ -82,6 +82,10 @@ var shaderHexagon = shaderRef{src: shaderHexagonSrc}
 var shaderQuadSrc []byte
 var shaderQuad = shaderRef{src: shaderQuadSrc}
 
+//go:embed shaders/shapes/poly/quad_self_intersect.kage
+var shaderQuadSelfIntersectSrc []byte
+var shaderQuadSelfIntersect = shaderRef{src: shaderQuadSelfIntersectSrc}
+
 //go:embed shaders/shapes/circ/arc.kage
 var shaderArcSrc []byte
 var shaderArc = shaderRef{src: shaderArcSrc}

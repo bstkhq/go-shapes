@@ -352,15 +352,11 @@ func triangleArea(p1, p2, p3 PointF32) float32 {
 	return abs((p2.X-p1.X)*(p3.Y-p1.Y)-(p2.Y-p1.Y)*(p3.X-p1.X)) * 0.5
 }
 
-// normalizeTriangleCW checks the winding of the triangle and makes it CW.
-// it also returns the area of the triangle
-func normalizeTriangleCW(points [3]PointF32) ([3]PointF32, float32) {
-	cross := (points[1].X-points[0].X)*(points[2].Y-points[0].Y) - (points[1].Y-points[0].Y)*(points[2].X-points[0].X)
-	if cross < 0 {
-		points[1], points[2] = points[2], points[1]
-		cross = -cross
-	}
-	return points, cross * 0.5
+// the signed area is helpful because it also tell us if the given triangle
+// ordering is CW or CCW. swapping any pair of vertices will swap the winding
+func triangleSignedArea(p0, p1, p2 PointF32) float32 {
+	cross := (p1.X-p0.X)*(p2.Y-p0.Y) - (p1.Y-p0.Y)*(p2.X-p0.X)
+	return cross * 0.5
 }
 
 // normalizeQuadCW checks the winding of the quad and makes it CW
@@ -409,4 +405,34 @@ func canonicalizeQuadCW(points [4]PointF32) ([4]PointF32, bool) {
 		}
 	}
 	return points, true
+}
+
+type quadSelfIntersection struct {
+	Intersection PointF32 // new intersection point
+
+	A [2]PointF32 // A0-A1-Intersection is one of the filled triangles
+	B [2]PointF32 // B0-B1-Intersection is the other filled triangle
+}
+
+func findSelfIntersection(quad [4]PointF32) (quadSelfIntersection, bool) {
+	var i quadSelfIntersection
+	seg01 := segmentF32{Origin: quad[0], End: quad[1]}
+	seg23 := segmentF32{Origin: quad[2], End: quad[3]}
+	if p, ok := segmentIntersect(seg01, seg23); ok {
+		i.Intersection = p
+		i.A[0], i.A[1] = quad[0], quad[3]
+		i.B[0], i.B[1] = quad[1], quad[2]
+		return i, true
+	}
+
+	seg12 := segmentF32{Origin: quad[1], End: quad[2]}
+	seg30 := segmentF32{Origin: quad[3], End: quad[0]}
+	if p, ok := segmentIntersect(seg12, seg30); ok {
+		i.Intersection = p
+		i.A[0], i.A[1] = quad[0], quad[1]
+		i.B[0], i.B[1] = quad[2], quad[3]
+		return i, true
+	}
+
+	return quadSelfIntersection{}, false
 }
