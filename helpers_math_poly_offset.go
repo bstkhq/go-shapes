@@ -11,20 +11,20 @@ import (
 // shrinking requires careful handling of collapse cases (and mitering for
 // hulls).
 
-type shape int
+type shapeType int
 
 const (
-	shapePoint shape = iota + 1
+	shapePoint shapeType = iota + 1
 	shapeLine
 	shapeTriangle
 	shapeQuad
 )
 
-func (s shape) NumPoints() int {
+func (s shapeType) NumPoints() int {
 	return int(s)
 }
 
-func (s shape) String() string {
+func (s shapeType) String() string {
 	switch s {
 	case shapePoint:
 		return "Point"
@@ -44,7 +44,7 @@ func (s shape) String() string {
 // offset reached (signed, used to detect the maximum collapse into a point)
 //
 // quad points must be given in clockwise order, +y axis goes down
-func offsetQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) {
+func offsetQuad(quad [4]PointF32, offset float32) ([4]PointF32, shapeType, float32) {
 	if offset > 0 {
 		return offsetQuadNaive(quad, offset), shapeQuad, offset
 	}
@@ -122,7 +122,7 @@ func lineIntersect(p1, d1, p2, d2 PointF32) PointF32 {
 //
 // offset is a magnitude, so it must be >= 0. quad points must be given
 // in clockwise order, +y axis goes down
-func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) {
+func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shapeType, float32) {
 	if offset < 0 {
 		panic("offset must be non-negative")
 	}
@@ -141,13 +141,15 @@ func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) 
 
 	// hard cases (collapse)
 	switch skeleton.Shape {
-	case shapeLine:
-		p1, p2, shape, offsetReached := shrinkLine(skeleton.Points[0], skeleton.Points[1], offset-skeleton.Offset)
-		return [4]PointF32{p1, p2}, shape, offsetReached + skeleton.Offset
 	case shapeTriangle:
 		pi1, pi2, pi3 := skeleton.Points[0], skeleton.Points[1], skeleton.Points[2]
-		po1, po2, po3, shape, offsetReached := shrinkTriangle(pi1, pi2, pi3, offset-skeleton.Offset)
+		area := triangleArea(pi1, pi2, pi3)
+		po1, po2, po3, shape, offsetReached := shrinkTriangle(pi1, pi2, pi3, area, offset-skeleton.Offset)
 		return [4]PointF32{po1, po2, po3}, shape, offsetReached + skeleton.Offset
+	case shapeLine:
+		return [4]PointF32{skeleton.Points[0], skeleton.Points[1]}, shapeLine, skeleton.Offset
+	case shapePoint:
+		return [4]PointF32{skeleton.Points[0]}, shapePoint, skeleton.Offset
 	default:
 		panic(skeleton.Shape)
 	}
@@ -155,7 +157,7 @@ func shrinkQuad(quad [4]PointF32, offset float32) ([4]PointF32, shape, float32) 
 
 // offset is a magnitude (>= 0). the returned float32 is the offset reached
 // (magnitude)
-func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shape, float32) {
+func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shapeType, float32) {
 	if offset < 0 {
 		panic("offset must be >= 0")
 	}
@@ -164,7 +166,7 @@ func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shape, flo
 	segmentLength := segmentVector.Length()
 	maxOffset := segmentLength * 0.5
 	if offset > maxOffset-1e-6 {
-		return p1.Add(segmentVector.Scale(0.5)), PointF32{}, shapePoint, maxOffset
+		return p1.Add(p2).Scale(0.5), PointF32{}, shapePoint, maxOffset
 	}
 
 	dir := segmentVector.Scale(1.0 / segmentLength)
@@ -176,7 +178,7 @@ func shrinkLine(p1, p2 PointF32, offset float32) (PointF32, PointF32, shape, flo
 // (magnitude)
 //
 // triangle points must be given in clockwise order, +y axis goes down
-func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, PointF32, shape, float32) {
+func shrinkTriangle(p1, p2, p3 PointF32, area float32, offset float32) (PointF32, PointF32, PointF32, shapeType, float32) {
 	a12, b12, c12 := toLinearFormABC(p1.X, p1.Y, p2.X, p2.Y)
 	a23, b23, c23 := toLinearFormABC(p2.X, p2.Y, p3.X, p3.Y)
 	a31, b31, c31 := toLinearFormABC(p3.X, p3.Y, p1.X, p1.Y)
@@ -187,9 +189,8 @@ func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, Po
 	// handle collapse into point
 	perimeter := l12 + l23 + l31
 	if perimeter < 1e-6 {
-		return p1, PointF32{}, PointF32{}, shapePoint, offset
+		return p1, PointF32{}, PointF32{}, shapePoint, 0
 	}
-	area := 0.5 * abs((p1.X*(p2.Y-p3.Y) + p2.X*(p3.Y-p1.Y) + p3.X*(p1.Y-p2.Y)))
 	maxOffset := area / (0.5 * perimeter)
 	if offset >= maxOffset {
 		cx := (l23*p1.X + l31*p2.X + l12*p3.X) / perimeter
@@ -211,7 +212,7 @@ func shrinkTriangle(p1, p2, p3 PointF32, offset float32) (PointF32, PointF32, Po
 
 type skeletonOffset struct {
 	Offset float32     // perpendicular offset until first intersection
-	Shape  shape       // line or triangle
+	Shape  shapeType   // point, line or triangle
 	Points [3]PointF32 // 2 points for line case, 3 for triangle
 }
 
@@ -306,7 +307,7 @@ func firstQuadSkeletonOffset(quad [4]PointF32, edges [4]PointF32, maxOffset floa
 	return out
 }
 
-// returns the distance t1 along ray1 where the rays intersect. parallel rays
+// returns the distance along d1 where the rays intersect. parallel rays
 // return false
 func intersectRays(p1, d1, p2, d2 PointF32) (float32, bool) {
 	denom := d1.X*d2.Y - d1.Y*d2.X
@@ -347,13 +348,19 @@ func shoelaceArea(quad [4]PointF32) float32 {
 		(quad[0].X-quad[3].X)*(quad[0].Y+quad[3].Y)
 }
 
-// normalizeTriangleCW checks the winding of the triangle and makes it CW
-func normalizeTriangleCW(points [3]PointF32) [3]PointF32 {
+func triangleArea(p1, p2, p3 PointF32) float32 {
+	return abs((p2.X-p1.X)*(p3.Y-p1.Y)-(p2.Y-p1.Y)*(p3.X-p1.X)) * 0.5
+}
+
+// normalizeTriangleCW checks the winding of the triangle and makes it CW.
+// it also returns the area of the triangle
+func normalizeTriangleCW(points [3]PointF32) ([3]PointF32, float32) {
 	cross := (points[1].X-points[0].X)*(points[2].Y-points[0].Y) - (points[1].Y-points[0].Y)*(points[2].X-points[0].X)
 	if cross < 0 {
 		points[1], points[2] = points[2], points[1]
+		cross = -cross
 	}
-	return points
+	return points, cross * 0.5
 }
 
 // normalizeQuadCW checks the winding of the quad and makes it CW
@@ -369,8 +376,7 @@ func normalizeQuadCW(points [4]PointF32) [4]PointF32 {
 // if the quad can't be canonicalized (self-intersecting)
 func canonicalizeQuadCW(points [4]PointF32) ([4]PointF32, bool) {
 	turn := func(a, b, c PointF32) float32 {
-		ab, bc := a.Sub(b), b.Sub(c)
-		return ab.X*bc.Y - ab.Y*bc.X
+		return a.Sub(b).cross(b.Sub(c))
 	}
 	turns := [4]float32{
 		turn(points[3], points[0], points[1]),

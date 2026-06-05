@@ -10,7 +10,7 @@ import (
 func TestQuadSkeletonShape(t *testing.T) {
 	tests := []struct {
 		quad     [4]PointF32
-		outShape shape
+		outShape shapeType
 	}{
 		{ // normal quad A
 			quad:     [4]PointF32{PtF32(0, 0), PtF32(100, 0), PtF32(100, 100), PtF32(20, 90)},
@@ -125,7 +125,8 @@ func TestShrinkTriangle(t *testing.T) {
 			points[2] = PtF32(w*0.2, h*0.9)
 			firstDraw = false
 		}
-		p1, p2, p3, shape, offsetReached := shrinkTriangle(points[0], points[1], points[2], offset)
+		area := triangleArea(points[0], points[1], points[2])
+		p1, p2, p3, shape, offsetReached := shrinkTriangle(points[0], points[1], points[2], area, offset)
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		info := fmt.Sprintf("Press and drag the points\nShrink offset: %.02f [O]\nShape: %s\nOffset reached: %.02f", offset, shape.String(), offsetReached)

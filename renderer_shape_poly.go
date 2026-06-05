@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"math"
 
@@ -360,70 +361,42 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 	r.drawTriangle(target, points, thickness, rounding)
 }
 
-// TODO: bounds should be tightened up like quads. while three vertex colors could be used in order,
-// this will actually make the function incompatible with the rest, so tightening bounds might be
-// preferable. and tightening bounds here cuts number of pixels to process in half, so it's quite
-// important. improve color interpolation
+// TODO: support Hull flag
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
-	area := abs((points[0].X*(points[1].Y-points[2].Y) + points[1].X*(points[2].Y-points[0].Y) + points[2].X*(points[0].Y-points[1].Y)) / 2)
+	var area float32
+	points, area = normalizeTriangleCW(points)
 	if area < 1e-6 {
 		return // empty triangle
 	}
 
-	var p0, p1, p2 PointF32 = points[0], points[1], points[2]
 	if rounding < 0 {
-		a12, b12, c12 := toLinearFormABC(points[0].X, points[0].Y, points[1].X, points[1].Y)
-		a23, b23, c23 := toLinearFormABC(points[1].X, points[1].Y, points[2].X, points[2].Y)
-		a31, b31, c31 := toLinearFormABC(points[2].X, points[2].Y, points[0].X, points[0].Y)
-		c1_12, c2_12, l12 := parallelsAtDist(a12, b12, c12, -rounding)
-		c1_23, c2_23, l23 := parallelsAtDist(a23, b23, c23, -rounding)
-		c1_31, c2_31, l31 := parallelsAtDist(a31, b31, c31, -rounding)
-
-		// handle collapse into circle
-		area := 0.5 * abs((p0.X*(p1.Y-p2.Y) + p1.X*(p2.Y-p0.Y) + p2.X*(p0.Y-p1.Y)))
-		perimeter := l12 + l23 + l31
-		maxRounding := area / (0.5 * perimeter)
-		if -rounding >= maxRounding {
-			cx := (l23*p0.X + l31*p1.X + l12*p2.X) / perimeter
-			cy := (l23*p0.Y + l31*p1.Y + l12*p2.Y) / perimeter
-			radius := maxRounding + (maxRounding + rounding)
+		var shape shapeType
+		var offsetReached float32
+		points[0], points[1], points[2], shape, offsetReached = shrinkTriangle(points[0], points[1], points[2], area, -rounding)
+		if shape == shapePoint {
+			radius := offsetReached*2 + rounding
 			if thickness == 0 {
-				if radius <= 0 {
-					return
+				if radius > 0 {
+					r.FillCircle(target, points[0].X, points[0].Y, radius)
 				}
-				r.FillCircle(target, cx, cy, radius)
 			} else {
-				if thickness < 0 {
-					thickness = -thickness
-					radius -= thickness / 2.0
-				}
-				r.StrokeCircle(target, cx, cy, radius, thickness)
+				r.StrokeCircle(target, points[0].X, points[0].Y, radius, thickness)
 			}
 			return
 		}
-
-		// no collapse, finish calculations
-		if a12*points[2].X+b12*points[2].Y+c12 > 0 { // fancy winding order test
-			c12, c23, c31 = c1_12, c1_23, c1_31
-		} else {
-			c12, c23, c31 = c2_12, c2_23, c2_31
-		}
-		p0.X, p0.Y = shortCramer(a31, b31, c31, a12, b12, c12)
-		p1.X, p1.Y = shortCramer(a12, b12, c12, a23, b23, c23)
-		p2.X, p2.Y = shortCramer(a23, b23, c23, a31, b31, c31)
+		rounding = -rounding
 	}
 
 	minX, maxX := min(points[0].X, points[1].X, points[2].X), max(points[0].X, points[1].X, points[2].X)
 	minY, maxY := min(points[0].Y, points[1].Y, points[2].Y), max(points[0].Y, points[1].Y, points[2].Y)
-	hthick := max(thickness/2.0, 0)
-	outRounding := max(rounding, 0)
-	r.setDstRectCoords(minX-hthick-outRounding, minY-hthick-outRounding, maxX+hthick+outRounding, maxY+hthick+outRounding)
+	margin := max(thickness/2.0, 0) + max(rounding, 0)
+	r.setDstRectCoords(floorF32(minX-margin), floorF32(minY-margin), ceilF32(maxX+margin), ceilF32(maxY+margin))
 
 	// draw shader
 	tox, toy := rectOriginF32(target.Bounds())
-	r.opts.Uniforms["P0"] = [2]float32{p0.X - tox, p0.Y - toy}
-	r.opts.Uniforms["P1"] = [2]float32{p1.X - tox, p1.Y - toy}
-	r.opts.Uniforms["P2"] = [2]float32{p2.X - tox, p2.Y - toy}
+	r.opts.Uniforms["P0"] = [2]float32{points[0].X - tox, points[0].Y - toy}
+	r.opts.Uniforms["P1"] = [2]float32{points[1].X - tox, points[1].Y - toy}
+	r.opts.Uniforms["P2"] = [2]float32{points[2].X - tox, points[2].Y - toy}
 	r.setFlatCustomVAs01(abs(rounding), thickness)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
 	clear(r.opts.Uniforms)
@@ -508,13 +481,15 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	var simple bool
 	quad, simple = canonicalizeQuadCW(quad)
 	if !simple {
-		r.Warnings.report(WarnSelfIntersectingGeom, quad)
+		r.fillSelfIntersectingQuad(target, quad, rounding)
+		return
 	}
 
 	if rounding < 0 {
-		// dbgX, dbgY := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X), min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)
+		dbgX, dbgY := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X), min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)
 		quad, shape, offsetReached := offsetQuad(quad, rounding)
-		// r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f", shape.String(), offsetReached), dbgX, dbgY, TextOpts(1.0, BottomLeft))
+		r.Text(target, fmt.Sprintf("shape: %s, offsetReached: %.02f", shape.String(), offsetReached), dbgX, dbgY, TextOpts(1.0, BottomLeft))
+
 		switch shape {
 		case shapePoint:
 			radius := rounding - offsetReached*2
@@ -523,12 +498,11 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			}
 			r.FillCircle(target, quad[0].X, quad[0].Y, radius)
 		case shapeLine:
-			// TODO: this isn't being hit, some trapezes are collapsing into a quad
-			thick := rounding - offsetReached*2
-			if thick <= 0 {
+			radius := rounding - offsetReached*2
+			if radius <= 0 {
 				return // empty
 			}
-			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(thick))
+			r.StrokeLine(target, float64(quad[0].X), float64(quad[0].Y), float64(quad[1].X), float64(quad[1].Y), float64(radius*2.0))
 		case shapeTriangle:
 			// TODO: color interpolation won't work, triangles operate differently.
 			// Either we make triangles also operate in bounding box color, or idk
@@ -546,6 +520,11 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	// if opts.include(Hull) {
 	//     r.hullBuff = quadHull(r.hullBuff, quad, rounding)
 	// }
+	r.internalFillQuad(target, quad, rounding)
+}
+
+// precondition: rounding >= 0
+func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
 	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-rounding), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+rounding)
 	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-rounding), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+rounding)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
@@ -558,6 +537,11 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	}
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
 	clear(r.opts.Uniforms)
+}
+
+// precondition: quad must be self-intersecting
+func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
+	// TODO
 }
 
 // FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
