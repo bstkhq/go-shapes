@@ -543,7 +543,7 @@ func TestFillQuad(t *testing.T) {
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		if ctx.SpacePressed {
-			ctx.Renderer.Options().Blend = ebiten.BlendClear
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
 		roundingOffset := float32(0.0)
 		if animRounding {

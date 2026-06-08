@@ -37,7 +37,8 @@ func distanceToTriangle(p, p0, p1, p2 vec2) float {
 	pq2 := v2 - e2*clamp(dot(v2, e2)/dot(e2, e2), 0.0, 1.0)
 	minSqDist := min(dot(pq0, pq0), min(dot(pq1, pq1), dot(pq2, pq2)))
 	inside := min(cross2(e0, v0), min(cross2(e1, v1), cross2(e2, v2)))
-	return sqrt(minSqDist) * sign(-inside)
+	inside -= step(inside, 0) // if inside <= 0, decrease by one (make zero negative)
+	return -sqrt(minSqDist) * sign(inside)
 }
 
 func cross2(a, b vec2) float {

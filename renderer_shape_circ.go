@@ -44,17 +44,12 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	if thickness == 0 {
 		return // nothing to draw
 	}
-	if thickness < 0 {
-		thickness = -thickness
-		radius -= thickness / 2.0
+	radius, thickness = cleanStrokeRadiusThickness(radius, thickness)
+	if radius+thickness <= 0 {
+		return // nothing to draw
 	}
-	if thickness/2.0 >= radius {
-		radius := radius + thickness/2.0
-		if radius < 0 {
-			return
-		}
-		r.FillCircle(target, cx, cy, radius)
-		return
+	if thickness == 0 {
+		radius, thickness = 0.0, radius*2.0
 	}
 
 	hthickCeil := ceilF32(thickness / 2.0)
@@ -62,6 +57,21 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+}
+
+// cleanStrokeRadiusThickness converts negative thicknesses (inner) to positive
+// (outer), and collapses thicknesses to zero if the circle stroke can become a
+// single filled circle
+func cleanStrokeRadiusThickness(radius, thickness float32) (float32, float32) {
+	if thickness < 0 {
+		thickness = -thickness
+		radius -= thickness / 2.0
+	}
+	if thickness/2.0 >= radius {
+		radius = max(radius+thickness/2.0, 0)
+		thickness = 0.0
+	}
+	return radius, thickness
 }
 
 // StrokeArc draws an arc of the given radius. For stroking full circles and rings,

@@ -425,12 +425,11 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
 	points, shape, rounding := preprocessTriangle(points, rounding)
 	if shape == shapePoint {
-		if thickness == 0 {
-			r.FillCircle(target, points[0].X, points[0].Y, max(rounding, 0))
-		} else {
-			r.StrokeCircle(target, points[0].X, points[0].Y, rounding, thickness)
+		points[1], points[2] = points[0], points[0]
+		rounding, thickness = cleanStrokeRadiusThickness(rounding, thickness)
+		if rounding+thickness <= 0 {
+			return
 		}
-		return
 	}
 
 	minX, maxX := min(points[0].X, points[1].X, points[2].X), max(points[0].X, points[1].X, points[2].X)
@@ -549,10 +548,8 @@ func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rou
 //
 // Rounding can be zero, positive for outwards rounding, or negative for
 // inwards rounding. Notice that non-zero rounding or self-intersecting quads
-// triggers additional precomputations, which are particularly complex for
+// trigger additional precomputations, which can be particularly complex for
 // inner rounding.
-//
-// TODO: line color doesn't match quad color ordering. something is off.
 func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
 	var simple bool
 	quad, simple = canonicalizeQuadCW(quad)
@@ -575,7 +572,7 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			if radius <= 0 {
 				return // empty
 			}
-			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB should be precise enough with Hull..?
+			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB seems precise enough with Hull
 		case shapeTriangle:
 			var tri [3]PointF32
 			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]
