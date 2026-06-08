@@ -163,6 +163,10 @@ func (r *Renderer) memorizeColors() [16]float32 {
 	return memo
 }
 
+func (r *Renderer) vertexColors(i int) [4]float32 {
+	return [4]float32{r.vertices[i].ColorR, r.vertices[i].ColorG, r.vertices[i].ColorB, r.vertices[i].ColorA}
+}
+
 // notice: internal use only, doesn't touch singleClr flag
 func (r *Renderer) setColors(values [16]float32) {
 	for i := range 4 {
@@ -443,4 +447,24 @@ func (r *Renderer) readAABBFlags(flags ...Flag) (bounding Flag, colorMode Flag) 
 		colorMode = ColorIntrinsic
 	}
 	return bounding, colorMode
+}
+
+// read ColorIntrinsic flag (assumes default is ColorAABB)
+func (r *Renderer) readColorIntrinsicFlag(flags ...Flag) (colorMode Flag) {
+	colorMode = noFlag
+	for _, flag := range flags {
+		switch flag {
+		case ColorIntrinsic:
+			if colorMode != noFlag {
+				r.Warnings.report(WarnRepeatedFlag, flag)
+			}
+			colorMode = ColorIntrinsic
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
+	if colorMode == noFlag {
+		colorMode = ColorAABB
+	}
+	return colorMode
 }

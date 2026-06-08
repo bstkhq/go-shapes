@@ -91,9 +91,9 @@ func interpTriColor(a, b, c [4]float32, aCoords, bCoords, cCoords, iCoords Point
 }
 
 // interpTriQuadColor interpolates the color of a point within a quad composed
-// by two triangles (upper right and lower left). this can be used to match
-// colors as closely as possible the default interpolation if triangles are
-// modified for hull adjustments
+// by two triangles (upper right and lower left). this can be used to try to
+// match colors to the default interpolation if triangles are modified for hull
+// adjustments
 func interpTriQuadColor(tl, tr, br, bl [4]float32, origin, size, iCoords PointF32) [4]float32 {
 	// normalize origin and perform half plane check
 	iCoords = iCoords.Sub(origin)

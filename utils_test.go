@@ -15,6 +15,13 @@ import (
 // test bounds
 var backTestColor = color.RGBA{48, 0, 128, 255}
 
+func setTestMultiColors(renderer *Renderer) {
+	renderer.SetColorF32(1.0, 0.3, 0.3, 1.0, 0)
+	renderer.SetColorF32(0.3, 1.0, 0.75, 1.0, 1)
+	renderer.SetColorF32(0.5, 0.3, 1.0, 1.0, 2)
+	renderer.SetColorF32(0.75, 1.0, 0.3, 1.0, 3)
+}
+
 type BaseTestApp struct{}
 
 func (*BaseTestApp) Layout(w, h int) (int, int) {

@@ -215,31 +215,6 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 	}
 }
 
-func (r *Renderer) internalStrokeIntRect(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness int) {
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-
-	outThickness = warnZeroNegativeValue(r, outThickness)
-	inThickness = warnZeroNegativeValue(r, inThickness)
-	if outThickness+inThickness == 0 {
-		return
-	}
-
-	if outThickness == 0 {
-		if inThickness != 0 {
-			r.strokeIntInnerRect(target, ox, oy, w, h, inThickness)
-		}
-	} else {
-		r.strokeIntInnerRect(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness)
-	}
-}
-
 var strokeIndices = []uint32{
 	0, 1, 4,
 	4, 1, 5,
@@ -251,7 +226,42 @@ var strokeIndices = []uint32{
 	0, 4, 7,
 }
 
-func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickness int) {
+// StrokeRect is the [image.Rectangle]-compatible equivalent of [Renderer.StrokeRect]().
+//
+// For rectangle creation, consider [image.Rect]() and [RectWithSize]().
+//
+// Supported flags: [ColorIntrinsic] (colors "twist" around the border along
+// the direction of the underlying triangles).
+func (r *Renderer) StrokeIntRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness int, flags ...Flag) {
+	ox, oy := rect.Min.X, rect.Min.Y
+	w, h := rect.Dx(), rect.Dy()
+	if w < 0 {
+		w = -w
+		ox -= w
+	}
+	if h < 0 {
+		h = -h
+		oy -= h
+	}
+
+	colorMode := r.readColorIntrinsicFlag(flags...)
+	outThickness = warnZeroNegativeValue(r, outThickness)
+	inThickness = warnZeroNegativeValue(r, inThickness)
+	if outThickness+inThickness == 0 {
+		return
+	}
+
+	if outThickness > 0 {
+		ox -= outThickness
+		oy -= outThickness
+		w += outThickness * 2
+		h += outThickness * 2
+		inThickness += outThickness
+	}
+	r.strokeIntInnerRect(target, ox, oy, w, h, inThickness, colorMode)
+}
+
+func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickness int, colorMode Flag) {
 	oox, ooy := float32(ox), float32(oy)
 	ofx, ofy := float32(ox+w), float32(oy+h)
 	r.setDstRectCoords(oox, ooy, ofx, ofy)
@@ -274,61 +284,24 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 			r.vertices[4+i].ColorA = r.vertices[i].ColorA
 		}
 	} else {
-		// we need to interpolate colors. this code takes advantage of
-		// the heavy symmetries in the geometry to reduce the number of
-		// operations, but as a downside, it's a bit tricky to understand
-
-		// compute uv coords for inner points
-		iou := min(max((iox-oox)/(ofx-oox), 0), 1)
-		iov := min(max((ioy-ooy)/(ofy-ooy), 0), 1)
-
-		// compute top and bottom left colors
-		tR, tG, tB, tA := interpVertexColor(r.vertices[0], r.vertices[1], iou)
-		bR, bG, bB, bA := interpVertexColor(r.vertices[3], r.vertices[2], iou)
-
-		// compute left side colors
-		tli, tri, bli, bri := 4, 5, 7, 6 // NOTE: use other orders for cool effects
-		r.vertices[tli].ColorR = lerp(tR, bR, iov)
-		r.vertices[tli].ColorG = lerp(tG, bG, iov)
-		r.vertices[tli].ColorB = lerp(tB, bB, iov)
-		r.vertices[tli].ColorA = lerp(tA, bA, iov)
-
-		r.vertices[bli].ColorR = lerp(bR, tR, iov)
-		r.vertices[bli].ColorG = lerp(bG, tG, iov)
-		r.vertices[bli].ColorB = lerp(bB, tB, iov)
-		r.vertices[bli].ColorA = lerp(bA, tA, iov)
-
-		// compute right side colors by symmetry
-		tR = r.vertices[1].ColorR - (tR - r.vertices[0].ColorR)
-		tG = r.vertices[1].ColorG - (tG - r.vertices[0].ColorG)
-		tB = r.vertices[1].ColorB - (tB - r.vertices[0].ColorB)
-		tA = r.vertices[1].ColorA - (tA - r.vertices[0].ColorA)
-		bR = r.vertices[2].ColorR - (bR - r.vertices[3].ColorR)
-		bG = r.vertices[2].ColorG - (bG - r.vertices[3].ColorG)
-		bB = r.vertices[2].ColorB - (bB - r.vertices[3].ColorB)
-		bA = r.vertices[2].ColorA - (bA - r.vertices[3].ColorA)
-
-		// set right vertex colors
-		r.vertices[tri].ColorR = lerp(tR, bR, iov)
-		r.vertices[tri].ColorG = lerp(tG, bG, iov)
-		r.vertices[tri].ColorB = lerp(tB, bB, iov)
-		r.vertices[tri].ColorA = lerp(tA, bA, iov)
-
-		r.vertices[bri].ColorR = lerp(bR, tR, iov)
-		r.vertices[bri].ColorG = lerp(bG, tG, iov)
-		r.vertices[bri].ColorB = lerp(bB, tB, iov)
-		r.vertices[bri].ColorA = lerp(bA, tA, iov)
+		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
+		origin, size := PtF32(oox, ooy), PtF32(float32(w), float32(h))
+		indexOffset := 0
+		if colorMode == ColorIntrinsic {
+			indexOffset = 3 // "twist" colors following triangle directions. this is just a fancy effect
+		}
+		for i := range 4 {
+			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
+			ci := 4 + (i+indexOffset)%4
+			r.vertices[ci].ColorR = clr[0]
+			r.vertices[ci].ColorG = clr[1]
+			r.vertices[ci].ColorB = clr[2]
+			r.vertices[ci].ColorA = clr[3]
+		}
 	}
 
 	target.DrawTrianglesShader32(r.vertices[:], strokeIndices[:], shaderDefault.Load(), &r.opts)
 	r.vertices = r.vertices[:4]
-}
-
-// StrokeRect is the [image.Rectangle]-compatible equivalent of [Renderer.StrokeRect]().
-//
-// For rectangle creation, consider [image.Rect]() and [RectWithSize]().
-func (r *Renderer) StrokeIntRect(target *ebiten.Image, rect image.Rectangle, inThickness, outThickness int) {
-	r.internalStrokeIntRect(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy(), outThickness, inThickness)
 }
 
 // StrokeRect draws an outline on the given area's boundary, with explicit controls for in/out

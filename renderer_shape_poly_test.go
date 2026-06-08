@@ -97,10 +97,7 @@ func TestStrokeLine(t *testing.T) {
 		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
 
 		// color check
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1)
-		ctx.Renderer.SetColorF32(1.0, 0.5, 0.0, 1.0, 2)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 3)
+		setTestMultiColors(ctx.Renderer)
 		bl := PtF32(16, ch-16)
 		ctx.Renderer.StrokeLine(canvas, bl, bl.Add(PtF32(32, 0)), thick*2.0, flags...)
 		ctx.Renderer.FillRect(canvas, bl.X-thick, bl.Y-32, 32+thick*2.0, thick*2.0, -thick)
@@ -402,29 +399,78 @@ func TestFillRectPrecise(t *testing.T) {
 
 // go test -run ^TestStrokeIntRect$ . -count 1
 func TestStrokeIntRect(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
+	var flags flagList
+	colorSets := [][4][4]float32{
+		{
+			{1, 0, 0, 1},
+			{0, 1, 0, 1},
+			{0, 0, 1, 1},
+			{0, 1, 1, 1},
+		},
+		{
+			{1, 1, 0, 1},
+			{0, 1, 1, 1},
+			{1, 0, 1, 1},
+			{0, 1, 0, 1},
+		},
+		{
+			{1, 0, 0, 1},
+			{1, 0, 0, 1},
+			{0, 0.5, 1, 1},
+			{0, 0.5, 1, 1},
+		},
+		{
+			{1, 0.5, 0, 1},
+			{0, 0.5, 1, 1},
+			{1, 0.5, 0, 1},
+			{0, 0.5, 1, 1},
+		},
+	}
+	colorIndex := 0
+
+	w, h, thick := 80, 50, 8
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC)
+		w = updateParam(ctx, ebiten.KeyW, w, 16, 512, 8)
+		h = updateParam(ctx, ebiten.KeyH, h, 16, 256, 8)
+		thick = updateParam(ctx, ebiten.KeyT, thick, 0, 32, 2)
+		colorIndex = updateParam(ctx, ebiten.KeyS, colorIndex, 0, len(colorSets)-1, 1)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nHalfThick: %d [T]\nColorSet: %d [S]",
+			flags.Has(ColorIntrinsic), w, h, thick, colorIndex,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
 		lcx, lcy := ctx.LeftClick.X, ctx.LeftClick.Y
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx-1, lcy-1, 200+2, 50+2), 1, 0)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx-1, lcy-1, 200+2, 50+2), 1, 0, flags...)
 
 		ctx.Renderer.SetColor(color.RGBA{0, 128, 0, 128})
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0, 1)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0, 1, flags...)
 
 		rcx, rcy := ctx.RightClick.X, ctx.RightClick.Y
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 4, 4)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 4, 4, flags...)
 
 		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 0)
 
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, 80, 50), 8, 8)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][0], 0)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][1], 1)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][2], 2)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][3], 3)
+		if ctx.SpacePressed {
+			ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx-thick, rcy-thick, w+thick*2, h+thick*2), 0)
+		} else {
+			ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, w, h), thick, thick, flags...)
+		}
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -550,11 +596,7 @@ func TestFillQuad(t *testing.T) {
 			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
 		}
 
-		ctx.Renderer.SetColorF32(1.0, 0.3, 0.3, 1.0, 0)
-		ctx.Renderer.SetColorF32(0.3, 1.0, 0.75, 1.0, 1)
-		ctx.Renderer.SetColorF32(0.5, 0.3, 1.0, 1.0, 2)
-		ctx.Renderer.SetColorF32(0.75, 1.0, 0.3, 1.0, 3)
-
+		setTestMultiColors(ctx.Renderer)
 		w, h := rectSizeF32(canvas.Bounds())
 		size := PtF32(w, h)
 		for i, region := range regions {
