@@ -481,20 +481,33 @@ func TestStrokeIntRect(t *testing.T) {
 
 // go test -run ^TestStrokeRect$ . -count 1
 func TestStrokeRect(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
+	var flags flagList
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(AABB, ebiten.KeyA)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		info := fmt.Sprintf("AABB: %t [A]", flags.Has(AABB))
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
 		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		ctx.Renderer.FillRect(canvas, lc.X, lc.Y, 200, 50, 16)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 0, 2, 16)
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 0, 2, 16, flags...)
 
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 2, 0, 16)
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 2, 0, 16, flags...)
 
 		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeRect(canvas, rc.X, rc.Y, 100, 50, 4, 4, 25)
+		ctx.Renderer.StrokeRect(canvas, rc.X, rc.Y, 100, 50, 4, 4, 25, flags...)
 
 		a := uint8(ctx.DistAnim(144.0, 1.0))
 		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
@@ -506,18 +519,20 @@ func TestStrokeRect(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
 		extra := float32(ctx.DistAnim(16, 1.0))
 		subRounding := float32(ctx.DistAnim(20, 1.0))
-		ctx.Renderer.StrokeRect(canvas, lc.X, rc.Y, 80+extra, 50, 8, 8, 25-subRounding)
+		ctx.Renderer.StrokeRect(canvas, lc.X, rc.Y, 80+extra, 50, 8, 8, 25-subRounding, flags...)
 
 		w, h := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.StrokeRect(canvas, w-16, 16, -200, 64, 0, 8, 32)
+		ctx.Renderer.StrokeRect(canvas, w-16, 16, -200, 64, 0, 8, 32, flags...)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		ctx.Renderer.FillCircle(canvas, w-16-32+8, 16+32-8, 32)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.StrokeRect(canvas, 16, h-16, 96, -64, 0, 8, -32.0)
+		ctx.Renderer.StrokeRect(canvas, 16, h-16, 96, -64, 0, 8, -32.0, flags...)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		ctx.Renderer.FillCircle(canvas, 16+32, h-16-32, 32)
+
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)

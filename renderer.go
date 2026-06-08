@@ -468,3 +468,23 @@ func (r *Renderer) readColorIntrinsicFlag(flags ...Flag) (colorMode Flag) {
 	}
 	return colorMode
 }
+
+// read AABB flag (assumes default is Hull)
+func (r *Renderer) readAABBFlag(flags ...Flag) (boundingMode Flag) {
+	boundingMode = noFlag
+	for _, flag := range flags {
+		switch flag {
+		case AABB:
+			if boundingMode != noFlag {
+				r.Warnings.report(WarnRepeatedFlag, flag)
+			}
+			boundingMode = AABB
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
+	if boundingMode == noFlag {
+		boundingMode = Hull
+	}
+	return boundingMode
+}

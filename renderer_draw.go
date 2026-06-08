@@ -65,7 +65,7 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 // This is a low level method mostly used by other higher level renderer calls.
 func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, shader *ebiten.Shader) {
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(ox-margins.Left, oy-margins.Top, ox+srcWidthF32+margins.Right, oy+srcHeightF32+margins.Bottom)
+	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+srcWidthF32+margins.Right), ceilF32(oy+srcHeightF32+margins.Bottom))
 	r.setSrcRectCoords(srcOX-margins.Left, srcOY-margins.Top, srcOX+srcWidthF32+margins.Right, srcOY+srcHeightF32+margins.Bottom)
 
 	r.opts.Images[0] = source
@@ -80,7 +80,7 @@ func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, m
 //
 // This is a low level method mostly used by other higher level renderer calls.
 func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, shader *ebiten.Shader) {
-	r.setDstRectCoords(ox-margins.Left, oy-margins.Top, ox+w+margins.Right, oy+h+margins.Bottom)
+	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+w+margins.Right), ceilF32(oy+h+margins.Bottom))
 	r.setSrcRectCoords(-margins.Left, -margins.Top, w+margins.Right, h+margins.Bottom)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 }

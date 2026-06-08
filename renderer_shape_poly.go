@@ -215,7 +215,7 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 	}
 }
 
-var strokeIndices = []uint32{
+var rectStrokeIndices = []uint32{
 	0, 1, 4,
 	4, 1, 5,
 	5, 1, 2,
@@ -300,7 +300,7 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 		}
 	}
 
-	target.DrawTrianglesShader32(r.vertices[:], strokeIndices[:], shaderDefault.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], rectStrokeIndices[:], shaderDefault.Load(), &r.opts)
 	r.vertices = r.vertices[:4]
 }
 
@@ -309,8 +309,9 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 //
 // If you have an [image.Rectangle] for the rect, consider [Renderer.StrokeIntRect]() instead,
 // or if you need rounding convert with [RectPointsF32]().
-func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32) {
-	// NOTE: should we consider optional segmentation more similar to what internalStrokeIntRect does?
+//
+// Supported flags: [AABB].
+func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32, flags ...Flag) {
 	if w < 0 {
 		w = -w
 		ox -= w
@@ -320,20 +321,24 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, o
 		oy -= h
 	}
 
-	if outThickness < 0 || inThickness < 0 {
-		panic("outThickness < 0 || inThickness < 0")
+	boundingMode := r.readAABBFlag(flags...)
+	outThickness = warnZeroNegativeValue(r, outThickness)
+	inThickness = warnZeroNegativeValue(r, inThickness)
+	if outThickness+inThickness == 0 {
+		return
 	}
 
-	if outThickness == 0 {
-		if inThickness != 0 {
-			r.strokeInnerRect(target, ox, oy, w, h, inThickness, rounding)
-		}
-	} else {
-		r.strokeInnerRect(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness, rounding)
+	if outThickness > 0 {
+		ox -= outThickness
+		oy -= outThickness
+		w += outThickness * 2
+		h += outThickness * 2
+		inThickness += outThickness
 	}
+	r.strokeInnerRect(target, ox, oy, w, h, inThickness, rounding, boundingMode)
 }
 
-func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32) {
+func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32, boundingMode Flag) {
 	if rounding < 0 {
 		// adjust for inner boundary
 		rounding = -(rounding - inThickness)
@@ -345,10 +350,49 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 	}
 
 	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["InnerThickness"] = inThickness
 	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, NoMargins, shaderStrokeRect.Load())
+	inRounding := max(rounding-inThickness, 0)
+	if boundingMode == Hull && (w >= 2*inRounding || h >= 2*inRounding) {
+		r.setDstRectCoords(floorF32(ox), floorF32(oy), ceilF32(ox+w), ceilF32(oy+h))
+		iox, ioy := ox+inThickness, oy+inThickness
+		ifx, ify := ox+w-inThickness, oy+h-inThickness
+
+		// note: the point at the center of the inner curve is often more
+		// optimal for square-ish rects, but this is simple and reasonable
+		if w >= h {
+			iox += inRounding
+			ifx -= inRounding
+		} else {
+			ioy += inRounding
+			ify -= inRounding
+		}
+		iox, ioy = ceilF32(iox), ceilF32(ioy)
+		ifx, ify = floorF32(ifx), floorF32(ify)
+		r.vertices = append(r.vertices,
+			ebiten.Vertex{DstX: iox, DstY: ioy},
+			ebiten.Vertex{DstX: ifx, DstY: ioy},
+			ebiten.Vertex{DstX: ifx, DstY: ify},
+			ebiten.Vertex{DstX: iox, DstY: ify},
+		)
+
+		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
+		origin, size := PtF32(ox, oy), PtF32(w, h)
+		for i := range 4 {
+			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
+			r.vertices[4+i].ColorR = clr[0]
+			r.vertices[4+i].ColorG = clr[1]
+			r.vertices[4+i].ColorB = clr[2]
+			r.vertices[4+i].ColorA = clr[3]
+		}
+
+		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
+		target.DrawTrianglesShader32(r.vertices[:], rectStrokeIndices[:], shaderStrokeRect.Load(), &r.opts)
+		r.vertices = r.vertices[:4]
+	} else { // assume AABB
+		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
+		r.DrawRectShader(target, ox, oy, w, h, NoMargins, shaderStrokeRect.Load())
+	}
 	clear(r.opts.Uniforms)
 }
 
