@@ -95,6 +95,18 @@ func TestStrokeLine(t *testing.T) {
 
 		br := PtF32(cw-16, ch-16)
 		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
+
+		// color check
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1)
+		ctx.Renderer.SetColorF32(1.0, 0.5, 0.0, 1.0, 2)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 3)
+		bl := PtF32(16, ch-16)
+		ctx.Renderer.StrokeLine(canvas, bl, bl.Add(PtF32(32, 0)), thick*2.0, flags...)
+		ctx.Renderer.FillRect(canvas, bl.X-thick, bl.Y-32, 32+thick*2.0, thick*2.0, -thick)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, bl.X+32+thick*2.0, bl.Y, thick)
+
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 

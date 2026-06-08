@@ -166,8 +166,9 @@ func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickn
 }
 
 func (r *Renderer) strokeAABBLine(target *ebiten.Image, origin, end PointF32, thickness float32) {
-	minX, maxX := floorF32(min(origin.X, end.X)-thickness), ceilF32(max(origin.X, end.X)+thickness)
-	minY, maxY := floorF32(min(origin.Y, end.Y)-thickness), ceilF32(max(origin.Y, end.Y)+thickness)
+	halfThick := thickness / 2.0
+	minX, maxX := floorF32(min(origin.X, end.X)-halfThick), ceilF32(max(origin.X, end.X)+halfThick)
+	minY, maxY := floorF32(min(origin.Y, end.Y)-halfThick), ceilF32(max(origin.Y, end.Y)+halfThick)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
@@ -178,7 +179,7 @@ func (r *Renderer) strokeAABBLine(target *ebiten.Image, origin, end PointF32, th
 
 func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, thickness float32, colorMode Flag) {
 	vd := end.Sub(origin)    // non-normalized direction vector
-	vp := PtF32(-vd.Y, vd.X) // perpendicular vector
+	vp := PtF32(vd.Y, -vd.X) // perpendicular vector
 	length := vd.Length()
 	if length < 1e-6 { // treat as point
 		r.FillCircle(target, origin.X, origin.Y, thickness/2.0)
@@ -186,14 +187,15 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 	}
 
 	// scale for vector normalization
-	scale := (thickness/2 + 0.5) / length
+	const padOffset = 0.333 // to prevent diagonal clipping (affects color interpolation)
+	scale := (thickness/2 + padOffset) / length
 
 	// adjust bounding ends to include thickness rounding
 	vds, vps := vd.Scale(scale), vp.Scale(scale)
 	bo, bf := origin.Sub(vds), end.Add(vds)
 
 	// compute bounding vertices applying the perpendicular offset
-	// TODO: this hull isn't sufficiently padded
+
 	r.vertices[0].DstX = bo.X + vps.X
 	r.vertices[0].DstY = bo.Y + vps.Y
 	r.vertices[1].DstX = bf.X + vps.X
@@ -209,8 +211,9 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 	if colorMode == ColorAABB && !r.singleClr {
 		memo = r.memorizeColors()
 		hasMemo = true
-		minX, maxX := min(origin.X, end.X)-thickness, max(origin.X, end.X)+thickness
-		minY, maxY := min(origin.Y, end.Y)-thickness, max(origin.Y, end.Y)+thickness
+		halfThick := thickness / 2.0
+		minX, maxX := min(origin.X, end.X)-halfThick, max(origin.X, end.X)+halfThick
+		minY, maxY := min(origin.Y, end.Y)-halfThick, max(origin.Y, end.Y)+halfThick
 		size := PtF32(maxX-minX, maxY-minY)
 		tl, tr, br, bl := [4]float32(memo[0:4]), [4]float32(memo[4:8]), [4]float32(memo[8:12]), [4]float32(memo[12:16])
 		for i := range 4 {
