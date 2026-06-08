@@ -575,24 +575,57 @@ func TestFillQuad(t *testing.T) {
 
 // go test -run ^TestFillQuadSoft$ . -count 1
 func TestFillQuadSoft(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
+	const W, H = 128, 64
+	rounding := float32(0)
+	softEdge := float32(0)
+
+	updater := func(ctx TestAppCtx) {
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -32, 32, 1)
+		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, -32, 32, 1)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lc := ctx.LeftClickF32()
-		rc := ctx.RightClickF32()
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
+			rounding, softEdge,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		w, h := rectSizeF32(canvas.Bounds())
+		ox, oy := w*0.25-W/2, h*0.25-H/2
+		ox2, oy2 := ox+w*0.5, oy+h*0.5
 		quad := [4]PointF32{
-			{X: lc.X, Y: lc.Y},
-			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rc.X, Y: rc.Y},
-			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
+			{X: ox, Y: oy},
+			{X: ox + W, Y: oy},
+			{X: ox + W, Y: oy + H},
+			{X: ox, Y: oy + H},
 		}
-		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		softEdge := float32(64.0)
+
 		if ctx.SpacePressed {
-			softEdge = 0
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
-		ctx.Renderer.FillQuadSoft(canvas, quad, thickening, softEdge)
+		ctx.Renderer.FillQuadSoft(canvas, quad, rounding, softEdge)
+		ctx.Renderer.FillRectSoft(canvas, ox2, oy, W, H, rounding, softEdge)
+
+		quad2 := [4]PointF32{
+			{X: ox, Y: oy2},
+			{X: ox + W, Y: oy2},
+			{X: ox + W/3, Y: oy2 + H/3},
+			{X: ox, Y: oy2 + H},
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad2, rounding, softEdge)
+
+		quad3 := [4]PointF32{
+			{X: ox2 + W/2, Y: oy2},
+			{X: ox2 + W, Y: oy2 + H/2},
+			{X: ox2 + W/2, Y: oy2 + H},
+			{X: ox2, Y: oy2 + H/2},
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad3, rounding, softEdge)
+
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)

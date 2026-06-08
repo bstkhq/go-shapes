@@ -122,6 +122,7 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		return // ignore
 	}
 
+	margin := max(softEdge, 0)
 	var shader *ebiten.Shader
 	if softEdge > 0 {
 		rounding -= softEdge / 1.65 // empirical adjustment
@@ -135,7 +136,6 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["InRounding"] = -rounding
 	r.opts.Uniforms["BlurRadius"] = softEdge
-	margin := max(softEdge, 0)
 	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shader)
 	clear(r.opts.Uniforms)
 }
@@ -537,24 +537,40 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	}
 
 	if rounding < 0 {
+		var nonEmpty bool
+		quad, rounding, nonEmpty = innerRoundQuad(quad, rounding)
+		if !nonEmpty {
+			return
+		}
+	}
+
+	// if opts.include(Hull) {
+	//     r.hullBuff = quadHull(r.hullBuff, quad, rounding)
+	// }
+	r.internalFillQuad(target, quad, shaderQuad.Load(), rounding, 0.0)
+}
+
+// the returned bool indicates whether the result is non-empty
+func innerRoundQuad(quad [4]PointF32, rounding float32) ([4]PointF32, float32, bool) {
+	if rounding < 0 {
 		var shape shapeType
 		var offsetReached float32
 		quad, shape, offsetReached = offsetQuad(quad, rounding)
 		switch shape {
 		case shapePoint:
 			radius := rounding - offsetReached*2
-			if radius <= 0 {
-				return // empty
-			}
 			quad[1], quad[2], quad[3] = quad[0], quad[0], quad[0]
 			rounding = radius
+			if radius <= 0 {
+				return quad, 0.0, false
+			}
 		case shapeLine:
 			radius := rounding - offsetReached*2
-			if radius <= 0 {
-				return // empty
-			}
 			quad[2], quad[3] = quad[1], quad[0]
 			rounding = radius
+			if radius <= 0 {
+				return quad, 0.0, false
+			}
 		case shapeTriangle:
 			quad[3] = quad[2] // repeat one of the points
 			rounding = -rounding
@@ -564,11 +580,7 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 			panic(shape) // broken code
 		}
 	}
-
-	// if opts.include(Hull) {
-	//     r.hullBuff = quadHull(r.hullBuff, quad, rounding)
-	// }
-	r.internalFillQuad(target, quad, shaderQuad.Load(), rounding, 0.0)
+	return quad, rounding, true
 }
 
 // precondition: rounding >= 0
@@ -648,33 +660,45 @@ func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF
 	clear(r.opts.Uniforms)
 }
 
-// FillQuadSoft draws a quad like [Renderer.FillQuad]() but with an extra softEdge, which
-// creates a shadow-like soft edge.
+// FillQuadSoft draws a quad like [Renderer.FillQuad]() but with a soft edge.
 //
-// TODO: thickening -> rounding, soft edge both positive and negative (inwards)
-func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, offset, softEdge float32) {
-	quad, shape, offsetReached := offsetQuad(quad, offset)
-	_ = offsetReached
-	switch shape {
-	case shapeLine:
-		panic("unimplemented soft shapeLine")
-	case shapePoint:
-		panic("unimplemented soft shapePoint")
-	case shapeTriangle:
-		panic("unimplemented soft shapeTriangle")
-	case shapeQuad:
-		for i, pt := range quad {
-			r.vertices[i].DstX = pt.X
-			r.vertices[i].DstY = pt.Y
-		}
-
-		r.setFlatCustomVAs01(offset, softEdge)
-		tox, toy := rectOriginF32(target.Bounds())
-		r.opts.Uniforms["Quad"] = [8]float32{
-			quad[0].X - tox, quad[0].Y - toy, quad[1].X - tox, quad[1].Y - toy,
-			quad[2].X - tox, quad[2].Y - toy, quad[3].X - tox, quad[3].Y - toy,
-		}
-		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
-		clear(r.opts.Uniforms)
+// Rounding can be zero, positive for outwards rounding, or negative for
+// inwards rounding. When positive, the soft radius will extend [-softEdge,
+// +softEdge] around the boundary, approximating a gaussian blur. When
+// negative, the softening will extend inwards [-softEdge, 0].
+//
+// Limitations: self-intersecting quads are not supported, and geometric
+// fidelity is lower than the FillRectSoft approximation, as general quads
+// have far more complex geometric shapes.
+func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, rounding, softEdge float32) {
+	var simple bool
+	quad, simple = canonicalizeQuadCW(quad)
+	if !simple {
+		r.Warnings.report(WarnSelfIntersectingQuad, quad)
 	}
+
+	var shader *ebiten.Shader
+	if softEdge > 0 {
+		if rounding > 0 {
+			quad = offsetQuadNaive(quad, rounding)
+			rounding = -rounding
+		}
+		// note: the empirical rounding correction applied to soft rects can't
+		// be applied here, as concave shapes would be eroded way too fast
+		// (this is why the docs mention "lower geometric fidelity")
+		// rounding -= softEdge / 1.65
+		shader = shaderQuadSoftBlur.Load()
+	} else {
+		shader = shaderQuadSoftIn.Load()
+	}
+
+	if rounding < 0 {
+		var nonEmpty bool
+		quad, rounding, nonEmpty = innerRoundQuad(quad, rounding)
+		if !nonEmpty {
+			return
+		}
+	}
+
+	r.internalFillQuad(target, quad, shader, rounding, softEdge)
 }

@@ -44,6 +44,7 @@ const (
 	WarnTooManyVertexAttribs
 	WarnTooManyColorsClamped
 	WarnInvalidApertureClamped
+	WarnSelfIntersectingQuad
 
 	warnSentinel
 )
@@ -99,6 +100,8 @@ func (w Warning) Message() string {
 		return "too many color values, clamped to max"
 	case WarnInvalidApertureClamped:
 		return "aperture out of [0, 2*Pi], clamped"
+	case WarnSelfIntersectingQuad:
+		return "self-intersecting quads not supported"
 	default:
 		return fmt.Sprintf("%s 0x%08x", unknownWarningPrefix, w)
 	}

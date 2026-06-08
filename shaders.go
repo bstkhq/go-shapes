@@ -86,6 +86,14 @@ var shaderQuad = shaderRef{src: shaderQuadSrc}
 var shaderQuadSelfIntersectSrc []byte
 var shaderQuadSelfIntersect = shaderRef{src: shaderQuadSelfIntersectSrc}
 
+//go:embed shaders/shapes/poly/quad_soft_in.kage
+var shaderQuadSoftInSrc []byte
+var shaderQuadSoftIn = shaderRef{src: shaderQuadSoftInSrc}
+
+//go:embed shaders/shapes/poly/quad_soft_blur.kage
+var shaderQuadSoftBlurSrc []byte
+var shaderQuadSoftBlur = shaderRef{src: shaderQuadSoftBlurSrc}
+
 //go:embed shaders/shapes/circ/arc.kage
 var shaderArcSrc []byte
 var shaderArc = shaderRef{src: shaderArcSrc}

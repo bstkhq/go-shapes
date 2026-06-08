@@ -4,8 +4,6 @@ package main
 var InRounding float // can only be zero or positive (inwards rounding)
 var BlurRadius float // can be zero or positive (inwards softening)
 
-// TODO: try to pass rounding and soft radius as origin, and remove origin in favor of sourceCoords?
-
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	origin := customVAs.xy
 	size := customVAs.zw
