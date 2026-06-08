@@ -343,9 +343,7 @@ func (r *Renderer) innerRoundingFillAnnularSector(target *ebiten.Image, cx, cy, 
 		// note: when aperture is very large, point and circular sector collapse can't
 		// happen. we check delta < math.Pi as a broad estimate, but I'm not sure this is
 		// always correct / sufficient.
-
-		// collapse into circular sector
-		// TODO: I don't think arc collapse can ever be hit here?
+		outRadius += rounding
 		r.innerRoundingFillCircularSector(target, float32(cx), float32(cy), startRads, endRads, outRadius, cds, cdc, halfCtrAngleSin, halfCtrAngleCos, rounding)
 		return
 	}

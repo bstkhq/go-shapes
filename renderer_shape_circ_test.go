@@ -178,12 +178,19 @@ func TestFillRadialSectorRounding(t *testing.T) {
 
 	updater := func(ctx TestAppCtx) {
 		const StartRadsChange, ApertureChange = math.Pi / 12.0, math.Pi / 32.0
-		const RadiusChange, RoundingChange = 16.0, 4.0
+		const RadiusChange = 16.0
 		startRads = updateParam(ctx, ebiten.KeyS, startRads, 0, 2.0*math.Pi, StartRadsChange)
 		aperture = updateParam(ctx, ebiten.KeyA, aperture, 0, 2.0*math.Pi, ApertureChange)
 		inRadius = updateParam(ctx, ebiten.KeyQ, inRadius, 0, outRadius, RadiusChange)
 		outRadius = updateParam(ctx, ebiten.KeyW, outRadius, inRadius, 384.0, RadiusChange)
-		rounding = updateParam(ctx, ebiten.KeyR, rounding, -48.0, 48.0, RoundingChange)
+		roundingChange := float32(4.0)
+		if (rounding > 0 && rounding < 24) || rounding < -16 {
+			roundingChange = float32(2.0)
+		}
+		if (rounding > 0 && rounding < 10) || rounding < -30 {
+			roundingChange = float32(1.0)
+		}
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -48.0, 48.0, roundingChange)
 		animAperture = updateToggle(ctx, ebiten.KeyE, animAperture)
 		animRounding = updateToggle(ctx, ebiten.KeyT, animRounding)
 	}
