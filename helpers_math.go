@@ -198,6 +198,38 @@ func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Floa
 	}
 }
 
+// given an (origin, end) line and a thickness, it expands it into 4 points
+func lineToQuad(origin, end PointF32, thickness float32, padOffset float32) [4]PointF32 {
+	var out [4]PointF32
+
+	vd := end.Sub(origin)    // non-normalized direction vector
+	vp := PtF32(vd.Y, -vd.X) // perpendicular vector
+	length := vd.Length()
+	if length < 1e-6 { // treat as point
+		midpoint := origin.Add(end).Scale(0.5)
+		shift := thickness + padOffset
+		out[0] = midpoint.Add(PtF32(-shift, -shift)) // TL
+		out[1] = midpoint.Add(PtF32(+shift, -shift)) // TR
+		out[2] = midpoint.Add(PtF32(+shift, +shift)) // BR
+		out[3] = midpoint.Add(PtF32(-shift, +shift)) // BL
+		return out
+	}
+
+	// scale for vector normalization
+	scale := (thickness/2 + padOffset) / length
+
+	// adjust bounding ends to include thickness rounding
+	vds, vps := vd.Scale(scale), vp.Scale(scale)
+	bo, bf := origin.Sub(vds), end.Add(vds)
+
+	// compute bounding vertices applying the perpendicular offset
+	out[0] = bo.Add(vps)
+	out[1] = bf.Add(vps)
+	out[2] = bf.Sub(vps)
+	out[3] = bo.Sub(vps)
+	return out
+}
+
 // gaussian elimination 8x8 homogeneous linear system solver
 func gaussSolver8x8(sys [8][8]float32, weights [8]float32) [8]float32 {
 	var x [8]float32

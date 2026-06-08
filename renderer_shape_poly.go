@@ -90,13 +90,14 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 	clear(r.opts.Uniforms)
 }
 
-// FillRectSoft draws a rect like [Renderer.FillRect]() but with a soft edge. This is
-// ideal for rect shadows in UIs and avoiding the more expensive raster-based blurs.
+// FillRectSoft draws a rect like [Renderer.FillRect]() but with a soft edge.
+// This is ideal for rect shadows in UIs and avoiding the more expensive
+// raster-based blurs.
 //
-// Rounding can be zero, positive for outwards rounding, or negative for inwards
-// rounding. When positive, the soft radius will extend [-softEdge, +softEdge] around the
-// boundary, closely approximating a gaussian blur. When negative, the softening will
-// extend inwards [-softEdge, 0].
+// Rounding can be zero, positive for outwards rounding, or negative for
+// inwards rounding. When positive, the soft radius will extend [-softEdge,
+// +softEdge] around the boundary, closely approximating a gaussian blur. When
+// negative, the softening will extend inwards [-softEdge, 0].
 func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, softEdge float32) {
 	if w < 0 {
 		w = -w
@@ -128,9 +129,6 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	} else {
 		softEdge = -softEdge
 		shader = shaderRectSoftIn.Load()
-		if ebiten.IsKeyPressed(ebiten.KeyQ) {
-			shader = shaderRectSoftInSmoothstep.Load()
-		}
 	}
 
 	tox, toy := rectOriginF32(target.Bounds())
@@ -178,32 +176,12 @@ func (r *Renderer) strokeAABBLine(target *ebiten.Image, origin, end PointF32, th
 }
 
 func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, thickness float32, colorMode Flag) {
-	vd := end.Sub(origin)    // non-normalized direction vector
-	vp := PtF32(vd.Y, -vd.X) // perpendicular vector
-	length := vd.Length()
-	if length < 1e-6 { // treat as point
-		r.FillCircle(target, origin.X, origin.Y, thickness/2.0)
-		return
-	}
-
-	// scale for vector normalization
 	const padOffset = 0.333 // to prevent diagonal clipping (affects color interpolation)
-	scale := (thickness/2 + padOffset) / length
-
-	// adjust bounding ends to include thickness rounding
-	vds, vps := vd.Scale(scale), vp.Scale(scale)
-	bo, bf := origin.Sub(vds), end.Add(vds)
-
-	// compute bounding vertices applying the perpendicular offset
-
-	r.vertices[0].DstX = bo.X + vps.X
-	r.vertices[0].DstY = bo.Y + vps.Y
-	r.vertices[1].DstX = bf.X + vps.X
-	r.vertices[1].DstY = bf.Y + vps.Y
-	r.vertices[2].DstX = bf.X - vps.X
-	r.vertices[2].DstY = bf.Y - vps.Y
-	r.vertices[3].DstX = bo.X - vps.X
-	r.vertices[3].DstY = bo.Y - vps.Y
+	quad := lineToQuad(origin, end, thickness, padOffset)
+	r.vertices[0].DstX, r.vertices[0].DstY = quad[0].X, quad[0].Y
+	r.vertices[1].DstX, r.vertices[1].DstY = quad[1].X, quad[1].Y
+	r.vertices[2].DstX, r.vertices[2].DstY = quad[2].X, quad[2].Y
+	r.vertices[3].DstX, r.vertices[3].DstY = quad[3].X, quad[3].Y
 
 	// apply ColorAABB if requested
 	var memo [16]float32
@@ -559,51 +537,54 @@ func (r *Renderer) FillQuad(target *ebiten.Image, quad [4]PointF32, rounding flo
 	}
 
 	if rounding < 0 {
-		quad, shape, offsetReached := offsetQuad(quad, rounding)
+		var shape shapeType
+		var offsetReached float32
+		quad, shape, offsetReached = offsetQuad(quad, rounding)
 		switch shape {
 		case shapePoint:
 			radius := rounding - offsetReached*2
 			if radius <= 0 {
 				return // empty
 			}
-			r.FillCircle(target, quad[0].X, quad[0].Y, radius)
+			quad[1], quad[2], quad[3] = quad[0], quad[0], quad[0]
+			rounding = radius
 		case shapeLine:
 			radius := rounding - offsetReached*2
 			if radius <= 0 {
 				return // empty
 			}
-			r.strokeHullLine(target, quad[0], quad[1], radius*2.0, ColorAABB) // ColorAABB seems precise enough with Hull
+			quad[2], quad[3] = quad[1], quad[0]
+			rounding = radius
 		case shapeTriangle:
-			var tri [3]PointF32
-			tri[0], tri[1], tri[2] = quad[0], quad[1], quad[2]
-			r.FillTriangle(target, tri, -rounding)
+			quad[3] = quad[2] // repeat one of the points
+			rounding = -rounding
 		case shapeQuad:
-			r.FillQuad(target, quad, -rounding)
+			rounding = -rounding
 		default:
 			panic(shape) // broken code
 		}
-		return
 	}
 
 	// if opts.include(Hull) {
 	//     r.hullBuff = quadHull(r.hullBuff, quad, rounding)
 	// }
-	r.internalFillQuad(target, quad, rounding)
+	r.internalFillQuad(target, quad, shaderQuad.Load(), rounding, 0.0)
 }
 
 // precondition: rounding >= 0
-func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, rounding float32) {
-	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-rounding), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+rounding)
-	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-rounding), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+rounding)
+func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, shader *ebiten.Shader, rounding, softEdge float32) {
+	margin := rounding + max(softEdge, 0)
+	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-margin), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+margin)
+	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-margin), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+margin)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVA0(rounding)
+	r.setFlatCustomVAs01(rounding, abs(softEdge))
 	r.opts.Uniforms["Quad"] = [8]float32{
 		quad[0].X - tox, quad[0].Y - toy, quad[1].X - tox, quad[1].Y - toy,
 		quad[2].X - tox, quad[2].Y - toy, quad[3].X - tox, quad[3].Y - toy,
 	}
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderQuad.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	clear(r.opts.Uniforms)
 }
 
@@ -612,7 +593,7 @@ func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF
 	inter, ok := findSelfIntersection(quad)
 	if !ok { // collinear or almost collinear
 		if rounding > 0 {
-			r.internalFillQuad(target, quad, rounding)
+			r.internalFillQuad(target, quad, shaderQuad.Load(), rounding, 0)
 		}
 		return
 	}
