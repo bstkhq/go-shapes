@@ -696,14 +696,10 @@ func (r *Renderer) FillQuadSoft(target *ebiten.Image, quad [4]PointF32, rounding
 
 	var shader *ebiten.Shader
 	if softEdge > 0 {
-		if rounding > 0 {
-			quad = offsetQuadNaive(quad, rounding)
-			rounding = -rounding
-		}
 		// note: the empirical rounding correction applied to soft rects can't
-		// be applied here, as concave shapes would be eroded way too fast
-		// (this is why the docs mention "lower geometric fidelity")
-		// rounding -= softEdge / 1.65
+		// be applied here (rounding -= softEdge / 1.65), as concave shapes
+		// would be eroded way too fast (this is why the docs mention "lower
+		// geometric fidelity"; the blur rounding is not approximated here)
 		shader = shaderQuadSoftBlur.Load()
 	} else {
 		shader = shaderQuadSoftIn.Load()
