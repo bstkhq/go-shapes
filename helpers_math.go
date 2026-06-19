@@ -291,6 +291,46 @@ func computeHomography(fromQuad, toQuad [4]PointF32) [9]float32 {
 	return homography
 }
 
+// appendCircOctagonVertices appends 9 vertices that can contain a circle of
+// the given radius, with padding accounted for. The vertex order is: central
+// vertex, then all outer vertices clockwise starting at the top. This is a
+// 45º rotated octagon, which aligns triangles for coloring in a compatible
+// manner with a top-left/bottom-right quad.
+//
+// the indices can be obtained with appendCircIndices(indices, 8)
+func appendCircOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32) []ebiten.Vertex {
+	const ApothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
+	const Cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
+
+	// unrolled calculations, this is a fairly common case
+	circumradius := radius * ApothemToCircumradius
+	axialDist := ceilF32(circumradius)
+	diagDist := ceilF32(circumradius * Cos45)
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy})                       // center
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - axialDist})           // top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy - diagDist}) // top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + axialDist, DstY: cy})           // right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy + diagDist}) // bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + axialDist})           // bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - diagDist, DstY: cy + diagDist}) // bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - axialDist, DstY: cy})           // left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - diagDist, DstY: cy - diagDist}) // top-left
+	return vertices
+}
+
+// appends the indices for a tessellated circle, assumming 0 is the center, and 1...N is
+// the number of sides.
+func appendCircIndices(indices []uint32, sides uint32) []uint32 {
+	if sides <= 2 {
+		panic("circle tessellation must have at least 3 sides")
+	}
+	for i := range uint32(sides) - 1 {
+		indices = append(indices, 0, i+1, i+2)
+	}
+	indices = append(indices, 0, uint32(sides), 1)
+	return indices
+}
+
 // precondition: angles must be normalized by normURads, outRadius >= inRadius
 func radialSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	ss, sc := math.Sincos(startRads)

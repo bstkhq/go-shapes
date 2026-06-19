@@ -37,6 +37,7 @@ const (
 	WarnInconsistentRangeInvalidated
 	WarnLowToleranceRaised // below 0.1
 	WarnInvalidFlag
+	WarnIncompatibleFlag
 	WarnRepeatedFlag
 
 	// implementation-specific
@@ -90,6 +91,8 @@ func (w Warning) Message() string {
 		return "CircleShaderOptions.Tolerance != 0 but below minimum of 0.1, raised to 0.1"
 	case WarnInvalidFlag:
 		return "invalid Flag in context"
+	case WarnIncompatibleFlag:
+		return "Flag incompatible with other parameters"
 	case WarnRepeatedFlag:
 		return "redundant repeated Flag"
 	case WarnInvalidNoiseSeedClamped:

@@ -19,9 +19,14 @@ func (r *Renderer) NewFilledCircle(radius float64) *ebiten.Image {
 	return img
 }
 
-// FillCircle draws a filled circle. Radius can't be negative.
-// See also [Renderer.StrokeCircle](), [Renderer.FillCircSector]().
-func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32) {
+// FillCircle draws a filled circle. Radius can't be negative. See also
+// [Renderer.StrokeCircle](), [Renderer.FillCircSector]().
+//
+// Supported flags: [Hull], [ColorIntrinsic]. Using a hull reduces the
+// ineffective pixels from ~20% to ~5%. Intrinsic color will set color 0 at
+// the center of the circle, 1 at the outer cardinal points and 2 at the outer
+// diagonals.
+func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flags ...Flag) {
 	if radius == 0 {
 		return
 	}
@@ -29,10 +34,54 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32) {
 		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
 		return
 	}
-	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
+
+	bounding, colorMode := r.readHullIntrinsicFlags(flags...)
+	switch bounding {
+	case AABB:
+		if colorMode == ColorIntrinsic {
+			r.Warnings.report(WarnIncompatibleFlag, colorMode)
+		}
+		r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
+	case Hull:
+		memo := r.memorizeColors()
+		r.vertices = r.vertices[:0]
+		r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
+		r.indices = r.indices[:0]
+		r.indices = appendCircIndices(r.indices, 8)
+
+		if r.singleClr {
+			for i := range r.vertices {
+				setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
+			}
+		} else if colorMode == ColorIntrinsic {
+			setVertexColor(&r.vertices[0], memo[0], memo[1], memo[2], memo[3])
+			for i := 1; i < len(r.vertices); i += 2 {
+				setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
+			}
+			for i := 2; i < len(r.vertices); i += 2 {
+				setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
+			}
+		} else { // assume ColorAABB
+			minX, maxX := cx-radius, cx+radius
+			minY, maxY := cy-radius, cy+radius
+			size := PtF32(maxX-minX, maxY-minY)
+			tl, tr, br, bl := [4]float32(memo[0:4]), [4]float32(memo[4:8]), [4]float32(memo[8:12]), [4]float32(memo[12:16])
+			for i := range r.vertices {
+				clr := interpTriQuadColor(tl, tr, br, bl, PtF32(minX, minY), size, PtF32(r.vertices[i].DstX, r.vertices[i].DstY))
+				setVertexColor(&r.vertices[i], clr[0], clr[1], clr[2], clr[3])
+			}
+		}
+
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
+		r.setColors(memo)
+	default:
+		panic(bounding)
+	}
 }
 
 // StrokeCircle draws a circle outline or ring. If thickness > 0, the outline expands

@@ -9,6 +9,59 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// go test -run ^TestFillCircle$ . -count 1
+func TestFillCircle(t *testing.T) {
+	var animatedPos, animatedRadius, killCorner bool
+	var radius float32 = 90.0
+	var flags flagList
+
+	updater := func(ctx TestAppCtx) {
+		animatedPos = updateToggle(ctx, ebiten.KeyP, animatedPos)
+		animatedRadius = updateToggle(ctx, ebiten.KeyA, animatedRadius)
+		killCorner = updateToggle(ctx, ebiten.KeyK, killCorner)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 128.0, 1.5)
+		flags.UpdateFlag(Hull, ebiten.KeyH)
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC) // only allowed while Hull is in use! (for testing)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		info := fmt.Sprintf(
+			"Radius: %.02f [R]\nHull: %t [H]\nColorIntrinsic: %t [C]\nAnimated Position: %t [P]\nAnimated Radius: %t [A]\nKill Corner: %t [K]",
+			radius, flags.Has(Hull), flags.Has(ColorIntrinsic), animatedPos, animatedRadius, killCorner,
+		)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		var sx, sy, sr float32 = 0.0, 0.0, 0.0
+		if animatedPos {
+			sx, sy = float32(-4.0+ctx.DistAnim(8.0, 0.666)), float32(-4.0+ctx.DistAnim(8.0, 0.5))
+		}
+		if animatedRadius {
+			sr = float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		}
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 0.5, 1.0, 2)
+		if killCorner {
+			ctx.Renderer.SetColorF32(0.0, 0.0, 0.0, 0.0, 2)
+		}
+
+		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 0.0, 3)
+		ctx.Renderer.FillCircle(canvas, cw/2+sx, ch/2+sy, max(radius+sr, 0), flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStrokeArc$ . -count 1
 func TestStrokeArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
