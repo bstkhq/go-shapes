@@ -184,5 +184,5 @@ func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts Cir
 
 	r.vertices = r.vertices[:4]
 	r.restoreIndices()
-	r.setColors(memo)
+	r.restoreColors(memo)
 }

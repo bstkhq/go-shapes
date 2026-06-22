@@ -168,12 +168,35 @@ func (r *Renderer) vertexColors(i int) [4]float32 {
 }
 
 // notice: internal use only, doesn't touch singleClr flag
-func (r *Renderer) setColors(values [16]float32) {
+func (r *Renderer) restoreColors(values [16]float32) {
 	for i := range 4 {
 		r.vertices[i].ColorR = values[i<<2+0]
 		r.vertices[i].ColorG = values[i<<2+1]
 		r.vertices[i].ColorB = values[i<<2+2]
 		r.vertices[i].ColorA = values[i<<2+3]
+	}
+}
+
+// set all the vertex colors based on interpolation over a quad region and the
+// original quad colors
+func (r *Renderer) applyTriQuadColors(minX, minY, maxX, maxY float32, baseColors [16]float32) {
+	origin := PtF32(minX, minY)
+	size := PtF32(maxX-minX, maxY-minY)
+
+	tl := [4]float32(baseColors[0:4])
+	tr := [4]float32(baseColors[4:8])
+	br := [4]float32(baseColors[8:12])
+	bl := [4]float32(baseColors[12:16])
+	for i := range r.vertices {
+		interpCoords := PtF32(r.vertices[i].DstX, r.vertices[i].DstY)
+		clr := interpTriQuadColor(tl, tr, br, bl, origin, size, interpCoords)
+		setVertexColor(&r.vertices[i], clr[0], clr[1], clr[2], clr[3])
+	}
+}
+
+func (r *Renderer) applySingleColor(cr, cg, cb, ca float32) {
+	for i := range r.vertices {
+		setVertexColor(&r.vertices[i], cr, cg, cb, ca)
 	}
 }
 
@@ -421,98 +444,40 @@ func (r *Renderer) readRenderFlags(flags ...Flag) (bilinear, dither bool) {
 	return bilinear, dither
 }
 
-// read AABB and ColorAABB flags (assumes defaults are Hull, ColorIntrinsic)
-func (r *Renderer) readAABBFlags(flags ...Flag) (bounding Flag, colorMode Flag) {
+// read optional bounding and colorMode flags. if no optional values are
+// provided, the return values will be noFlag and a suitable fallback should
+// be executed
+func (r *Renderer) readBoundingAndColorModeFlags(optInBounding, optInColorMode Flag, flags ...Flag) (bounding Flag, colorMode Flag) {
 	bounding, colorMode = noFlag, noFlag
 	for _, flag := range flags {
-		switch flag {
-		case AABB:
+		if flag == optInBounding {
 			if bounding != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			bounding = AABB
-		case ColorAABB:
+			bounding = optInBounding
+		} else if flag == optInColorMode {
 			if colorMode != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			colorMode = ColorAABB
-		default:
+			colorMode = optInColorMode
+		} else {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
-	}
-	if bounding == noFlag {
-		bounding = Hull
-	}
-	if colorMode == noFlag {
-		colorMode = ColorIntrinsic
 	}
 	return bounding, colorMode
 }
 
-// read Hull and ColorIntrinsic flags (assumes defaults are AABB, ColorAABB)
-func (r *Renderer) readHullIntrinsicFlags(flags ...Flag) (bounding Flag, colorMode Flag) {
-	bounding, colorMode = noFlag, noFlag
+func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) Flag {
+	flag := noFlag
 	for _, flag := range flags {
-		switch flag {
-		case Hull:
-			if bounding != noFlag {
+		if flag == optInFlag {
+			if flag != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			bounding = Hull
-		case ColorIntrinsic:
-			if colorMode != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			colorMode = ColorIntrinsic
-		default:
+			flag = optInFlag
+		} else {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
-	if bounding == noFlag {
-		bounding = AABB
-	}
-	if colorMode == noFlag {
-		colorMode = ColorAABB
-	}
-	return bounding, colorMode
-}
-
-// read ColorIntrinsic flag (assumes default is ColorAABB)
-func (r *Renderer) readColorIntrinsicFlag(flags ...Flag) (colorMode Flag) {
-	colorMode = noFlag
-	for _, flag := range flags {
-		switch flag {
-		case ColorIntrinsic:
-			if colorMode != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			colorMode = ColorIntrinsic
-		default:
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-	if colorMode == noFlag {
-		colorMode = ColorAABB
-	}
-	return colorMode
-}
-
-// read AABB flag (assumes default is Hull)
-func (r *Renderer) readAABBFlag(flags ...Flag) (boundingMode Flag) {
-	boundingMode = noFlag
-	for _, flag := range flags {
-		switch flag {
-		case AABB:
-			if boundingMode != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			boundingMode = AABB
-		default:
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-	if boundingMode == noFlag {
-		boundingMode = Hull
-	}
-	return boundingMode
+	return flag
 }

@@ -93,7 +93,7 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
-	r.setColors(memo)
+	r.restoreColors(memo)
 }
 
 // GradientRadial paints a radial gradient over the given target, interpolating
@@ -141,5 +141,5 @@ func (r *Renderer) GradientRadial(target *ebiten.Image, opts GradientOptions, cx
 
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
-	r.setColors(memo)
+	r.restoreColors(memo)
 }

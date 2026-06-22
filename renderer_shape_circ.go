@@ -35,17 +35,8 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 		return
 	}
 
-	bounding, colorMode := r.readHullIntrinsicFlags(flags...)
-	switch bounding {
-	case AABB:
-		if colorMode == ColorIntrinsic {
-			r.Warnings.report(WarnIncompatibleFlag, colorMode)
-		}
-		r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
-		tox, toy := rectOriginF32(target.Bounds())
-		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
-		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
-	case Hull:
+	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
+	if bounding == Hull {
 		memo := r.memorizeColors()
 		r.vertices = r.vertices[:0]
 		r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
@@ -67,20 +58,23 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 		} else { // assume ColorAABB
 			minX, maxX := cx-radius, cx+radius
 			minY, maxY := cy-radius, cy+radius
-			size := PtF32(maxX-minX, maxY-minY)
-			tl, tr, br, bl := [4]float32(memo[0:4]), [4]float32(memo[4:8]), [4]float32(memo[8:12]), [4]float32(memo[12:16])
-			for i := range r.vertices {
-				clr := interpTriQuadColor(tl, tr, br, bl, PtF32(minX, minY), size, PtF32(r.vertices[i].DstX, r.vertices[i].DstY))
-				setVertexColor(&r.vertices[i], clr[0], clr[1], clr[2], clr[3])
-			}
+			r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 		}
 
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
 		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
-		r.setColors(memo)
-	default:
-		panic(bounding)
+		r.vertices = r.vertices[:4]
+		r.restoreColors(memo)
+		r.restoreIndices()
+	} else { // assume AABB
+		if colorMode == ColorIntrinsic {
+			r.Warnings.report(WarnIncompatibleFlag, colorMode)
+		}
+		r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
 	}
 }
 

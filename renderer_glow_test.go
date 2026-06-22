@@ -299,7 +299,7 @@ func newCross(r *Renderer, size int) *ebiten.Image {
 	th := s * 0.05
 	r.StrokeLine(cross, PtF32(th*1.25, s/2.0), PtF32(s-th*1.25, s/2.0), th)
 	r.StrokeLine(cross, PtF32(s/2.0, th*1.25), PtF32(s/2.0, s-th*1.25), th)
-	r.setColors(memo)
+	r.restoreColors(memo)
 	return cross
 }
 

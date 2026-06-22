@@ -152,14 +152,11 @@ func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickn
 		return
 	}
 
-	bounding, colorMode := r.readAABBFlags(flags...)
-	switch bounding {
-	case AABB:
+	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	if bounding == AABB {
 		r.strokeAABBLine(target, origin, end, thickness)
-	case Hull:
+	} else {
 		r.strokeHullLine(target, origin, end, thickness, colorMode)
-	default:
-		panic(bounding)
 	}
 }
 
@@ -192,15 +189,7 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 		halfThick := thickness / 2.0
 		minX, maxX := min(origin.X, end.X)-halfThick, max(origin.X, end.X)+halfThick
 		minY, maxY := min(origin.Y, end.Y)-halfThick, max(origin.Y, end.Y)+halfThick
-		size := PtF32(maxX-minX, maxY-minY)
-		tl, tr, br, bl := [4]float32(memo[0:4]), [4]float32(memo[4:8]), [4]float32(memo[8:12]), [4]float32(memo[12:16])
-		for i := range 4 {
-			clr := interpTriQuadColor(tl, tr, br, bl, PtF32(minX, minY), size, PtF32(r.vertices[i].DstX, r.vertices[i].DstY))
-			r.vertices[i].ColorR = clr[0]
-			r.vertices[i].ColorG = clr[1]
-			r.vertices[i].ColorB = clr[2]
-			r.vertices[i].ColorA = clr[3]
-		}
+		r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 	}
 
 	// render
@@ -211,7 +200,7 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 
 	clear(r.opts.Uniforms)
 	if hasMemo {
-		r.setColors(memo)
+		r.restoreColors(memo)
 	}
 }
 
@@ -244,7 +233,10 @@ func (r *Renderer) StrokeIntRect(target *ebiten.Image, rect image.Rectangle, inT
 		oy -= h
 	}
 
-	colorMode := r.readColorIntrinsicFlag(flags...)
+	colorMode := r.readOptInFlag(ColorIntrinsic, flags...)
+	if colorMode == noFlag {
+		colorMode = ColorAABB
+	}
 	outThickness = warnZeroNegativeValue(r, outThickness)
 	inThickness = warnZeroNegativeValue(r, inThickness)
 	if outThickness+inThickness == 0 {
@@ -293,10 +285,7 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
 			ci := 4 + (i+indexOffset)%4
-			r.vertices[ci].ColorR = clr[0]
-			r.vertices[ci].ColorG = clr[1]
-			r.vertices[ci].ColorB = clr[2]
-			r.vertices[ci].ColorA = clr[3]
+			setVertexColor(&r.vertices[ci], clr[0], clr[1], clr[2], clr[3])
 		}
 	}
 
@@ -321,7 +310,10 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, o
 		oy -= h
 	}
 
-	boundingMode := r.readAABBFlag(flags...)
+	boundingMode := r.readOptInFlag(AABB, flags...)
+	if boundingMode == noFlag {
+		boundingMode = Hull
+	}
 	outThickness = warnZeroNegativeValue(r, outThickness)
 	inThickness = warnZeroNegativeValue(r, inThickness)
 	if outThickness+inThickness == 0 {
@@ -380,10 +372,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		origin, size := PtF32(ox, oy), PtF32(w, h)
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
-			r.vertices[4+i].ColorR = clr[0]
-			r.vertices[4+i].ColorG = clr[1]
-			r.vertices[4+i].ColorB = clr[2]
-			r.vertices[4+i].ColorA = clr[3]
+			setVertexColor(&r.vertices[4+i], clr[0], clr[1], clr[2], clr[3])
 		}
 
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
