@@ -62,6 +62,66 @@ func TestFillCircle(t *testing.T) {
 	}
 }
 
+// go test -run ^TestFillCircleSoft$ . -count 1
+func TestFillCircleSoft(t *testing.T) {
+	var animatedPos, animatedRadius bool
+	var radius, softEdge float32 = 90.0, 16.0
+	var flags flagList
+
+	updater := func(ctx TestAppCtx) {
+		animatedPos = updateToggle(ctx, ebiten.KeyP, animatedPos)
+		animatedRadius = updateToggle(ctx, ebiten.KeyA, animatedRadius)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 128.0, 1.5)
+		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, -64.0, 64.0, 2.0)
+		flags.UpdateFlag(Hull, ebiten.KeyH)
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC) // only allowed while Hull is in use! (for testing)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		info := fmt.Sprintf(
+			"Radius: %.02f [R]\nSoftEdge: %.02f [S]\nHull: %t [H]\nColorIntrinsic: %t [C]\nAnimated Position: %t [P]\nAnimated Radius: %t [A]",
+			radius, softEdge, flags.Has(Hull), flags.Has(ColorIntrinsic), animatedPos, animatedRadius,
+		)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		var sx, sy, sr float32 = 0.0, 0.0, 0.0
+		if animatedPos {
+			sx, sy = float32(-4.0+ctx.DistAnim(8.0, 0.666)), float32(-4.0+ctx.DistAnim(8.0, 0.5))
+		}
+		if animatedRadius {
+			sr = float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		}
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
+		effectiveRadius := max(radius+sr, 0)
+		setTestMultiColors(ctx.Renderer)
+		if ebiten.IsKeyPressed(ebiten.KeyQ) {
+			size := int(ceilF32(effectiveRadius) * 2)
+			temp := ctx.Renderer.UnsafeTemp(1, size, size, true)
+			ctx.Renderer.FillCircle(temp, float32(size/2), float32(size/2), effectiveRadius)
+			origin := CTR.AdjustXY(temp, cw/2+sx, ch/2+sy)
+			ctx.Renderer.SetColorF32(1, 1, 1, 1)
+			if softEdge < 0 {
+				ctx.Renderer.DrawAt(canvas, temp, origin.X, origin.Y, 1.0)
+			} else {
+				ctx.Renderer.Blur2(canvas, temp, origin.X, origin.Y, softEdge, softEdge)
+			}
+		} else {
+			ctx.Renderer.FillCircleSoft(canvas, cw/2+sx, ch/2+sy, max(radius+sr, 0), softEdge, flags...)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStrokeCircle$ . -count 1
 func TestStrokeCircle(t *testing.T) {
 	var animatedPos, animatedRadius, animatedThickness bool

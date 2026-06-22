@@ -38,30 +38,7 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 
 	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
 	if bounding == Hull {
-		memo := r.memorizeColors()
-		r.vertices = r.vertices[:0]
-		r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
-		r.indices = r.indices[:0]
-		r.indices = appendCircIndices(r.indices, 8)
-
-		if r.singleClr {
-			for i := range r.vertices {
-				setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
-			}
-		} else if colorMode == ColorIntrinsic {
-			setVertexColor(&r.vertices[0], memo[0], memo[1], memo[2], memo[3])
-			for i := 1; i < len(r.vertices); i += 2 {
-				setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
-			}
-			for i := 2; i < len(r.vertices); i += 2 {
-				setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
-			}
-		} else { // assume ColorAABB
-			minX, maxX := cx-radius, cx+radius
-			minY, maxY := cy-radius, cy+radius
-			r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
-		}
-
+		memo := r.prepareCircleHull(cx, cy, radius, colorMode)
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
 		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
@@ -77,6 +54,92 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
 		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
 	}
+}
+
+// FillCircleSoft draws a filled circle like [Renderer.FillCircle](), but with
+// a soft edge. When positive, the soft radius will extend [-softEdge,
+// +softEdge] around the boundary, approximating a gaussian blur. When
+// negative, the softening will extend inwards [-softEdge, 0].
+//
+// Supported flags: [Hull], [ColorIntrinsic]. Flags have the same behavior as
+// with [Renderer.FillCircle]().
+func (r *Renderer) FillCircleSoft(target *ebiten.Image, cx, cy, radius float32, softEdge float32, flags ...Flag) {
+	if radius == 0 && softEdge <= 0 {
+		return
+	}
+	if radius < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, radius)
+		return
+	}
+
+	var inRadius, outRadius float32
+	var shader *ebiten.Shader
+	if softEdge < 0 {
+		// NOTE: inRadius can be negative here; this is intended for proper
+		// animation, and the shader must be able to handle it
+		inRadius = radius + softEdge
+		outRadius = radius
+		shader = shaderCircleSoftIn.Load()
+	} else {
+		inRadius = radius
+		outRadius = radius + softEdge
+		shader = shaderCircleSoftBlur.Load()
+	}
+
+	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
+	if bounding == Hull {
+		memo := r.prepareCircleHull(cx, cy, outRadius, colorMode)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, inRadius, abs(softEdge))
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+		r.vertices = r.vertices[:4]
+		r.restoreColors(memo)
+		r.restoreIndices()
+	} else { // assume AABB
+		if colorMode == ColorIntrinsic {
+			r.Warnings.report(WarnIncompatibleFlag, colorMode)
+		}
+		r.setDstRectCoords(cx-outRadius, cy-outRadius, cx+outRadius, cy+outRadius)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, inRadius, abs(softEdge))
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+	}
+}
+
+// prepareCircleHull is a helper function for FillCircle and FillCircleSoft
+// that sets up vertices and indices for a circle of the given radius, and
+// returns the memorized colors to be restored after operation
+func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode Flag) [16]float32 {
+	memo := r.memorizeColors()
+	r.vertices = r.vertices[:0]
+	r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
+	r.indices = r.indices[:0]
+	r.indices = appendCircIndices(r.indices, 8)
+
+	// simple case: no color interpolation
+	if r.singleClr {
+		r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+		return memo
+	}
+
+	// ColorIntrinsic case: center is color 0, then colors 1 and 2 alternate
+	// on the outer perimeter
+	if colorMode == ColorIntrinsic {
+		setVertexColor(&r.vertices[0], memo[0], memo[1], memo[2], memo[3])
+		for i := 1; i < len(r.vertices); i += 2 {
+			setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
+		}
+		for i := 2; i < len(r.vertices); i += 2 {
+			setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
+		}
+		return memo
+	}
+
+	// assume ColorAABB
+	minX, maxX := cx-radius, cx+radius
+	minY, maxY := cy-radius, cy+radius
+	r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
+	return memo
 }
 
 // StrokeCircle draws a circle outline or ring. If thickness > 0, the outline
