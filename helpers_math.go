@@ -331,6 +331,51 @@ func appendCircIndices(indices []uint32, sides uint32) []uint32 {
 	return indices
 }
 
+func appendCircStrokeOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32, thickness float32) []ebiten.Vertex {
+	const ApothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
+	const Cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
+
+	// unrolled calculations, this is a fairly common case
+	outRadius := (radius + thickness/2.0) * ApothemToCircumradius
+	inRadius := max(radius-thickness/2.0, 0.0)
+	inAxialDist, outAxialDist := floorF32(inRadius), ceilF32(outRadius)
+	inDiagDist, outDiagDist := floorF32(inRadius*Cos45), ceilF32(outRadius*Cos45)
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - outAxialDist})              // outer top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - inAxialDist})               // inner top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy - outDiagDist}) // outer top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inDiagDist, DstY: cy - inDiagDist})   // inner top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outAxialDist, DstY: cy})              // outer right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inAxialDist, DstY: cy})               // inner right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy + outDiagDist}) // outer bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inDiagDist, DstY: cy + inDiagDist})   // inner bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + outAxialDist})              // outer bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + inAxialDist})               // inner bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outDiagDist, DstY: cy + outDiagDist}) // outer bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inDiagDist, DstY: cy + inDiagDist})   // inner bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outAxialDist, DstY: cy})              // outer left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inAxialDist, DstY: cy})               // inner left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outDiagDist, DstY: cy - outDiagDist}) // outer top-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inDiagDist, DstY: cy - inDiagDist})   // inner top-left
+	return vertices
+}
+
+// appends the indices for a tessellated circle stroke, assumming that vertices
+// are in outer, inner pairs, starting from top and going clockwise
+func appendCircStrokeIndices(indices []uint32, sides uint32) []uint32 {
+	if sides <= 2 {
+		panic("circle stroke tessellation must have at least 3 sides")
+	}
+	for i := range uint32(sides) - 1 {
+		s := i * 2
+		indices = append(indices, s+0, s+2, s+1)
+		indices = append(indices, s+1, s+2, s+3)
+	}
+	e := (uint32(sides) - 1) * 2
+	indices = append(indices, e+0, 0, e+1)
+	indices = append(indices, e+1, 0, 1)
+	return indices
+}
+
 // precondition: angles must be normalized by normURads, outRadius >= inRadius
 func radialSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	ss, sc := math.Sincos(startRads)

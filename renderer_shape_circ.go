@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -78,12 +79,15 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 	}
 }
 
-// StrokeCircle draws a circle outline or ring. If thickness > 0, the outline expands
-// [-thickness/2, thickness/2] around the radius. If thickness < 0, the outline goes from
-// [-thickness, 0].
+// StrokeCircle draws a circle outline or ring. If thickness > 0, the outline
+// expands [-thickness/2, thickness/2] around the radius. If thickness < 0,
+// the outline goes from [-thickness, 0].
 //
 // For arcs, see [Renderer.StrokeArc]().
-func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
+//
+// Supported flags: [AABB], [ColorIntrinsic] (colors follow the stroke
+// clockwise).
+func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32, flags ...Flag) {
 	if thickness == 0 {
 		return // nothing to draw
 	}
@@ -95,11 +99,77 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		radius, thickness = 0.0, radius*2.0
 	}
 
+	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorIntrinsic, flags...)
 	hthickCeil := ceilF32(thickness / 2.0)
-	r.setDstRectCoords(cx-radius-hthickCeil, cy-radius-hthickCeil, cx+radius+hthickCeil, cy+radius+hthickCeil)
-	tox, toy := rectOriginF32(target.Bounds())
-	r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+	minX, minY := cx-radius-hthickCeil, cy-radius-hthickCeil
+	maxX, maxY := cx+radius+hthickCeil, cy+radius+hthickCeil
+
+	if bounding == AABB {
+		if colorMode == ColorIntrinsic {
+			r.Warnings.report(WarnIncompatibleFlag, colorMode)
+		}
+		r.setDstRectCoords(minX, minY, maxX, maxY)
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+	} else { // assume Hull
+		memo := r.memorizeColors()
+		r.vertices = r.vertices[:0]
+		r.indices = r.indices[:0]
+
+		pendingColor := true
+		if r.singleClr || r.opts.Blend == ebiten.BlendClear {
+			r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+			pendingColor = false
+		}
+
+		if radius-thickness/2 <= 0 {
+			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
+			r.indices = appendCircIndices(r.indices, 8)
+			if pendingColor {
+				if colorMode == ColorIntrinsic {
+					setVertexColor(&r.vertices[0], (memo[8]+memo[12])/2.0, (memo[9]+memo[13])/2.0, (memo[10]+memo[14])/2.0, (memo[11]+memo[15])/2.0)
+					for i := 1; i < len(r.vertices); i += 2 {
+						setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
+					}
+					for i := 2; i < len(r.vertices); i += 2 {
+						setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
+					}
+				} else { // assume ColorAABB
+					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
+				}
+			}
+		} else {
+			r.vertices = appendCircStrokeOctagonVertices(r.vertices, cx, cy, radius, thickness)
+			r.indices = appendCircStrokeIndices(r.indices, 8)
+			if pendingColor {
+				if colorMode == ColorIntrinsic {
+					for i := 0; i < len(r.vertices); i += 4 {
+						setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
+					}
+					for i := 1; i < len(r.vertices); i += 4 {
+						setVertexColor(&r.vertices[i], memo[12], memo[13], memo[14], memo[15])
+					}
+					for i := 2; i < len(r.vertices); i += 4 {
+						setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
+					}
+					for i := 3; i < len(r.vertices); i += 4 {
+						setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
+					}
+				} else { // assume ColorAABB
+					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
+				}
+			}
+		}
+
+		ebiten.SetWindowTitle(fmt.Sprintf("len(vertices) = %d, len(indices) = %d", len(r.vertices), len(r.indices)))
+		tox, toy := rectOriginF32(target.Bounds())
+		r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+		r.vertices = r.vertices[:4]
+		r.restoreIndices()
+		r.restoreColors(memo)
+	}
 }
 
 // cleanStrokeRadiusThickness converts negative thicknesses (inner) to positive

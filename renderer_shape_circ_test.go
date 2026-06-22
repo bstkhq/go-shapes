@@ -62,6 +62,59 @@ func TestFillCircle(t *testing.T) {
 	}
 }
 
+// go test -run ^TestStrokeCircle$ . -count 1
+func TestStrokeCircle(t *testing.T) {
+	var animatedPos, animatedRadius, animatedThickness bool
+	var radius, thickness float32 = 90.0, 8.0
+	var flags flagList
+
+	updater := func(ctx TestAppCtx) {
+		animatedPos = updateToggle(ctx, ebiten.KeyP, animatedPos)
+		animatedRadius = updateToggle(ctx, ebiten.KeyA, animatedRadius)
+		animatedThickness = updateToggle(ctx, ebiten.KeyK, animatedThickness)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 128.0, 1.5)
+		thickness = updateParam(ctx, ebiten.KeyT, thickness, -32.0, 32.0, 1.0)
+		flags.UpdateFlag(AABB, ebiten.KeyH)
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC) // only allowed while Hull is in use! (for testing)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		info := fmt.Sprintf(
+			"Radius: %.02f [R]\nThickness: %.02f [T]\nAABB: %t [H]\nColorIntrinsic: %t [C]\nAnim Position: %t [P]\nAnim Radius: %t [A]\nAnim Thick: %t [K]",
+			radius, thickness, flags.Has(AABB), flags.Has(ColorIntrinsic), animatedPos, animatedRadius, animatedThickness,
+		)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		var sx, sy, sr, st float32 = 0.0, 0.0, 0.0, 0.0
+		if animatedPos {
+			sx, sy = float32(-4.0+ctx.DistAnim(8.0, 0.666)), float32(-4.0+ctx.DistAnim(8.0, 0.5))
+		}
+		if animatedRadius {
+			sr = float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		}
+		if animatedThickness {
+			st = float32(-8.0 + ctx.DistAnim(16.0, 1.0))
+		}
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 0.5, 1.0, 2)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 0.0, 3)
+		ctx.Renderer.StrokeCircle(canvas, cw/2+sx, ch/2+sy, max(radius+sr, 0), thickness+st, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // go test -run ^TestStrokeArc$ . -count 1
 func TestStrokeArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
@@ -87,42 +140,6 @@ func TestStrokeArc(t *testing.T) {
 		ctx.Renderer.FillRadialSector(canvas, float32(cx), float32(cy), 0, float32(radius), startRads, endRads, 0)                  // reference
 		ctx.Renderer.StrokeLine(canvas, PtF32(16+thickness, 16+thickness), PtF32(16+thickness, 16+max(32, thickness*4)), thickness) // for thickness
 		ctx.Renderer.FillCircle(canvas, cx-radius, cy, thickness)                                                                   // for thickness
-	}
-
-	app := NewTestApp(updater, drawer)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokeCircle$ . -count 1
-func TestStrokeCircle(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		const Radius = 72
-
-		lc := ctx.LeftClickF32()
-		rc := ctx.RightClickF32()
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius)
-		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, Radius)
-
-		const MaxThickness = 16
-		thick := float32(ctx.DistAnim(MaxThickness, 1.0))
-		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-MaxThickness)
-		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, Radius-MaxThickness)
-
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
-		ctx.Renderer.ScaleAlphaBy(0.666)
-		ctx.Renderer.StrokeCircle(canvas, lc.X, lc.Y, Radius, thick)
-		ctx.Renderer.StrokeCircle(canvas, rc.X, rc.Y, Radius, -thick)
-
-		thick2 := float32(ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.StrokeCircle(canvas, lc.X, rc.Y, 16, -thick2)
-		ctx.Renderer.StrokeCircle(canvas, rc.X, lc.Y, thick2-8.0, 16.0)
 	}
 
 	app := NewTestApp(updater, drawer)
