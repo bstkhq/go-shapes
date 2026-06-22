@@ -154,6 +154,8 @@ const (
 	// The exact interpretation depends on the primitive.
 	ColorIntrinsic
 
+	// TODO: Approx could be useful in some cases for cheaper, faster alternatives?
+
 	// sentinel
 	numFlags
 )

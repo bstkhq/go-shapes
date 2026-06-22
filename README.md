@@ -8,7 +8,7 @@
 - Oklab gradients and color functions.
 - Utility image, shader and scaling methods.
 - Tiling patterns with dots, triangles and rectangles.
-- Many other effects like noise, warps, dithering, quad mapping, text...
+- Many other effects like noise, warps, dithering, quad projections, text...
 
 Unlike `vector`, which approximates geometry with triangles, `shapes` relies mainly on precise, high-quality [Kage shaders](https://github.com/tinne26/kage-desk). This means rendering tends to be smoother, but extra care has to be taken as changing shaders or some of its parameters will break [batching](https://github.com/tinne26/efficient-ebitengine).
 

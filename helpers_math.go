@@ -291,6 +291,9 @@ func computeHomography(fromQuad, toQuad [4]PointF32) [9]float32 {
 	return homography
 }
 
+const apothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
+const cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
+
 // appendCircOctagonVertices appends 9 vertices that can contain a circle of
 // the given radius, with padding accounted for. The vertex order is: central
 // vertex, then all outer vertices clockwise starting at the top. This is a
@@ -299,13 +302,10 @@ func computeHomography(fromQuad, toQuad [4]PointF32) [9]float32 {
 //
 // the indices can be obtained with appendCircIndices(indices, 8)
 func appendCircOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32) []ebiten.Vertex {
-	const ApothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
-	const Cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
-
 	// unrolled calculations, this is a fairly common case
-	circumradius := radius * ApothemToCircumradius
+	circumradius := radius * apothemToCircumradius
 	axialDist := ceilF32(circumradius)
-	diagDist := ceilF32(circumradius * Cos45)
+	diagDist := ceilF32(circumradius * cos45)
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy})                       // center
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - axialDist})           // top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy - diagDist}) // top-right
@@ -332,14 +332,11 @@ func appendCircIndices(indices []uint32, sides uint32) []uint32 {
 }
 
 func appendCircStrokeOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32, thickness float32) []ebiten.Vertex {
-	const ApothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
-	const Cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
-
 	// unrolled calculations, this is a fairly common case
-	outRadius := (radius + thickness/2.0) * ApothemToCircumradius
+	outRadius := (radius + thickness/2.0) * apothemToCircumradius
 	inRadius := max(radius-thickness/2.0, 0.0)
 	inAxialDist, outAxialDist := floorF32(inRadius), ceilF32(outRadius)
-	inDiagDist, outDiagDist := floorF32(inRadius*Cos45), ceilF32(outRadius*Cos45)
+	inDiagDist, outDiagDist := floorF32(inRadius*cos45), ceilF32(outRadius*cos45)
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - outAxialDist})              // outer top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - inAxialDist})               // inner top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy - outDiagDist}) // outer top-right
