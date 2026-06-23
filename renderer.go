@@ -194,6 +194,21 @@ func (r *Renderer) applyTriQuadColors(minX, minY, maxX, maxY float32, baseColors
 	}
 }
 
+func (r *Renderer) applyQuadColors(minX, minY, maxX, maxY float32, baseColors [16]float32) {
+	origin := PtF32(minX, minY)
+	size := PtF32(maxX-minX, maxY-minY)
+
+	tl := [4]float32(baseColors[0:4])
+	tr := [4]float32(baseColors[4:8])
+	br := [4]float32(baseColors[8:12])
+	bl := [4]float32(baseColors[12:16])
+	for i := range r.vertices {
+		interpCoords := PtF32(r.vertices[i].DstX, r.vertices[i].DstY)
+		clr := interpQuadColor(tl, tr, br, bl, origin, size, interpCoords)
+		setVertexColor(&r.vertices[i], clr[0], clr[1], clr[2], clr[3])
+	}
+}
+
 func (r *Renderer) applySingleColor(cr, cg, cb, ca float32) {
 	for i := range r.vertices {
 		setVertexColor(&r.vertices[i], cr, cg, cb, ca)

@@ -160,11 +160,16 @@ func TestStrokeTriangle(t *testing.T) {
 func TestFillTriangles(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		outRounding := float32(ctx.DistAnim(16.0, 1.0))
 		inRounding := -float32(ctx.DistAnim(48.0, 1.0))
+
+		baseBlend := ebiten.BlendSourceOver
+		if ctx.SpacePressed {
+			baseBlend = ebiten.BlendCopy
+		}
 
 		var pointsL [3]PointF32
 		pointsL[0] = PointF32{X: 24, Y: 24}
@@ -177,14 +182,18 @@ func TestFillTriangles(t *testing.T) {
 
 		// first row, filled
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.FillTriangle(canvas, pointsL, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
 		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
 		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
 		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.FillTriangle(canvas, pointsM, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, -3.0, inRounding)
 
@@ -194,7 +203,9 @@ func TestFillTriangles(t *testing.T) {
 			pointsL[i] = p.AddXY(0, -24+ch/2+CVOffset)
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, 8.0, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
 		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
 		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
@@ -204,7 +215,9 @@ func TestFillTriangles(t *testing.T) {
 			pointsM[i] = p.AddXY(0, -24+ch/2+CVOffset)
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, 8.0, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 
 		// third row, inner stroke
 		const LVOffset = -60
@@ -212,7 +225,9 @@ func TestFillTriangles(t *testing.T) {
 			pointsL[i] = p.AddXY(0, ch/2+LVOffset)
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, -8.0, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
 		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
 		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
@@ -222,7 +237,89 @@ func TestFillTriangles(t *testing.T) {
 			pointsM[i] = p.AddXY(0, ch/2+LVOffset)
 		}
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, -8.0, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestTriangleHull$ . -count 1
+func TestTriangleHull(t *testing.T) {
+	var drag pointsDragger
+	var triangle [3]PointF32
+	var flags flagList
+	var rounding float32 = 0.0
+	var thickness float32
+	pendingInit := true
+
+	updater := func(ctx TestAppCtx) {
+		drag.Update(triangle[:])
+		flags.UpdateFlag(AABB, ebiten.KeyB)
+		flags.UpdateFlag(ColorAABB, ebiten.KeyC)
+		thickness = updateParam(ctx, ebiten.KeyT, thickness, -32.0, 32.0, 1.0)
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -64.0, 64.0, 1.0)
+	}
+
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		if pendingInit {
+			pendingInit = false
+			w, h := rectSizeF32(canvas.Bounds())
+			triangle[0] = PtF32(w/2, h/4)
+			triangle[1] = PtF32(w/2+w/4, h-h/4)
+			triangle[2] = PtF32(w/2-w/4, h-h/4)
+		}
+
+		canvas.Fill(backTestColor)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Thickness: %.02f [T]\nRounding: %.02f [R]\nAABB: %t [B]\nColorAABB: %t [C]\n\nDrag to move the vertices",
+			thickness, rounding, flags.Has(AABB), flags.Has(ColorAABB),
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		setTestMultiColors(ctx.Renderer)
+		if thickness != 0 {
+			ctx.Renderer.StrokeTriangle(canvas, triangle, thickness, rounding, flags...)
+		} else {
+			ctx.Renderer.FillTriangle(canvas, triangle, rounding, flags...)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		memo := ctx.Renderer.memorizeColors()
+		ctx.Renderer.applyTriangleHull(triangle, rounding, memo) // NOTE: triangle is not canonicalized here
+
+		var vs []ebiten.Vertex
+		vs = append(vs, ctx.Renderer.vertices...)
+		ctx.Renderer.vertices = ctx.Renderer.vertices[:4]
+		ctx.Renderer.restoreIndices()
+		ctx.Renderer.restoreColors(memo)
+
+		ctx.Renderer.SetColorF32(1, 0, 0, 1)
+		for _, v := range vs {
+			ctx.Renderer.FillCircle(canvas, v.DstX, v.DstY, 1.5)
+		}
+
+		for i, v := range vs {
+			p := PtF32(v.DstX, v.DstY)
+			minDist := float32(999.9)
+			for _, tv := range triangle {
+				minDist = min(minDist, p.Sub(tv).Length())
+			}
+			if i&1 == 1 {
+				ctx.Renderer.SetColorF32(0.5, 0, 0.3, 0.5)
+			} else {
+				ctx.Renderer.SetColorF32(0.0, 0.5, 0, 0.5)
+			}
+			ctx.Renderer.Text(canvas, fmt.Sprintf("p%d dist: %.02f", i, minDist), p.X, p.Y-3, TextOpts(1.0, BottomCenter))
+		}
 	}
 
 	app := NewTestApp(updater, drawer)

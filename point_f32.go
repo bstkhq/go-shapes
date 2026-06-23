@@ -82,3 +82,7 @@ func (p PointF32) Rotate(rads float64) PointF32 {
 	x, y := rotate(p.X, p.Y, float32(s), float32(c))
 	return PointF32{X: x, Y: y}
 }
+
+func (p PointF32) yDownNormal() PointF32 {
+	return PtF32(p.Y, -p.X)
+}

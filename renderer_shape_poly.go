@@ -385,28 +385,41 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 	clear(r.opts.Uniforms)
 }
 
-// FillTriangle draws a smooth filled triangle using the given vertices and an optional rounding factor.
+// FillTriangle draws a smooth filled triangle using the given vertices and an
+// optional rounding factor.
 //
-// Rounding can be positive for outwards rounding, or negative for inwards rounding. Notice that
-// inwards rounding requires non-trivial CPU precalculations.
-func (r *Renderer) FillTriangle(target *ebiten.Image, points [3]PointF32, rounding float32) {
-	r.drawTriangle(target, points, 0.0, rounding)
+// Rounding can be positive for outwards rounding, or negative for inwards
+// rounding. Notice that inwards rounding requires non-trivial CPU
+// precalculations.
+//
+// Supported flags: [AABB], [ColorAABB]. AABB always uses ColorAABB. For the
+// default hull bounds, ColorAABB can't match rect colors very well and should
+// only be used for artistic purposes, not expecting behavior parity with AABB.
+func (r *Renderer) FillTriangle(target *ebiten.Image, points [3]PointF32, rounding float32, flags ...Flag) {
+	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	r.drawTriangle(target, points, 0.0, rounding, bounding, colorMode)
 }
 
-// StrokeTriangle draws an unfilled triangle. The outline will expand [-thickness/2, +thickness/2] around
-// the given points, unless the passed thickness is negative, in which case the outline will be interior
-// only, going from [-thickness, 0].
+// StrokeTriangle draws an unfilled triangle. If thickness > 0, the outline
+// expands [-thickness/2, +thickness/2] around the given points. If thickness
+// < 0, the outline goes from [-thickness, 0].
 //
-// For more details on rounding, see [Renderer.DrawTriangle]().
-func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
+// Supported flags: [AABB], [ColorAABB].
+//
+// For more details on rounding and flags, see [Renderer.FillTriangle]().
+func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32, flags ...Flag) {
 	if thickness == 0 {
 		return
 	}
-	r.drawTriangle(target, points, thickness, rounding)
+	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	r.drawTriangle(target, points, thickness, rounding, bounding, colorMode)
 }
 
-// TODO: support Hull and ColorAABB flags
-func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
+// TODO: there are still a few potential improvements:
+//   - strokes could apply a tighter inner hull (but it would affect coloring)
+//   - during rounding, both inner and outer, bounds could be tighter (but that
+//     would also affect coloring)
+func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32, bounding, colorMode Flag) {
 	points, shape, rounding := preprocessTriangle(points, rounding)
 	if shape == shapePoint {
 		points[1], points[2] = points[0], points[0]
@@ -419,9 +432,25 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 	minX, maxX := min(points[0].X, points[1].X, points[2].X), max(points[0].X, points[1].X, points[2].X)
 	minY, maxY := min(points[0].Y, points[1].Y, points[2].Y), max(points[0].Y, points[1].Y, points[2].Y)
 	margin := max(thickness/2.0, 0) + max(rounding, 0)
-	r.setDstRectCoords(floorF32(minX-margin), floorF32(minY-margin), ceilF32(maxX+margin), ceilF32(maxY+margin))
+	if bounding == AABB {
+		r.setDstRectCoords(minX-margin, minY-margin, maxX+margin, maxY+margin)
+		r.finishDrawTriangle(target, points, rounding, thickness)
+	} else { // assume Hull
+		memo := r.memorizeColors()
+		r.applyTriangleHull(points, margin, memo)
 
-	// draw shader
+		if colorMode == ColorAABB && !r.singleClr {
+			r.applyQuadColors(minX-margin, minY-margin, maxX+margin, maxY+margin, memo)
+		}
+		r.finishDrawTriangle(target, points, rounding, thickness)
+		r.vertices = r.vertices[:4]
+		r.restoreIndices()
+		r.restoreColors(memo)
+	}
+}
+
+// precondition: rounding >= 0, vertices and indices are set
+func (r *Renderer) finishDrawTriangle(target *ebiten.Image, points [3]PointF32, rounding float32, thickness float32) {
 	tox, toy := rectOriginF32(target.Bounds())
 	r.opts.Uniforms["P0"] = [2]float32{points[0].X - tox, points[0].Y - toy}
 	r.opts.Uniforms["P1"] = [2]float32{points[1].X - tox, points[1].Y - toy}
@@ -445,6 +474,79 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	clear(r.opts.Uniforms)
+}
+
+// applyTriangleHull computes a hull for the given triangle and configures
+// the renderer vertices right away, applying mitering and respecting current
+// colors in case of vertex splitting.
+//
+// precondition: the triangle must be canonicalized in CW order
+//
+// IMPORTANT: the vertex and index count will be changed after the end of the
+// function, make sure to restore after rendering
+func (r *Renderer) applyTriangleHull(triangle [3]PointF32, rounding float32, memo [16]float32) {
+	const Offset = 1.0
+	const MiterRadius = 5.0
+	const MiterRadiusSq = MiterRadius * MiterRadius
+
+	r.vertices = r.vertices[:0]
+	r.indices = r.indices[:0]
+
+	edge01 := triangle[1].Sub(triangle[0]).Normalize()
+	edge12 := triangle[2].Sub(triangle[1]).Normalize()
+	edge20 := triangle[0].Sub(triangle[2]).Normalize()
+
+	if rounding > 0 {
+		triangle[0] = bisectorSlide(triangle[0], edge20, edge01, rounding)
+		triangle[1] = bisectorSlide(triangle[1], edge01, edge12, rounding)
+		triangle[2] = bisectorSlide(triangle[2], edge12, edge20, rounding)
+	}
+
+	p0 := bisectorSlide(triangle[0], edge20, edge01, Offset)
+	p1 := bisectorSlide(triangle[1], edge01, edge12, Offset)
+	p2 := bisectorSlide(triangle[2], edge12, edge20, Offset)
+
+	// simple mitering: offset along edge and edge normal.
+	// this is safe as long as MiterRadius > Offset*sqrt(2)
+	miter := func(vert, edgeIn, edgeOut PointF32) (PointF32, PointF32) {
+		sei, seo := edgeIn.Scale(Offset), edgeOut.Scale(Offset) // scaled edge in/out
+		return vert.Add(sei.yDownNormal()).Add(sei), vert.Add(seo.yDownNormal()).Add(seo)
+	}
+
+	if p0.Sub(triangle[0]).lengthSq() > MiterRadiusSq {
+		p0i, p0o := miter(triangle[0], edge20, edge01)
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0i.X, DstY: p0i.Y})
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0o.X, DstY: p0o.Y})
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[0], memo[1], memo[2], memo[3])
+	} else {
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0.X, DstY: p0.Y})
+	}
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[0], memo[1], memo[2], memo[3])
+
+	if p1.Sub(triangle[1]).lengthSq() > MiterRadiusSq {
+		p1i, p1o := miter(triangle[1], edge01, edge12)
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1i.X, DstY: p1i.Y})
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1o.X, DstY: p1o.Y})
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[4], memo[5], memo[6], memo[7])
+	} else {
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1.X, DstY: p1.Y})
+	}
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[4], memo[5], memo[6], memo[7])
+
+	if p2.Sub(triangle[2]).lengthSq() > MiterRadiusSq {
+		p2i, p2o := miter(triangle[2], edge12, edge20)
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2i.X, DstY: p2i.Y})
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2o.X, DstY: p2o.Y})
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[8], memo[9], memo[10], memo[11])
+	} else {
+		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2.X, DstY: p2.Y})
+	}
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[8], memo[9], memo[10], memo[11])
+
+	// fan indices
+	for i := uint32(1); i < uint32(max(len(r.vertices)-1, 0)); i++ {
+		r.indices = append(r.indices, 0, i, i+1)
+	}
 }
 
 // preprocessTriangle handles inner rounding, shrinking the geometry and

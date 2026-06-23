@@ -82,17 +82,6 @@ func offsetQuadNaiveWithEdges(quad [4]PointF32, edges [4]PointF32, offset float3
 	}
 }
 
-// quadHull computes a hull for the given quad, applying mitering if/when
-// required to prevent tight angles from leading to large area fragments.
-func quadHull(buff []PointF32, quad [4]PointF32) []PointF32 {
-	const Offset = 1.0
-	const MiterRadius = 5.0
-
-	// ... TODO
-
-	return buff
-}
-
 func quadNormalizedEdges(quad [4]PointF32) [4]PointF32 {
 	e01 := quad[1].Sub(quad[0]).Normalize()
 	e12 := quad[2].Sub(quad[1]).Normalize()
@@ -323,8 +312,8 @@ func distanceToNormalizedLine(p, lineOrigin, lineDir PointF32) float32 {
 	return abs(v.X*lineDir.Y - v.Y*lineDir.X) // cross product
 }
 
-// bisectorSlide slides a corner vertex inward by a perpendicular offset
-// distance from the edges. the edge vectors must be normalized.
+// bisectorSlide slides a corner vertex by a perpendicular offset distance
+// from the edges. the edge vectors must be normalized.
 func bisectorSlide(v, edgeIn, edgeOut PointF32, offset float32) PointF32 {
 	bisector := edgeOut.Sub(edgeIn)
 
