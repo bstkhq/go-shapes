@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+const notdefOffset = 1 // set to 1 if present, zero otherwise
+const fontPadding = 2
+
 type fontMap []byte
 
 func (fm fontMap) atlasGlyphsPerRow() uint8 {
@@ -20,11 +23,14 @@ func (fm fontMap) GlyphAtlasRect(codePoint rune) (image.Rectangle, bool) {
 	if idx < 0 {
 		return image.Rectangle{}, false
 	}
-	h := int(fm.Ascent() + fm.Descent())
-	srcX := 1 + idx%int(fm.atlasGlyphsPerRow())*(int(fm.atlasGlyphFrameWidth())+1)
-	srcY := 1 + idx/int(fm.atlasGlyphsPerRow())*(h+1)
+	return fm.TextureAtlasRect(idx), true
+}
 
-	return image.Rect(srcX, srcY, srcX+int(fm[8+idx]), srcY+h), true
+func (fm fontMap) TextureAtlasRect(index int) image.Rectangle {
+	h := int(fm.Ascent() + fm.Descent())
+	srcX := fontPadding + (index)%int(fm.atlasGlyphsPerRow())*(int(fm.atlasGlyphFrameWidth())+fontPadding)
+	srcY := fontPadding + (index)/int(fm.atlasGlyphsPerRow())*(h+fontPadding)
+	return image.Rect(srcX, srcY, srcX+int(fm[8+index]), srcY+h)
 }
 
 func (fm fontMap) GlyphAdvance(codePoint rune) (uint8, bool) {
@@ -83,12 +89,12 @@ func runeRefIndex(codePoint rune) int32 {
 		return -1
 	}
 	if codePoint < 127 {
-		return codePoint - 33
+		return codePoint - 33 + notdefOffset
 	}
 	if codePoint < 161 || codePoint > 255 {
 		return -1
 	}
-	return codePoint - 161 + (127 - 33)
+	return codePoint - 161 + (127 - 33) + notdefOffset
 }
 
 // LineAnchor is one of the components of the [TextAlign], which allows fine grained

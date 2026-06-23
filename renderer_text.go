@@ -10,6 +10,7 @@ import (
 
 const (
 	textFlagNoQuantization uint8 = 0b0000_0001
+	textFlagSkipMissing    uint8 = 0b0000_0010
 )
 
 // TextOptions are used in [Renderer.Text]() and [Renderer.TextSize]().
@@ -48,17 +49,17 @@ func TextOpts(scale float32, align TextAlign) TextOptions {
 	}
 }
 
-// Quantized returns a copy of opts with the quantization setting set to the requested
-// value.
+// Quantized returns a copy of opts with the quantization setting set to the
+// requested value.
 //
-// By default, quantization is active, which causes line positions to be snapped to the
-// nearest pixel.
+// By default, quantization is active, which causes line positions to be
+// snapped to the nearest pixel.
 //
 // As a general guideline:
 //   - Static text should use Quantized(true) to snap to nearest pixel to avoid
 //     blurriness on centered aligns (default behavior).
-//   - Animated text (moving or zooming) should set Quantized(false) to prevent motion
-//     jitter.
+//   - Animated text (moving or zooming) should set Quantized(false) to prevent
+//     motion jitter.
 func (opts TextOptions) Quantized(quantize bool) TextOptions {
 	if quantize {
 		opts.flags |= ^textFlagNoQuantization
@@ -74,6 +75,19 @@ func (opts TextOptions) quantize(f float32) float32 {
 		return f
 	}
 	return float32(math.Round(float64(f)))
+}
+
+// SkipMissing returns a copy of opts with the skip missing glyphs setting set
+// to the requested value.
+//
+// By default, missing glyphs are not skipped and a notdef glyph is drawn.
+func (opts TextOptions) SkipMissing(skip bool) TextOptions {
+	if skip {
+		opts.flags |= textFlagSkipMissing
+	} else {
+		opts.flags |= ^textFlagSkipMissing
+	}
+	return opts
 }
 
 func (opts TextOptions) fontMap() fontMap {
@@ -194,19 +208,21 @@ func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts Te
 			dx = 0
 			lineGlyphCount = 0
 		default:
-			if rect, ok := fontMap.GlyphAtlasRect(codePoint); ok {
+			rect, ok := fontMap.GlyphAtlasRect(codePoint)
+			if !ok && opts.flags&textFlagSkipMissing == 0 {
+				rect = fontMap.TextureAtlasRect(0)
+				ok = true
+			}
+			if ok {
 				dx += pendingLetterGap
 				ws := float32(rect.Dx()) * scale
-				setVertDstCoordsIdx(r.vertices, glyphCount<<2, x+dx, y+dy, x+dx+ws, y+dy+scaledGlyphHeight)
+				setVertDstCoordsIdx(r.vertices, glyphCount<<2, x+dx-scale, y+dy-scale, x+dx+ws+scale, y+dy+scaledGlyphHeight+scale)
 				o, f := RectPointsF32(rect)
-				setVertSrcCoordsIdx(r.vertices, glyphCount<<2, o.X, o.Y, f.X, f.Y)
+				setVertSrcCoordsIdx(r.vertices, glyphCount<<2, o.X-1, o.Y-1, f.X+1, f.Y+1)
 				glyphCount += 1
 				lineGlyphCount += 1
 				dx += ws
 				pendingLetterGap = scale
-			} else {
-				// missing glyph (should use notdef), or control (should skip)
-				// TODO: map notdef explicitly?
 			}
 		}
 	}

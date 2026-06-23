@@ -3,9 +3,9 @@ package shapes
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"math"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -17,6 +17,7 @@ func TestText(t *testing.T) {
 
 	vertAlignIndex, horzAlignIndex, anchorIndex := 0, 0, 0
 	align := TopLeft
+	skipMissing := false
 	lineGap := int8(0)
 	scale := float32(1.0)
 	updater := func(ctx TestAppCtx) {
@@ -41,6 +42,7 @@ func TestText(t *testing.T) {
 		}
 		scale = updateParam(ctx, ebiten.KeyS, scale, 0.5, 6.0, 0.5)
 		lineGap = updateParam(ctx, ebiten.KeyG, lineGap, -3, 3, 1)
+		skipMissing = updateToggle(ctx, ebiten.KeyM, skipMissing)
 
 		vAlign := []TextAlign{vertStart, vertMiddle, vertEnd}[vertAlignIndex]
 		hAlign := []TextAlign{horzStart, horzMiddle, horzEnd}[horzAlignIndex]
@@ -48,10 +50,17 @@ func TestText(t *testing.T) {
 		if vAlign != vertMiddle {
 			align |= TextAlign([]LineAnchor{Top, CapLine, MidLine, Baseline, Bottom}[anchorIndex])
 		}
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [Scale: %.02f, Align: %s (up/down, left/right, A, A+Shift), Gap: %d (G)]", ctx.Title(), scale, align.String(), TextOptions{LineGap: lineGap}.lineGap()))
 	}
+
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		opts := TextOpts(scale, align)
+		info := fmt.Sprintf(
+			"Scale: %.02f [S]\nAlign: %s (up/down, left/right, A, A+Shift)\nGap: %d (G)\nSkipMissing: %t [M]",
+			scale, align.String(), TextOptions{LineGap: lineGap}.lineGap(), skipMissing,
+		)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		opts := TextOpts(scale, align).SkipMissing(skipMissing)
 		opts.LineGap = lineGap
 		cbounds := canvas.Bounds()
 		cw, ch := cbounds.Dx(), cbounds.Dy()
@@ -62,7 +71,8 @@ func TestText(t *testing.T) {
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(0.0, 0.5, 1.0, 1.0, 2, 3)
 		Paint(canvas, image.Rect(cx, cy, cx+8, cy+8), [4]float32{0.5, 0.5, 0.5, 0.5}, ebiten.BlendSourceOver)
-		ctx.Renderer.Text(canvas, "Hellö World!\n¡HELLO WORLD!\nMoRE CoNTeNT", float32(cx), float32(cy), opts)
+		text := "Hellö World!\n¡HELLO WORLD!\nMoRE" + string(utf8.RuneError) + "_CoNTeNT"
+		ctx.Renderer.Text(canvas, text, float32(cx), float32(cy), opts)
 
 		abounds := ark10pxAtlas.Bounds()
 		ctx.DrawAtF32(canvas, ark10pxAtlas, float32(cbounds.Max.X-8-abounds.Dx()), float32(cbounds.Max.Y-8-abounds.Dy()))
@@ -80,7 +90,7 @@ func TestTextAnim(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		const Text = "Animation Test\nColor and SIZE\n(and position...)"
 
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 		scale := float32(1.0 + ctx.DistAnim(2.0, 0.5))
@@ -91,7 +101,11 @@ func TestTextAnim(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.5, 0.75, float32(ctx.DistAnim(1.0, 0.5)), 1.0, 1)
 		ctx.Renderer.SetColorF32(0.5, float32(ctx.DistAnim(1.0, 0.4)), 1.0, 1.0, 2)
 		ctx.Renderer.SetColorF32(float32(ctx.DistAnim(1.0, 0.17)), 0.5, float32(ctx.DistAnim(1.0, 0.57)), 1.0, 3)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
 		ctx.Renderer.Text(canvas, Text, cx+xoff, cy+yoff, TextOpts(scale, Center).Quantized(false))
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)
