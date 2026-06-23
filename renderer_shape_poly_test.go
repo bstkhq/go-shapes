@@ -696,21 +696,26 @@ func TestFillRectSoft(t *testing.T) {
 	const W, H = 128, 64
 	roundingSign := 0
 	softEdgeSign := 0
+	var roundingBase, softEdgeBase float32
 
 	updater := func(ctx TestAppCtx) {
 		roundingSign = updateParam(ctx, ebiten.KeyR, roundingSign, -1, 1, 1)
 		softEdgeSign = updateParam(ctx, ebiten.KeyS, softEdgeSign, -1, 1, 1)
+		roundingBase = updateParam(ctx, ebiten.KeyC, roundingBase, -16.0, 16.0, 1)
+		softEdgeBase = updateParam(ctx, ebiten.KeyE, softEdgeBase, -16.0, 16.0, 1)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		cw, ch := rectSizeF32(canvas.Bounds())
 
 		rounding := float32(roundingSign) * float32(ctx.DistAnim(16.0, 1.000))
 		softEdge := float32(softEdgeSign) * float32(ctx.DistAnim(16.0, 0.666))
+		rounding += roundingBase
+		softEdge += softEdgeBase
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		info := fmt.Sprintf(
-			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
-			rounding, softEdge,
+			"Rounding: %.02f [C]\nSoftEdge: %.02f [E]\nRounding Anim: %.02f (%d) [R]\nSoftEdge Anim: %.02f (%d) [S]",
+			roundingBase, softEdgeBase, rounding, roundingSign, softEdge, softEdgeSign,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
