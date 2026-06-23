@@ -510,7 +510,7 @@ func (r *Renderer) applyTriangleHull(triangle [3]PointF32, rounding float32, mem
 	// this is safe as long as MiterRadius > Offset*sqrt(2)
 	miter := func(vert, edgeIn, edgeOut PointF32) (PointF32, PointF32) {
 		sei, seo := edgeIn.Scale(Offset), edgeOut.Scale(Offset) // scaled edge in/out
-		return vert.Add(sei.yDownNormal()).Add(sei), vert.Add(seo.yDownNormal()).Add(seo)
+		return vert.Add(sei.yDownNormal()).Add(sei), vert.Add(seo.yDownNormal()).Sub(seo)
 	}
 
 	if p0.Sub(triangle[0]).lengthSq() > MiterRadiusSq {
