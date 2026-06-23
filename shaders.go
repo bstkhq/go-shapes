@@ -74,6 +74,10 @@ var shaderLine = shaderRef{src: shaderLineSrc}
 var shaderTriangleSrc []byte
 var shaderTriangle = shaderRef{src: shaderTriangleSrc}
 
+//go:embed shaders/shapes/poly/triangle_stroke.kage
+var shaderTriangleStrokeSrc []byte
+var shaderTriangleStroke = shaderRef{src: shaderTriangleStrokeSrc}
+
 //go:embed shaders/shapes/poly/hexagon.kage
 var shaderHexagonSrc []byte
 var shaderHexagon = shaderRef{src: shaderHexagonSrc}

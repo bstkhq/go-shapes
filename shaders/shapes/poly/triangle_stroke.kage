@@ -8,10 +8,16 @@ var P2 vec2
 func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	const AAMargin = 1.333
 
-	rounding := customVAs[0] // can only be positive for outwards rounding
+	rounding := customVAs[0]  // can only be positive for outwards rounding
+	thickness := customVAs[1] // can only be zero or positive
+	thickOffset := customVAs[2]
+
 	dist := distanceToTriangle(targetCoords.xy-imageDstOrigin(), P0, P1, P2)
-	alpha := 1.0 - smoothstep(-AAMargin, 0, dist-rounding)
-	alpha = pow(alpha, 1.0/2.2)
+	inAlpha := smoothstep(thickOffset, thickOffset+AAMargin, dist-rounding)
+	thickEnd := thickOffset + thickness
+	outAlpha := 1.0 - smoothstep(thickEnd-AAMargin, thickEnd, dist-rounding)
+
+	alpha := pow(inAlpha*outAlpha, 1.0/2.2)
 	return color * alpha
 }
 

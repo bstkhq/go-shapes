@@ -405,7 +405,7 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 	r.drawTriangle(target, points, thickness, rounding)
 }
 
-// TODO: support Hull flag
+// TODO: support Hull and ColorAABB flags
 func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickness, rounding float32) {
 	points, shape, rounding := preprocessTriangle(points, rounding)
 	if shape == shapePoint {
@@ -426,8 +426,24 @@ func (r *Renderer) drawTriangle(target *ebiten.Image, points [3]PointF32, thickn
 	r.opts.Uniforms["P0"] = [2]float32{points[0].X - tox, points[0].Y - toy}
 	r.opts.Uniforms["P1"] = [2]float32{points[1].X - tox, points[1].Y - toy}
 	r.opts.Uniforms["P2"] = [2]float32{points[2].X - tox, points[2].Y - toy}
-	r.setFlatCustomVAs01(abs(rounding), thickness)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderTriangle.Load(), &r.opts)
+
+	var shader *ebiten.Shader
+	if thickness == 0 {
+		shader = shaderTriangle.Load()
+		r.setFlatCustomVA0(abs(rounding))
+	} else {
+		shader = shaderTriangleStroke.Load()
+		var thickOffset float32
+		if thickness < 0 {
+			thickOffset = thickness
+			thickness = -thickness
+		} else {
+			thickOffset = -thickness / 2.0
+		}
+		r.setFlatCustomVAs(abs(rounding), thickness, thickOffset, 0.0)
+	}
+
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	clear(r.opts.Uniforms)
 }
 
