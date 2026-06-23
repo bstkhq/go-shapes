@@ -200,6 +200,13 @@ func (r *Renderer) applySingleColor(cr, cg, cb, ca float32) {
 	}
 }
 
+// applies the given color to all vertices at start + offset*i
+func (r *Renderer) applyOffsetColor(start int, offset int, cr, cg, cb, ca float32) {
+	for i := start; i < len(r.vertices); i += offset {
+		setVertexColor(&r.vertices[i], cr, cg, cb, ca)
+	}
+}
+
 // ScaleOptions are used in [Renderer.Scale]().
 type ScaleOptions struct {
 	// When true, samples outside bounds will be clamped to the image limits.

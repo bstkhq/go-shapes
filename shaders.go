@@ -110,9 +110,9 @@ var shaderCircleSoftIn = shaderRef{src: shaderCircleSoftInSrc}
 var shaderCircleSoftBlurSrc []byte
 var shaderCircleSoftBlur = shaderRef{src: shaderCircleSoftBlurSrc}
 
-//go:embed shaders/shapes/circ/stroke_circle.kage
-var shaderStrokeCircleSrc []byte
-var shaderStrokeCircle = shaderRef{src: shaderStrokeCircleSrc}
+//go:embed shaders/shapes/circ/circle_stroke.kage
+var shaderCircleStrokeSrc []byte
+var shaderCircleStroke = shaderRef{src: shaderCircleStrokeSrc}
 
 //go:embed shaders/shapes/circ/radial_sector.kage
 var shaderRadialSectorSrc []byte

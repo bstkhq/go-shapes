@@ -1,7 +1,6 @@
 package shapes
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -174,7 +173,7 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		r.setDstRectCoords(minX, minY, maxX, maxY)
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
-		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircleStroke.Load(), &r.opts)
 	} else { // assume Hull
 		memo := r.memorizeColors()
 		r.vertices = r.vertices[:0]
@@ -192,12 +191,8 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 			if pendingColor {
 				if colorMode == ColorIntrinsic {
 					setVertexColor(&r.vertices[0], (memo[8]+memo[12])/2.0, (memo[9]+memo[13])/2.0, (memo[10]+memo[14])/2.0, (memo[11]+memo[15])/2.0)
-					for i := 1; i < len(r.vertices); i += 2 {
-						setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
-					}
-					for i := 2; i < len(r.vertices); i += 2 {
-						setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
-					}
+					r.applyOffsetColor(1, 2, memo[0], memo[1], memo[2], memo[3])
+					r.applyOffsetColor(2, 2, memo[4], memo[5], memo[6], memo[7])
 				} else { // assume ColorAABB
 					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 				}
@@ -207,28 +202,19 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 			r.indices = appendCircStrokeIndices(r.indices, 8)
 			if pendingColor {
 				if colorMode == ColorIntrinsic {
-					for i := 0; i < len(r.vertices); i += 4 {
-						setVertexColor(&r.vertices[i], memo[0], memo[1], memo[2], memo[3])
-					}
-					for i := 1; i < len(r.vertices); i += 4 {
-						setVertexColor(&r.vertices[i], memo[12], memo[13], memo[14], memo[15])
-					}
-					for i := 2; i < len(r.vertices); i += 4 {
-						setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
-					}
-					for i := 3; i < len(r.vertices); i += 4 {
-						setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
-					}
+					r.applyOffsetColor(0, 4, memo[0], memo[1], memo[2], memo[3])
+					r.applyOffsetColor(1, 4, memo[12], memo[13], memo[14], memo[15])
+					r.applyOffsetColor(2, 4, memo[4], memo[5], memo[6], memo[7])
+					r.applyOffsetColor(3, 4, memo[8], memo[9], memo[10], memo[11])
 				} else { // assume ColorAABB
 					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 				}
 			}
 		}
 
-		ebiten.SetWindowTitle(fmt.Sprintf("len(vertices) = %d, len(indices) = %d", len(r.vertices), len(r.indices)))
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, thickness)
-		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderStrokeCircle.Load(), &r.opts)
+		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircleStroke.Load(), &r.opts)
 		r.vertices = r.vertices[:4]
 		r.restoreIndices()
 		r.restoreColors(memo)
