@@ -4,6 +4,7 @@ import (
 	"image"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const notdefOffset = 1 // set to 1 if present, zero otherwise
@@ -299,3 +300,44 @@ const (
 	BottomCenter TextAlign = vertEnd | horzMiddle | TextAlign(Bottom)
 	BottomRight  TextAlign = vertEnd | horzEnd | TextAlign(Bottom)
 )
+
+var fontInfo FontInfo
+var fontInfoOnce sync.Once
+
+type FontInfo struct {
+	Family     string
+	Variant    string
+	Ascent     uint8
+	Descent    uint8
+	LineGap    int8
+	CapHeight  uint8
+	MidHeight  uint8
+	SpaceWidth uint8
+}
+
+// Font returns the information of the font used for the [Renderer] text
+// operations.
+func Font() FontInfo {
+	fontInfoOnce.Do(loadFontInfoOnce)
+	return fontInfo
+}
+
+func loadFontInfoOnce() {
+	fontInfo.Family = "Ark Pixel"
+	fontInfo.Variant = "10px Prop latin Regular"
+	fontInfo.Ascent = ark10pxMap.Ascent()
+	fontInfo.Descent = ark10pxMap.Descent()
+	fontInfo.LineGap = ark10pxMap.LineGap()
+	fontInfo.CapHeight = ark10pxMap.CapHeight()
+	fontInfo.MidHeight = ark10pxMap.MidHeight()
+	fontInfo.SpaceWidth = ark10pxMap.SpaceWidth()
+}
+
+// ScaleOf returns the font scale that matches the given font size.
+func (i FontInfo) ScaleOf(size float32) float32 {
+	return size / (float32(i.Ascent) + float32(i.Descent))
+}
+
+func (i FontInfo) Height() int {
+	return int(i.Ascent) + int(i.Descent)
+}

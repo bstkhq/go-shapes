@@ -42,6 +42,8 @@ type TextOptions struct {
 	LineGap int8
 }
 
+// TextOpts creates TextOptions from a given scale and align. To use a text
+// size instead of a scale, see [Font]().ScaleOf(size).
 func TextOpts(scale float32, align TextAlign) TextOptions {
 	return TextOptions{
 		Scale: scale,
