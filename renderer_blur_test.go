@@ -312,8 +312,8 @@ func TestApplyBlurVogel(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurVogelFull$ . -count 1
-func TestApplyBlurVogelFull(t *testing.T) {
+// go test -run ^TestBlurVogelFull$ . -count 1
+func TestBlurVogelFull(t *testing.T) {
 	const Sampling = 16
 	const Downscale = DownscaleNone
 
