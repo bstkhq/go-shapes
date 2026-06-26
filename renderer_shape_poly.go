@@ -140,7 +140,8 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	clear(r.opts.Uniforms)
 }
 
-// StrokeLine draws a smooth line between the given two points, with rounded ends.
+// StrokeLine draws a smooth line between the given two points, with rounded
+// ends.
 //
 // Supported flags: [AABB], [ColorAABB].
 func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickness float32, flags ...Flag) {
@@ -154,27 +155,61 @@ func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickn
 
 	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
 	if bounding == AABB {
-		r.strokeAABBLine(target, origin, end, thickness)
+		r.strokeAABBLine(target, shaderLine.Load(), origin, end, thickness, 0)
 	} else {
-		r.strokeHullLine(target, origin, end, thickness, colorMode)
+		r.strokeHullLine(target, shaderLine.Load(), origin, end, thickness, 0, colorMode)
 	}
 }
 
-func (r *Renderer) strokeAABBLine(target *ebiten.Image, origin, end PointF32, thickness float32) {
+// StrokeLineSoft draws a line like [Renderer.StrokeLine]() but with a soft
+// edge.
+//
+// When positive, the soft radius will extend [-softEdge, +softEdge] around
+// the boundary, approximating a gaussian blur. When negative, the softening
+// will extend inwards [-softEdge, 0].
+//
+// Supported flags: [AABB], [ColorAABB].
+func (r *Renderer) StrokeLineSoft(target *ebiten.Image, origin, end PointF32, thickness float32, softEdge float32, flags ...Flag) {
+	if thickness == 0 {
+		return
+	}
+	if thickness < 0 {
+		r.Warnings.report(WarnNegativeValueOpSkipped, thickness)
+		return
+	}
+
+	var shader *ebiten.Shader
+	if softEdge < 0 {
+		shader = shaderLineSoftIn.Load()
+	} else {
+		shader = shaderLineSoftBlur.Load()
+	}
+
+	r.opts.Uniforms["BlurRadius"] = abs(softEdge)
+	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	if bounding == AABB {
+		r.strokeAABBLine(target, shader, origin, end, thickness, softEdge)
+	} else {
+		r.strokeHullLine(target, shader, origin, end, thickness, softEdge, colorMode)
+	}
+}
+
+func (r *Renderer) strokeAABBLine(target *ebiten.Image, shader *ebiten.Shader, origin, end PointF32, thickness, softEdge float32) {
 	halfThick := thickness / 2.0
-	minX, maxX := floorF32(min(origin.X, end.X)-halfThick), ceilF32(max(origin.X, end.X)+halfThick)
-	minY, maxY := floorF32(min(origin.Y, end.Y)-halfThick), ceilF32(max(origin.Y, end.Y)+halfThick)
+	margin := halfThick + max(0, softEdge)
+	minX, maxX := floorF32(min(origin.X, end.X)-margin), ceilF32(max(origin.X, end.X)+margin)
+	minY, maxY := floorF32(min(origin.Y, end.Y)-margin), ceilF32(max(origin.Y, end.Y)+margin)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
 	r.opts.Uniforms["Thickness"] = float32(thickness)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	clear(r.opts.Uniforms)
 }
 
-func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, thickness float32, colorMode Flag) {
+func (r *Renderer) strokeHullLine(target *ebiten.Image, shader *ebiten.Shader, origin, end PointF32, thickness float32, softEdge float32, colorMode Flag) {
 	const padOffset = 0.333 // to prevent diagonal clipping (affects color interpolation)
-	quad := lineToQuad(origin, end, thickness, padOffset)
+	quad := lineToQuad(origin, end, thickness+max(0, softEdge*2.0), padOffset)
 	r.vertices[0].DstX, r.vertices[0].DstY = quad[0].X, quad[0].Y
 	r.vertices[1].DstX, r.vertices[1].DstY = quad[1].X, quad[1].Y
 	r.vertices[2].DstX, r.vertices[2].DstY = quad[2].X, quad[2].Y
@@ -187,8 +222,9 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 		memo = r.memorizeColors()
 		hasMemo = true
 		halfThick := thickness / 2.0
-		minX, maxX := min(origin.X, end.X)-halfThick, max(origin.X, end.X)+halfThick
-		minY, maxY := min(origin.Y, end.Y)-halfThick, max(origin.Y, end.Y)+halfThick
+		margin := halfThick + max(0, softEdge)
+		minX, maxX := min(origin.X, end.X)-margin, max(origin.X, end.X)+margin
+		minY, maxY := min(origin.Y, end.Y)-margin, max(origin.Y, end.Y)+margin
 		r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 	}
 
@@ -196,7 +232,7 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, origin, end PointF32, th
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
 	r.opts.Uniforms["Thickness"] = float32(thickness)
-	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderLine.Load(), &r.opts)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 
 	clear(r.opts.Uniforms)
 	if hasMemo {
@@ -707,7 +743,8 @@ func innerRoundQuad(quad [4]PointF32, rounding float32) ([4]PointF32, float32, b
 	return quad, rounding, true
 }
 
-// precondition: rounding >= 0
+// precondition: rounding >= 0. softEdge is only passed to adjust bounds, but
+// has no other effect
 func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, shader *ebiten.Shader, rounding, softEdge float32) {
 	margin := rounding + max(softEdge, 0)
 	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-margin), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+margin)

@@ -70,6 +70,14 @@ var shaderStrokeRect = shaderRef{src: shaderStrokeRectSrc}
 var shaderLineSrc []byte
 var shaderLine = shaderRef{src: shaderLineSrc}
 
+//go:embed shaders/shapes/poly/line_soft_in.kage
+var shaderLineSoftInSrc []byte
+var shaderLineSoftIn = shaderRef{src: shaderLineSoftInSrc}
+
+//go:embed shaders/shapes/poly/line_soft_blur.kage
+var shaderLineSoftBlurSrc []byte
+var shaderLineSoftBlur = shaderRef{src: shaderLineSoftBlurSrc}
+
 //go:embed shaders/shapes/poly/triangle.kage
 var shaderTriangleSrc []byte
 var shaderTriangle = shaderRef{src: shaderTriangleSrc}

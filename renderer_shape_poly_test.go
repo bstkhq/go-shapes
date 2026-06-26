@@ -65,16 +65,27 @@ func TestDrawShapes(t *testing.T) {
 func TestStrokeLine(t *testing.T) {
 	var flags flagList
 	var thick float32 = 8.0
+	var softMode bool
+	var softEdge float32 = 8.0
+
 	updater := func(ctx TestAppCtx) {
 		flags.UpdateFlag(AABB, ebiten.KeyA)
 		flags.UpdateFlag(ColorAABB, ebiten.KeyC)
 		thick = updateParam(ctx, ebiten.KeyT, thick, 0.0, 32.0, 1.0)
+		softMode = updateToggle(ctx, ebiten.KeyS, softMode)
+		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, -32.0, 32.0, 1.0)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
-		info := fmt.Sprintf("Thickness: %.02f [T]\nColorAABB: %t [C]\nAABB: %t [A]", thick, flags.Has(ColorAABB), flags.Has(AABB))
+		info := fmt.Sprintf(
+			"Thickness: %.02f [T]\nColorAABB: %t [C]\nAABB: %t [A]\nSoftMode: %t [S]",
+			thick, flags.Has(ColorAABB), flags.Has(AABB), softMode,
+		)
+		if softMode {
+			info += fmt.Sprintf("\nSoftEdge: %.02f [E]", softEdge)
+		}
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		cw, ch := rectSizeF32(canvas.Bounds())
@@ -91,7 +102,11 @@ func TestStrokeLine(t *testing.T) {
 		}
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
 		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
-		ctx.Renderer.StrokeLine(canvas, origin, end, thick, flags...)
+		if softMode {
+			ctx.Renderer.StrokeLineSoft(canvas, origin, end, thick, softEdge, flags...)
+		} else {
+			ctx.Renderer.StrokeLine(canvas, origin, end, thick, flags...)
+		}
 
 		br := PtF32(cw-16, ch-16)
 		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
@@ -99,7 +114,8 @@ func TestStrokeLine(t *testing.T) {
 		// color check
 		setTestMultiColors(ctx.Renderer)
 		bl := PtF32(16, ch-16)
-		ctx.Renderer.StrokeLine(canvas, bl, bl.Add(PtF32(32, 0)), thick*2.0, flags...)
+		blf := bl.Add(PtF32(32, 0))
+		ctx.Renderer.StrokeLine(canvas, bl, blf, thick*2.0, flags...)
 		ctx.Renderer.FillRect(canvas, bl.X-thick, bl.Y-32, 32+thick*2.0, thick*2.0, -thick)
 		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 		ctx.Renderer.FillCircle(canvas, bl.X+32+thick*2.0, bl.Y, thick)
