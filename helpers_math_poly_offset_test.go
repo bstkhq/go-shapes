@@ -199,7 +199,7 @@ func (pd *pointsDragger) Update(points []PointF32) {
 	dragPtIndex := -1
 	nearestPtDist := Float32Inf()
 	x, y := ebiten.CursorPosition()
-	p := PtF32(float32(x), float32(y))
+	p := PtF32(x, y)
 	for i, point := range points {
 		l := point.Sub(p).Length()
 		if l < float32(nearestPtDist) && l < 16 {

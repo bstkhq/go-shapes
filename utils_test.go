@@ -50,10 +50,10 @@ type TestAppCtx struct {
 }
 
 func (ctx *TestAppCtx) LeftClickF32() PointF32 {
-	return PtF32(float32(ctx.LeftClick.X), float32(ctx.LeftClick.Y))
+	return PtF32(ctx.LeftClick.X, ctx.LeftClick.Y)
 }
 func (ctx *TestAppCtx) RightClickF32() PointF32 {
-	return PtF32(float32(ctx.RightClick.X), float32(ctx.RightClick.Y))
+	return PtF32(ctx.RightClick.X, ctx.RightClick.Y)
 }
 func (ctx *TestAppCtx) LeftClickF64() (x, y float64) {
 	return float64(ctx.LeftClick.X), float64(ctx.LeftClick.Y)

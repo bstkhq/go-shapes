@@ -220,7 +220,7 @@ func TestGlowCompare(t *testing.T) {
 		o3 := CTR.AdjustXY(ctx.Images[3], cw*0.75, ch*0.75)
 		hRadius, vRadius := horzRadius, vertRadius
 		if motionAnim {
-			animOffset := PtF32(float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666)))
+			animOffset := PtF32(ctx.DistAnim(3.0, 1.0), ctx.DistAnim(3.0, 0.666))
 			o0 = o0.Add(animOffset)
 			o1 = o1.Add(animOffset)
 			o2 = o2.Add(animOffset)
@@ -352,7 +352,7 @@ func TestGlowKCompare(t *testing.T) {
 		o2 := CTR.AdjustXY(ctx.Images[2], cw*0.25, ch*0.75)
 		o3 := CTR.AdjustXY(ctx.Images[3], cw*0.75, ch*0.75)
 		if motionAnim {
-			animOffset := PtF32(float32(ctx.DistAnim(3.0, 1.0)), float32(ctx.DistAnim(3.0, 0.666)))
+			animOffset := PtF32(ctx.DistAnim(3.0, 1.0), ctx.DistAnim(3.0, 0.666))
 			o0 = o0.Add(animOffset)
 			o1 = o1.Add(animOffset)
 			o2 = o2.Add(animOffset)

@@ -12,8 +12,8 @@ type PointF32 struct {
 }
 
 // PtF32 is shorthand for PointF32{X: x, Y: y}.
-func PtF32(x, y float32) PointF32 {
-	return PointF32{X: x, Y: y}
+func PtF32[T ~float32 | ~float64 | ~int | ~int32 | ~int64](x, y T) PointF32 {
+	return PointF32{X: float32(x), Y: float32(y)}
 }
 
 // RoundInt rounds a PointF32 into an image.Point.
@@ -39,6 +39,11 @@ func (p PointF32) AddXY(x, y float32) PointF32 {
 // Mul returns the component-wise product of p*o.
 func (p PointF32) Mul(o PointF32) PointF32 {
 	return PointF32{X: p.X * o.X, Y: p.Y * o.Y}
+}
+
+// Div returns the component-wise result of p/o.
+func (p PointF32) Div(o PointF32) PointF32 {
+	return PointF32{X: p.X / o.X, Y: p.Y / o.Y}
 }
 
 // Scale returns p*s.

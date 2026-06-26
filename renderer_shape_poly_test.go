@@ -93,7 +93,7 @@ func TestStrokeLine(t *testing.T) {
 
 		s, c := math.Sincos(ctx.RadsAnim(0.666))
 		scale := 64.0 + float32(ctx.DistAnim(64.0, 1.0))
-		dir := PtF32(float32(s), float32(c))
+		dir := PtF32(s, c)
 		origin := center.Sub(dir.Scale(scale))
 		end := center.Add(dir.Scale(scale))
 

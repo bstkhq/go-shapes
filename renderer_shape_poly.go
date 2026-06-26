@@ -313,7 +313,7 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 		}
 	} else {
 		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
-		origin, size := PtF32(oox, ooy), PtF32(float32(w), float32(h))
+		origin, size := PtF32(oox, ooy), PtF32(w, h)
 		indexOffset := 0
 		if colorMode == ColorIntrinsic {
 			indexOffset = 3 // "twist" colors following triangle directions. this is just a fancy effect
