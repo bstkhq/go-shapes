@@ -25,9 +25,9 @@ const (
 )
 
 var (
-	ColorBackground = color.RGBA{12, 14, 20, 255}
-	ColorPanel      = color.RGBA{18, 22, 31, 245}
-	ColorHoverHalo  = color.RGBA{96, 96, 0, 96}
+	ColorBackground = color.RGBA{0, 0, 0, 255}
+	ColorPanel      = color.RGBA{22, 28, 42, 255}
+	ColorHoverHalo  = color.RGBA{116, 116, 116, 116}
 	ColorText       = color.RGBA{255, 255, 255, 255}
 	ColorTextMuted  = color.RGBA{144, 144, 144, 255}
 )
@@ -39,6 +39,14 @@ func main() {
 	if err := ebiten.RunGame(NewShowcase()); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func areaSize(area [2]shapes.PointF32) shapes.PointF32 {
+	return area[1].Sub(area[0])
+}
+
+func areaCenter(area [2]shapes.PointF32) shapes.PointF32 {
+	return area[0].Add(areaSize(area).Scale(0.5))
 }
 
 func ptInArea(pt shapes.PointF32, area [2]shapes.PointF32) bool {
@@ -53,6 +61,13 @@ func padArea(area [2]shapes.PointF32, pad shapes.PointF32) [2]shapes.PointF32 {
 
 func coordsInArea(pt shapes.PointF32, area [2]shapes.PointF32) shapes.PointF32 {
 	return pt.Sub(area[0]).Div(area[1].Sub(area[0]))
+}
+
+func fluidScale(current, baseFrom, baseTo, growth float32) float32 {
+	ratio := current / baseFrom
+	exponent := math.Log2(float64((1 + growth)))
+	multiplier := math.Pow(float64(ratio), exponent)
+	return baseTo * float32(multiplier)
 }
 
 func clip(img *ebiten.Image, area [2]shapes.PointF32) *ebiten.Image {
@@ -180,7 +195,6 @@ func (s *Showcase) drawHeader(target *ebiten.Image, area [2]shapes.PointF32) {
 // getCanvasRegion returns a subregion of canvas that preserves the showcase
 // intended aspect ratio. the returned points are the precise (min, max) area
 func (s *Showcase) getCanvasRegion(canvas *ebiten.Image) (*ebiten.Image, [2]shapes.PointF32) {
-
 	bounds := canvas.Bounds()
 	cw, ch := bounds.Dx(), bounds.Dy()
 	canvasSize := shapes.PtF32(cw, ch)
@@ -219,29 +233,37 @@ func (p *Page) Update() error {
 	escape := inpututil.IsKeyJustPressed(ebiten.KeyEscape)
 	back := escape || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) || inpututil.IsKeyJustPressed(ebiten.KeyEnter)
 
+	hovering := false
+	click := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
 	if p.HasFocusedPanel() {
 		p.Panels[p.focus].Update(true)
-		if back || p.clickOutsidePanel() {
+		if back || (click && !p.Panels[p.focus].Hovered) {
 			p.focus = -1
 		}
 	} else {
 		for i := range p.Panels {
 			p.Panels[i].Update(false)
+			if p.Panels[i].Hovered {
+				hovering = true
+				if click {
+					p.focus = i
+					p.Panels[i].Hovered = false
+				}
+			}
 		}
+
 		if escape {
 			return ebiten.Termination
 		}
 	}
 
-	return nil
-}
-
-func (p *Page) clickOutsidePanel() bool {
-	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		return false
+	if hovering {
+		ebiten.SetCursorShape(ebiten.CursorShapePointer)
+	} else {
+		ebiten.SetCursorShape(ebiten.CursorShapeDefault)
 	}
-	x, y := ebiten.CursorPosition()
-	return ptInArea(shapes.PtF32(x, y), p.Panels[p.focus].area)
+
+	return nil
 }
 
 func (p *Page) DrawPanels(target *ebiten.Image, area [2]shapes.PointF32, renderer *shapes.Renderer) {
@@ -250,17 +272,17 @@ func (p *Page) DrawPanels(target *ebiten.Image, area [2]shapes.PointF32, rendere
 	bounds := target.Bounds()
 	itsp := float32(min(bounds.Dx(), bounds.Dy())) * Interspacing
 
-	offset := shapes.PtF32(itsp, itsp)
+	offset := shapes.PtF32(itsp, itsp).Scale(0.5)
 	if p.HasFocusedPanel() {
 		p.Panels[p.focus].SetArea(padArea(area, offset))
 		p.Panels[p.focus].Draw(target, renderer)
 	} else {
-		areaSize := area[1].Sub(area[0])
-		panelSize := shapes.PtF32((areaSize.X-5.0*itsp)/4.0, (areaSize.Y-3.0*itsp)/3.0)
-		panelDelta := areaSize.Add(offset)
+		size := areaSize(area)
+		panelSize := shapes.PtF32((size.X-5.0*itsp)/4.0, (size.Y-3.0*itsp)/3.0)
+		panelDelta := panelSize.Add(offset)
 		baseCoords := area[0].Add(offset)
 		for i := range p.Panels {
-			cell := shapes.PtF32(i%4, i/4)
+			cell := shapes.PtF32(i%4, i/3)
 			coords := baseCoords.Add(panelDelta.Mul(cell))
 			p.Panels[i].SetArea([2]shapes.PointF32{coords, coords.Add(panelSize)})
 			p.Panels[i].Draw(target, renderer)
@@ -275,7 +297,9 @@ type Panel struct {
 
 	liveParams map[string]*Parameter
 	foreground bool
-	area       [2]shapes.PointF32
+	area       [2]shapes.PointF32 // origin, end
+
+	Hovered bool
 }
 
 func (p *Panel) Reset() {
@@ -292,7 +316,7 @@ func (p *Panel) Reset() {
 }
 
 func (p *Panel) SetArea(area [2]shapes.PointF32) {
-	p.area = area
+	p.area = area // origin, end
 }
 
 func (p *Panel) Update(foreground bool) {
@@ -300,43 +324,40 @@ func (p *Panel) Update(foreground bool) {
 	for _, param := range p.liveParams {
 		param.Update(foreground)
 	}
+
+	x, y := ebiten.CursorPosition()
+	p.Hovered = ptInArea(shapes.PtF32(x, y), p.area)
 }
 
 type RenderContext struct {
-	Area       [2]shapes.PointF32
+	Area       [2]shapes.PointF32 // origin, end
 	Renderer   *shapes.Renderer
 	Parameters map[string]*Parameter
 }
 
 func (p *Panel) Draw(target *ebiten.Image, renderer *shapes.Renderer) {
-	const Margin = 0.08
-	const TitleRatio = 0.4
-	const TitleScale = 0.1
-	const TitleInterspacing = 0.04
 	const ParamsRatio = 0.4
 	const ParamsInterspacing = 0.02
-	const Rounding = 0.02
-	const HighlightRadius = 0.1
+	const HighlightRadius = 0.225
 
 	// surface
-	areaSize := p.area[0].Sub(p.area[1])
-	rounding := areaSize.Y * Rounding
-	if !p.foreground {
-		x, y := ebiten.CursorPosition()
-		if ptInArea(shapes.PtF32(x, y), p.area) {
-			renderer.SetColor(ColorHoverHalo)
-			renderer.FillRectSoft(target, p.area[0].X, p.area[0].Y, areaSize.X, areaSize.Y, -rounding, areaSize.Y*HighlightRadius)
-		}
+	size := areaSize(p.area)
+	rounding := fluidScale(size.Y, 100, 8, 0.75)
+	if p.Hovered && !p.foreground {
+		renderer.SetColor(ColorHoverHalo)
+		renderer.FillRectSoft(target, p.area[0].X, p.area[0].Y, size.X, size.Y, 0, size.Y*HighlightRadius)
 	}
 	renderer.SetColor(ColorPanel)
-	renderer.FillRect(target, p.area[0].X, p.area[0].Y, areaSize.X, areaSize.Y, -rounding)
+	renderer.FillRect(target, p.area[0].X, p.area[0].Y, size.X, size.Y, -rounding)
 
 	// title
-	margin := areaSize.Y * Margin
+	margin := fluidScale(size.Y, 100, 8, 0.5)
 	workArea := padArea(p.area, shapes.PtF32(margin, margin))
+	workSize := areaSize(workArea)
 	titleArea := workArea
-	titleArea[1].Y = workArea[0].Y + (workArea[1].Y-workArea[0].Y)*TitleRatio
-	_ = titleArea
+	titleArea[1].Y = workArea[0].Y + fluidScale(workSize.Y, 100, 16, 0.5)
+	p.drawTitle(target, renderer, titleArea)
+	workArea[0].Y = titleArea[1].Y
 
 	// params
 	// ...
@@ -348,6 +369,13 @@ func (p *Panel) Draw(target *ebiten.Image, renderer *shapes.Renderer) {
 		Parameters: p.liveParams,
 	}
 	p.Renderer(target, ctx)
+}
+
+func (p *Panel) drawTitle(target *ebiten.Image, renderer *shapes.Renderer, titleArea [2]shapes.PointF32) {
+	renderer.SetColor(ColorText)
+	scale := shapes.Font().ScaleOf(areaSize(titleArea).Y * 1.15)
+	opts := shapes.TextOpts(scale, shapes.CenterLeft)
+	renderer.Text(target, p.Title, titleArea[0].X, titleArea[0].Y+areaSize(titleArea).Y/2, opts)
 }
 
 type Parameter struct {
@@ -462,5 +490,10 @@ func paramsShapesPolyLine() []Parameter {
 }
 
 func renderShapesPolyLine(target *ebiten.Image, ctx RenderContext) {
-	// params[""]
+	ctr, size := areaCenter(ctx.Area), areaSize(ctx.Area)
+	th := size.Y * 0.1
+	o := ctr.Sub(size.Scale(0.4))
+	f := ctr.Add(size.Scale(0.4))
+	ctx.Renderer.SetColorF32(1, 1, 1, 1)
+	ctx.Renderer.StrokeLine(target, o, f, th)
 }
