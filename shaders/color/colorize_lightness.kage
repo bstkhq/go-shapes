@@ -1,0 +1,101 @@
+//kage:unit pixels
+package main
+
+var From vec4
+var To vec4
+var Dither int // 0 == false, 1 == true
+
+func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	fromLightness, toLightness := customVAs[0], customVAs[1]
+	steps := customVAs[2]
+	bias := customVAs[3]
+
+	srcColor := imageSrc0At(sourceCoords)
+	lightness := rgbLightness(srcColor.rgb)
+
+	// quantize lightness based on steps
+	if steps == 1.0 {
+		lightness = 0.5
+	} else if steps > 1 {
+		lightness = floor(lightness*steps) / (steps - 1)
+	}
+
+	reLightness := remap(lightness, fromLightness, toLightness)
+	reLightness = schlick(reLightness, bias)
+	oklab := mix(From, To, reLightness)
+	out := vec4(OklabToRGB(oklab.xyz), oklab.a) * srcColor.a
+
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc1UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, 0.0, 1.0)
+	}
+
+	return out
+}
+
+// remaps n such that values beyond or at 'zero' are mapped
+// to 0, and values beyond or at 'one' are mapped to 1.
+// e.g.: remap(0.2, 0.0, 0.5) = 0.4, remap(0.4, 0.0, 0.5) = 0.8,
+// remap(0.4, 0.5, 0.0) = 0.2, remap(0.2, 0.1, 0.9) = 0.125, ...
+func remap(n, zero, one float) float {
+	if zero == one {
+		// note: while technically n == v could be 0.5, in practice
+		// that's more likely to cause artifacts than anything else
+		return min(sign(n-zero)+1, 1) // n < v : 0, n >= v : 1
+	}
+	cn := clamp(n, min(zero, one), max(zero, one))
+	return (cn - zero) / (one - zero)
+}
+
+// schlick's bias function with t and bias in [0, 1]
+func schlick(t, bias float) float {
+	div := (1.0/bias-2)*(1.0-t) + 1
+	return clamp(t/max(div, 0.001), 0, 1)
+}
+
+func OklabToRGB(lab vec3) vec3 {
+	linRGB := OklabToLinRGB(lab)
+	return vec3(unlinearize(linRGB.r), unlinearize(linRGB.g), unlinearize(linRGB.b))
+}
+
+func OklabToLinRGB(lab vec3) vec3 {
+	x := lab[0] + 0.3963377774*lab[1] + 0.2158037573*lab[2]
+	y := lab[0] - 0.1055613458*lab[1] - 0.0638541728*lab[2]
+	z := lab[0] - 0.0894841775*lab[1] - 1.2914855480*lab[2]
+
+	x = x * x * x
+	y = y * y * y
+	z = z * z * z
+
+	return vec3(
+		clamp(+4.0767416621*x-3.3077115913*y+0.2309699292*z, 0, 1),
+		clamp(-1.2684380046*x+2.6097574011*y-0.3413193965*z, 0, 1),
+		clamp(-0.0041960863*x-0.7034186147*y+1.7076147010*z, 0, 1),
+	)
+}
+
+func rgbLightness(rgb vec3) float {
+	linR, linG, linB := linearize(rgb.r), linearize(rgb.g), linearize(rgb.b)
+	x := pow(0.4122214708*linR+0.5363325363*linG+0.0514459929*linB, 1.0/3.0)
+	y := pow(0.2119034982*linR+0.6806995451*linG+0.1073969566*linB, 1.0/3.0)
+	z := pow(0.0883024619*linR+0.2817188376*linG+0.6299787005*linB, 1.0/3.0)
+	return 0.2104542553*x + 0.7936177850*y - 0.0040720468*z
+}
+
+func linearize(colorChan float) float {
+	if colorChan >= 0.04045 {
+		return pow((colorChan+0.055)/1.055, 2.4)
+	} else {
+		return colorChan / 12.92
+	}
+}
+
+func unlinearize(colorChan float) float {
+	if colorChan >= 0.0031308 {
+		return 1.055*pow(colorChan, 1.0/2.4) - 0.055
+	} else {
+		return colorChan * 12.92
+	}
+}

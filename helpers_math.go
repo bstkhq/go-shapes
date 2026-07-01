@@ -1,10 +1,11 @@
 package shapes
 
 import (
+	"cmp"
 	"math"
-)
 
-const MaxFloat16 = 65504
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 var roFloat32Inf = float32(math.Inf(1))
 
@@ -12,14 +13,20 @@ func Float32Inf() float32 {
 	return roFloat32Inf
 }
 
+// GoldenRatioGen generates a low-discrepancy sequence of values in [0...1).
+// In visual applications, this kind of noise is often more adequate than
+// others like white noise, since it has an even distribution that avoids
+// the typical clumping of high-entropy sequences.
 type GoldenRatioGen struct {
 	n float64
 }
 
+// Reset restarts the sequence.
 func (gen *GoldenRatioGen) Reset() {
 	gen.n = 0
 }
 
+// Float64 returns the next [0...1) value in the sequence.
 func (gen *GoldenRatioGen) Float64() float64 {
 	const phi = 1.618033988749895 // golden ratio
 	gen.n += 1.0
@@ -30,8 +37,37 @@ func (gen *GoldenRatioGen) Float64() float64 {
 	return v
 }
 
+// RadsSpan returns the start and end angles (in radians) centered
+// around centerDir. fillRate must be in [0...1].
+//
+// This is a helper function often used with [Renderer.FillCircSector]()
+// and similar functions.
+//
+// See [RadsRight] constants for angle conventions and docs.
+func RadsSpan[Float ~float64 | ~float32](centerDir Float, fillRate Float) (start, end Float) {
+	if fillRate <= 0 {
+		return centerDir, centerDir
+	}
+	if fillRate >= 1.0 {
+		start := uradsAddCW(centerDir, math.Pi)
+		return start, start + 2*Float(math.Pi)
+	}
+
+	centerDir = normURads(centerDir)
+	ratePi := fillRate * math.Pi
+	return uradsAddCW(centerDir, -ratePi), uradsAddCW(centerDir, ratePi)
+}
+
+func floorF32(x float32) float32 {
+	return float32(int(x))
+}
+
 func ceilF32(x float32) float32 {
 	return float32(math.Ceil(float64(x)))
+}
+
+func clamp[T cmp.Ordered](v, minValue, maxValue T) T {
+	return min(max(v, minValue), maxValue)
 }
 
 func abs[Float float32 | float64](a Float) Float {
@@ -43,6 +79,21 @@ func abs[Float float32 | float64](a Float) Float {
 
 func lerp[Float float32 | float64](a, b, t Float) Float {
 	return a + t*(b-a)
+}
+
+func rotate[Float float32 | float64](x, y, sin, cos Float) (Float, Float) {
+	return x*cos - y*sin, x*sin + y*cos
+}
+
+func maxMagnitude[Float float32 | float64](v, absMagnitude Float) Float {
+	if v < 0 {
+		if v > -absMagnitude {
+			return -absMagnitude
+		}
+	} else if v < absMagnitude {
+		return absMagnitude
+	}
+	return v
 }
 
 // umod returns the non-negative remainder of x mod m, similar
@@ -59,15 +110,18 @@ func umod(x, m float64) float64 {
 }
 
 // normURads calls [umod](r, 2*math.Pi) to normalize r to [0, 2*pi) range.
-func normURads(r float64) float64 {
-	return umod(r, 2*math.Pi)
+func normURads[Float ~float64 | ~float32](r Float) Float {
+	if r >= 0 && r <= 2*math.Pi {
+		return r
+	}
+	return Float(umod(float64(r), 2*math.Pi))
 }
 
 // Notice: geometry code is derived from etxt@v0.0.8 emask/helper_funcs.go
 
 // Given two points of a line, it returns its A, B and C
 // coefficients from the form "Ax + By + C = 0".
-func toLinearFormABC(ox, oy, fx, fy float64) (float64, float64, float64) {
+func toLinearFormABC[Float ~float32 | ~float64](ox, oy, fx, fy Float) (Float, Float, Float) {
 	a, b, c := fy-oy, -(fx - ox), (fx-ox)*oy-(fy-oy)*ox
 	return a, b, c
 }
@@ -79,7 +133,7 @@ func toLinearFormABC(ox, oy, fx, fy float64) (float64, float64, float64) {
 // >> x = (b2*c1 - b1*c2)/(b2*a1 - b1*a2)
 // This function solves this system, but assuming c1 and c2 have
 // a negative sign (ax + by + c = 0).
-func shortCramer(a1, b1, c1, a2, b2, c2 float64) (float64, float64) {
+func shortCramer[Float ~float32 | ~float64](a1, b1, c1, a2, b2, c2 Float) (Float, Float) {
 	xdiv := b2*a1 - b1*a2
 	if xdiv == 0 {
 		panic("parallel lines")
@@ -95,14 +149,42 @@ func shortCramer(a1, b1, c1, a2, b2, c2 float64) (float64, float64) {
 
 // given a line equation in the form Ax + By + C = 0, it returns
 // C1 and C2 such that two new line equations can be created that
-// are parallel to the original line, but at distance 'dist' from it
-func parallelsAtDist(a, b, c float64, dist float64) (float64, float64) {
-	norm := math.Hypot(a, b)
+// are parallel to the original line, but at distance 'dist' from it.
+// It also returns hypot(a, b), which is the length of the line and
+// can be useful in some contexts.
+func parallelsAtDist[Float ~float32 | ~float64](a, b, c, dist Float) (Float, Float, Float) {
+	norm := Float(math.Hypot(float64(a), float64(b)))
 	if norm == 0 {
-		return c, c // degenerate case
+		return c, c, norm // degenerate case
 	}
 	shift := dist * norm
-	return c - shift, c + shift
+	return c - shift, c + shift, norm
+}
+
+func distToLineF32(coords, start, end PointF32) float32 {
+	if start.X == end.X {
+		return abs(coords.X - end.X)
+	}
+	if start.Y == end.Y {
+		return abs(coords.Y - end.Y)
+	}
+
+	// given ax + by + c = 0, and point (x1, y1):
+	// >> d = |ax1 + by1 + c|/sqrt(a² + b²)
+	a, b, c := toLinearFormABC(start.X, start.Y, end.X, end.Y)
+	return abs(a*coords.X+b*coords.Y+c) / float32(math.Sqrt(float64(a*a+b*b)))
+}
+
+func distToArcF32(coords, start, end PointF32, radius float32) float32 {
+	panic("unimplemented")
+}
+
+func distToQuadF32(coords, start, end PointF32, cx, cy float32) float32 {
+	panic("unimplemented")
+}
+
+func distToCubeF32(coords, start, end PointF32, cax, cay, cbx, cby float32) float32 {
+	panic("unimplemented")
 }
 
 func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Float {
@@ -114,6 +196,38 @@ func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Floa
 	default:
 		return value
 	}
+}
+
+// given an (origin, end) line and a thickness, it expands it into 4 points
+func lineToQuad(origin, end PointF32, thickness float32, padOffset float32) [4]PointF32 {
+	var out [4]PointF32
+
+	vd := end.Sub(origin)    // non-normalized direction vector
+	vp := PtF32(vd.Y, -vd.X) // perpendicular vector
+	length := vd.Length()
+	if length < 1e-6 { // treat as point
+		midpoint := origin.Add(end).Scale(0.5)
+		shift := thickness + padOffset
+		out[0] = midpoint.Add(PtF32(-shift, -shift)) // TL
+		out[1] = midpoint.Add(PtF32(+shift, -shift)) // TR
+		out[2] = midpoint.Add(PtF32(+shift, +shift)) // BR
+		out[3] = midpoint.Add(PtF32(-shift, +shift)) // BL
+		return out
+	}
+
+	// scale for vector normalization
+	scale := (thickness/2 + padOffset) / length
+
+	// adjust bounding ends to include thickness rounding
+	vds, vps := vd.Scale(scale), vp.Scale(scale)
+	bo, bf := origin.Sub(vds), end.Add(vds)
+
+	// compute bounding vertices applying the perpendicular offset
+	out[0] = bo.Add(vps)
+	out[1] = bf.Add(vps)
+	out[2] = bf.Sub(vps)
+	out[3] = bo.Sub(vps)
+	return out
 }
 
 // gaussian elimination 8x8 homogeneous linear system solver
@@ -177,82 +291,90 @@ func computeHomography(fromQuad, toQuad [4]PointF32) [9]float32 {
 	return homography
 }
 
-// quad points must be given in clockwise order, +y axis goes down
-func expandQuad(quad [4]PointF32, thickness float32) [4]PointF32 {
-	if thickness == 0 {
-		return quad
-	}
+const apothemToCircumradius = 1.08239220029239396879944641073277884012214412675603088936259419 // https://oeis.org/A388455
+const cos45 = 0.70710678118654752440084436210484903928483593768847403658833986                 // https://oeis.org/A010503
 
-	// edges
-	e0 := quad[1].Sub(quad[0])
-	e1 := quad[2].Sub(quad[1])
-	e2 := quad[3].Sub(quad[2])
-	e3 := quad[0].Sub(quad[3])
-
-	// normals
-	n0 := PointF32{X: e0.Y, Y: -e0.X}.Normalize().Scale(thickness)
-	n1 := PointF32{X: e1.Y, Y: -e1.X}.Normalize().Scale(thickness)
-	n2 := PointF32{X: e2.Y, Y: -e2.X}.Normalize().Scale(thickness)
-	n3 := PointF32{X: e3.Y, Y: -e3.X}.Normalize().Scale(thickness)
-
-	// offset points
-	p0a := quad[0].Add(n0)
-	p1a := quad[1].Add(n1)
-	p2a := quad[2].Add(n2)
-	p3a := quad[3].Add(n3)
-
-	// final intersection
-	out := [4]PointF32{
-		lineIntersect(p3a, e3, p0a, e0),
-		lineIntersect(p0a, e0, p1a, e1),
-		lineIntersect(p1a, e1, p2a, e2),
-		lineIntersect(p2a, e2, p3a, e3),
-	}
-	return out
+// appendCircOctagonVertices appends 9 vertices that can contain a circle of
+// the given radius, with padding accounted for. The vertex order is: central
+// vertex, then all outer vertices clockwise starting at the top. This is a
+// 45º rotated octagon, which aligns triangles for coloring in a compatible
+// manner with a top-left/bottom-right quad.
+//
+// the indices can be obtained with appendCircIndices(indices, 8)
+func appendCircOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32) []ebiten.Vertex {
+	// unrolled calculations, this is a fairly common case
+	circumradius := radius * apothemToCircumradius
+	axialDist := ceilF32(circumradius)
+	diagDist := ceilF32(circumradius * cos45)
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy})                       // center
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - axialDist})           // top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy - diagDist}) // top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + axialDist, DstY: cy})           // right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy + diagDist}) // bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + axialDist})           // bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - diagDist, DstY: cy + diagDist}) // bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - axialDist, DstY: cy})           // left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - diagDist, DstY: cy - diagDist}) // top-left
+	return vertices
 }
 
-// returns the intersection of p1 + t·d1 and p2 + u·d2 (two lines in
-// parametric form: point + direction)
-func lineIntersect(p1, d1, p2, d2 PointF32) PointF32 {
-	// p1 + t*d1 = p2 + s*d2 => solve for t
-	det := d1.X*d2.Y - d1.Y*d2.X
-	if math.Abs(float64(det)) < 1e-6 {
-		return p1.Add(p2).Scale(0.5) // ~parallel lines, return midpoint
+// appends the indices for a tessellated circle, assumming 0 is the center, and 1...N is
+// the number of sides.
+func appendCircIndices(indices []uint32, sides uint32) []uint32 {
+	if sides <= 2 {
+		panic("circle tessellation must have at least 3 sides")
 	}
-
-	t := ((p2.X-p1.X)*d2.Y - (p2.Y-p1.Y)*d2.X) / det
-	return PointF32{
-		X: p1.X + d1.X*t,
-		Y: p1.Y + d1.Y*t,
+	for i := range uint32(sides) - 1 {
+		indices = append(indices, 0, i+1, i+2)
 	}
+	indices = append(indices, 0, uint32(sides), 1)
+	return indices
 }
 
-// precondition: angles must be normalized by normURads
-func pieBounds(cx, cy float32, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
-	ss, sc := math.Sincos(startRads)
-	es, ec := math.Sincos(endRads)
-	ss32, sc32, es32, ec32 := float32(ss), float32(sc), float32(es), float32(ec)
-	p1x, p1y := cx+radius*sc32, cy+radius*ss32
-	p2x, p2y := cx+radius*ec32, cy+radius*es32
-	minX, minY = min(cx, p1x, p2x), min(cy, p1y, p2y)
-	maxX, maxY = max(cx, p1x, p2x), max(cy, p1y, p2y)
-	if uradsWithinCW(RadsRight, startRads, endRads) {
-		maxX = cx + radius
+func appendCircStrokeOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32, thickness float32) []ebiten.Vertex {
+	// unrolled calculations, this is a fairly common case
+	outRadius := (radius + thickness/2.0) * apothemToCircumradius
+	inRadius := max(radius-thickness/2.0, 0.0)
+	inAxialDist, outAxialDist := floorF32(inRadius), ceilF32(outRadius)
+	inDiagDist, outDiagDist := floorF32(inRadius*cos45), ceilF32(outRadius*cos45)
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - outAxialDist})              // outer top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - inAxialDist})               // inner top
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy - outDiagDist}) // outer top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inDiagDist, DstY: cy - inDiagDist})   // inner top-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outAxialDist, DstY: cy})              // outer right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inAxialDist, DstY: cy})               // inner right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy + outDiagDist}) // outer bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx + inDiagDist, DstY: cy + inDiagDist})   // inner bottom-right
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + outAxialDist})              // outer bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy + inAxialDist})               // inner bottom
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outDiagDist, DstY: cy + outDiagDist}) // outer bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inDiagDist, DstY: cy + inDiagDist})   // inner bottom-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outAxialDist, DstY: cy})              // outer left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inAxialDist, DstY: cy})               // inner left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - outDiagDist, DstY: cy - outDiagDist}) // outer top-left
+	vertices = append(vertices, ebiten.Vertex{DstX: cx - inDiagDist, DstY: cy - inDiagDist})   // inner top-left
+	return vertices
+}
+
+// appends the indices for a tessellated circle stroke, assumming that vertices
+// are in outer, inner pairs, starting from top and going clockwise
+func appendCircStrokeIndices(indices []uint32, sides uint32) []uint32 {
+	if sides <= 2 {
+		panic("circle stroke tessellation must have at least 3 sides")
 	}
-	if uradsWithinCW(RadsBottom, startRads, endRads) {
-		maxY = cy + radius
+	for i := range uint32(sides) - 1 {
+		s := i * 2
+		indices = append(indices, s+0, s+2, s+1)
+		indices = append(indices, s+1, s+2, s+3)
 	}
-	if uradsWithinCW(RadsLeft, startRads, endRads) {
-		minX = cx - radius
-	}
-	if uradsWithinCW(RadsTop, startRads, endRads) {
-		minY = cy - radius
-	}
-	return minX, minY, maxX, maxY
+	e := (uint32(sides) - 1) * 2
+	indices = append(indices, e+0, 0, e+1)
+	indices = append(indices, e+1, 0, 1)
+	return indices
 }
 
 // precondition: angles must be normalized by normURads, outRadius >= inRadius
-func ringSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
+func radialSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
 	ss, sc := math.Sincos(startRads)
 	es, ec := math.Sincos(endRads)
 	ss32, sc32, es32, ec32 := float32(ss), float32(sc), float32(es), float32(ec)
@@ -278,16 +400,80 @@ func ringSectorBounds(cx, cy float32, inRadius, outRadius float32, startRads, en
 	return minX, minY, maxX, maxY
 }
 
+// inX, inY, outX, outY are relative to centerDir = 0 (right).
+func radialWedgeBounds(cx, cy, outRadius, inX, inY, outX, outY, dir, dirSin, dirCos float64) (minX, minY, maxX, maxY float32) {
+	ri1x, ri1y := rotate(inX, inY, dirSin, dirCos)
+	ri2x, ri2y := rotate(inX, -inY, dirSin, dirCos)
+	ro1x, ro1y := rotate(outX, outY, dirSin, dirCos)
+	ro2x, ro2y := rotate(outX, -outY, dirSin, dirCos)
+
+	minX64, minY64 := min(ri1x, ri2x, ro1x, ro2x), min(ri1y, ri2y, ro1y, ro2y)
+	maxX64, maxY64 := max(ri1x, ri2x, ro1x, ro2x), max(ri1y, ri2y, ro1y, ro2y)
+
+	deltaRads := math.Atan2(outY, outX)
+	startRads := uradsAddCW(dir, -deltaRads)
+	outRads := uradsAddCW(dir, deltaRads)
+	if uradsWithinCW(RadsRight, startRads, outRads) {
+		maxX64 = outRadius
+	}
+	if uradsWithinCW(RadsBottom, startRads, outRads) {
+		maxY64 = outRadius
+	}
+	if uradsWithinCW(RadsLeft, startRads, outRads) {
+		minX64 = -outRadius
+	}
+	if uradsWithinCW(RadsTop, startRads, outRads) {
+		minY64 = -outRadius
+	}
+
+	return float32(cx + minX64), float32(cy + minY64), float32(cx + maxX64), float32(cy + maxY64)
+}
+
+func circularSectorBounds(cx, cy, radius float32, startRads, endRads float64) (minX, minY, maxX, maxY float32) {
+	expand := func(min, max, v float32) (float32, float32) {
+		if v < min {
+			return v, max
+		}
+		if v > max {
+			return min, v
+		}
+		return min, max
+	}
+
+	ss, sc := math.Sincos(startRads)
+	es, ec := math.Sincos(endRads)
+	sx, ex := cx+radius*float32(sc), cx+radius*float32(ec)
+	minX, maxX = min(sx, ex), max(sx, ex)
+	sy, ey := cy+radius*float32(ss), cy+radius*float32(es)
+	minY, maxY = min(sy, ey), max(sy, ey)
+	minX, maxX = expand(minX, maxX, cx)
+	minY, maxY = expand(minY, maxY, cy)
+
+	if uradsWithinCW(RadsRight, startRads, endRads) {
+		maxX = cx + radius
+	}
+	if uradsWithinCW(RadsBottom, startRads, endRads) {
+		maxY = cy + radius
+	}
+	if uradsWithinCW(RadsLeft, startRads, endRads) {
+		minX = cx - radius
+	}
+	if uradsWithinCW(RadsTop, startRads, endRads) {
+		minY = cy - radius
+	}
+	return minX, minY, maxX, maxY
+}
+
 // uradsWithinCW returns whether 'rads' is within the clockwise segment [start, end],
 // assumming that all angles are normalized in the [0, 2*pi) range (e.g. normURads)
-func uradsWithinCW[Float ~float32 | ~float64](rads, start, end Float) bool {
+func uradsWithinCW[Float ~float64 | ~float32](rads, start, end Float) bool {
 	if start < end {
 		return rads >= start && rads <= end
 	}
 	return rads >= start || rads <= end
 }
 
-func uradsDeltaCW[Float ~float32 | ~float64](start, end Float) Float {
+func uradsDeltaCW[Float ~float64 | ~float32](start, end Float) Float {
 	if end >= start {
 		return end - start
 	}
@@ -295,7 +481,7 @@ func uradsDeltaCW[Float ~float32 | ~float64](start, end Float) Float {
 }
 
 // precondition: start is in [0, 2*pi) range, delta is in (-2*pi, 2*pi) range
-func uradsAddCW[Float ~float32 | ~float64](start, delta Float) Float {
+func uradsAddCW[Float ~float64 | ~float32](start, delta Float) Float {
 	total := start + delta
 	if total > 2*math.Pi {
 		total -= 2 * math.Pi
@@ -303,4 +489,189 @@ func uradsAddCW[Float ~float32 | ~float64](start, delta Float) Float {
 		total += 2 * math.Pi
 	}
 	return total
+}
+
+// Vertices are appended in (in, out) pairs.
+// precondition: tolerance >= 0.1
+func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, rads float64, tolerance float64) []ebiten.Vertex {
+	if tolerance < 0.095 {
+		panic("tolerance < 0.1")
+	}
+
+	var sidePad float64
+	var fullCircle bool
+	if rads >= 2*math.Pi-0.000001 {
+		rads = 2 * math.Pi
+		startRads = 0.0
+		fullCircle = true
+	} else if tolerance >= 1.0 {
+		sidePad = 1.0
+	}
+
+	// handle negative thickness and radius collapse
+	if thickness < 0 {
+		thickness = -thickness
+		radius -= thickness * 0.5
+	}
+
+	radiusIn := max(radius-thickness*0.5, 0)
+	radiusOut := radius + thickness*0.5 + tolerance
+
+	// - compute maximum chord length -
+	// maximum chord length is determined by maxOvershoot, which must be <= sagitta
+	// (s, the distance between the midpoints of an arc and its chord of length c).
+	// this is given by the formula c = 2*sqrt(2*R*s - s²), which can be derived from
+	// the triangle with hypotenuse = R, side = R - s, base = c/2. apply pythagoras
+	// and you get (R - s)² + (c/2)² = R²
+	maxChordLen := 2 * math.Sqrt(2*radiusOut*tolerance-tolerance*tolerance)
+
+	// compute max angle from max chord length and turn into number of segments
+	maxAngle := 2 * math.Asin(maxChordLen/(2*radiusOut)) // chord/angle formula c = 2*R*sin(θ/2)
+	if maxAngle <= 0 {
+		panic(maxAngle)
+	}
+	numSegments := math.Ceil(rads / maxAngle)
+	step := rads / float64(numSegments)
+
+	// tighten radiusOut using the final angle
+	actualS := radiusOut * (1 - math.Cos(step*0.5))
+	radiusOut = radius + thickness*0.5 + actualS
+
+	// sidePad = 0.0
+	iters := int(numSegments)
+	if !fullCircle {
+		iters += 1
+	}
+	for i := range iters {
+		sin, cos := math.Sincos(uradsAddCW(startRads, step*float64(i)))
+		vertices = append(vertices,
+			ebiten.Vertex{
+				DstX: float32(radiusIn * cos),
+				DstY: float32(radiusIn * sin),
+			},
+			ebiten.Vertex{
+				DstX: float32(radiusOut * cos),
+				DstY: float32(radiusOut * sin),
+			},
+		)
+		if sidePad > 0 {
+			if i == 0 {
+				shiftX, shiftY := float32(-sin), float32(cos)
+				vertices[0].DstX += shiftX
+				vertices[0].DstY += shiftY
+				vertices[1].DstX += shiftX
+				vertices[1].DstY += shiftY
+			} else if i == iters-1 {
+				shiftX, shiftY := float32(sin), float32(-cos)
+				vertices[i].DstX += shiftX
+				vertices[i].DstY += shiftY
+				vertices[i-1].DstX += shiftX
+				vertices[i-1].DstY += shiftY
+			}
+		}
+	}
+	if fullCircle { // perfect wrap
+		vertices = append(vertices, vertices[0], vertices[1])
+	}
+
+	return vertices
+}
+
+func segmentIntersect(segA, segB segmentF32) (PointF32, bool) {
+	segDirA, segDirB := segA.Dir(), segB.Dir()
+	denom := segDirA.cross(segDirB)
+	if abs(denom) < 1e-6 {
+		return PointF32{}, false
+	}
+
+	originDir := segB.Origin.Sub(segA.Origin)
+	tA := originDir.cross(segDirB) / denom
+	tB := originDir.cross(segDirA) / denom
+	if tA < 0 || tA > 1 || tB < 0 || tB > 1 {
+		return PointF32{}, false
+	}
+
+	return segA.Origin.Add(segDirA.Scale(tA)), true
+}
+
+func lineSegmentIntersect(line lineF32, segment segmentF32) (PointF32, bool) {
+	segDir := segment.Dir()
+	denom := line.Dir.cross(segDir)
+	if abs(denom) < 1e-6 {
+		return PointF32{}, false
+	}
+
+	originDir := segment.Origin.Sub(line.Origin)
+	tLine := originDir.cross(segDir) / denom
+	tSeg := originDir.cross(line.Dir) / denom
+	if tSeg < 0 || tSeg > 1 {
+		return PointF32{}, false
+	}
+
+	return line.Origin.Add(line.Dir.Scale(tLine)), true
+}
+
+// (cx, cy) is a point on circle, (ox, oy) is an outside point.
+// Circle center is assumed to be (0,0). this function will return
+// (cx, cy) unless the line from c to o crosses another point
+// in the circle first.
+func lineCircIntersect(radius, cx, cy, ox, oy float64) (float64, float64) {
+	dx, dy := ox-cx, oy-cy
+	dd := dx*dx + dy*dy
+	if dd == 0 {
+		return cx, cy
+	}
+
+	// direct second root (t=0 is not relevant)
+	t := -2.0 * (cx*dx + cy*dy) / dd
+
+	// forward check
+	if t > 0 {
+		return cx + t*dx, cy + t*dy
+	}
+
+	return cx, cy
+}
+
+// circIntersect returns up to two intersection points between two circles.
+// it returns two points as (x, y) pairs and the number of solutions (0, 1, or 2).
+func circIntersect(acx, acy, aRadius, bcx, bcy, bRadius float64) ([2]float64, [2]float64, int) {
+	dx, dy := bcx-acx, bcy-acy
+	dc := math.Sqrt(dx*dx + dy*dy)
+
+	// return 0 solutions if circles concentric or inside each other
+	if dc == 0 || dc > aRadius+bRadius || dc < math.Abs(aRadius-bRadius) {
+		return [2]float64{}, [2]float64{}, 0
+	}
+
+	// apothemA = distance from (acx, acy) to middle of the chord created
+	// by the intersection line. we use the pythagorean theorem to write
+	// two equations:
+	//  > apothemA^2 + halfChord^2 = aRadius^2
+	//  > (dc - apothemA)^2 + halfChord^2 = bRadius^2
+	// we can cancel halfChord to find apothemA:
+	//  > (dc - apothemA)^2 - bRadius^2 = apothemA^2 - aRadius^2
+	//  > (dc - apothemA)^2 - apothemA^2 = bRadius^2 - aRadius^2
+	//  => apply binomial theorem (a - b)^2 = a^2 - 2ab + b^2
+	//  > dc^2 - 2*dc*apothemA + apothemA^2 - apothemA^2 = bRadius^2 - aRadius^2
+	//  > -2*dc*apothemA = bRadius^2 - aRadius^2 - dc^2
+	aRadiusSq, bRadiusSq := aRadius*aRadius, bRadius*bRadius
+	apothemA := (aRadiusSq - bRadiusSq + dc*dc) / (2 * dc)
+	halfChord := math.Sqrt(max(0, aRadiusSq-(apothemA*apothemA))) // trivial derivation
+
+	// find chord midpoint through line intersection
+	chordMidX := acx + apothemA*(dx/dc)
+	chordMidY := acy + apothemA*(dy/dc)
+
+	// tangent case
+	if halfChord == 0 {
+		return [2]float64{chordMidX, chordMidY}, [2]float64{chordMidX, chordMidY}, 1
+	}
+
+	// general case, offset chord midpoint to get the ends
+	m := halfChord / dc
+	xOffset, yOffset := -dy*m, dx*m
+	chordO := [2]float64{chordMidX - xOffset, chordMidY - yOffset}
+	chordF := [2]float64{chordMidX + xOffset, chordMidY + yOffset}
+	return chordO, chordF, 2
 }

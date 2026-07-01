@@ -1,303 +1,215 @@
 package shapes
 
 import (
-	"image"
-	"image/color"
-	"math"
+	"fmt"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-func (r *Renderer) NewSimpleGradient(w, h int, from, to color.RGBA, dirRadians float32) *ebiten.Image {
-	img := ebiten.NewImage(w, h)
-	r.SimpleGradient(img, from, to, dirRadians)
-	return img
-}
-
-// FlatPaint draws the mask onto the given target using the renderer vertex colors.
-func (r *Renderer) FlatPaint(target, mask *ebiten.Image, ox, oy float32) {
-	ensureShaderFlatPaintLoaded()
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderFlatPaint)
-}
-
-// SimpleGradient paints a high quality gradient over the given target.
-// See [DirRadsLTR] and similar constants for common gradient directions.
-func (r *Renderer) SimpleGradient(target *ebiten.Image, from, to color.RGBA, dirRadians float32) {
-	r.Gradient(target, nil, 0, 0, from, to, -1, dirRadians, 1.0)
-}
-
-// Gradient paints a high quality gradient over the given target. If mask is nil,
-// the target will have the gradient applied starting from (ox, oy) throughout
-// the entire image. See [DirRadsLTR] and similar constants for common gradient
-// directions.
-//
-// CurveFactor allows making the gradient linear (1.0), or ease it towards an
-// early start (e.g. 0.5) or late start (e.g. 2.0). Reasonable CurveFactor values
-// typically fall in the ~[0.2...4.0] range.
-//
-// See also [Renderer.SimpleGradient]().
-func (r *Renderer) Gradient(target, mask *ebiten.Image, ox, oy float32, from, to color.RGBA, numSteps int, dirRadians, curveFactor float32) {
-	if curveFactor < 0.001 {
-		panic("curveFactor must be positive above 0.001")
-	}
-
-	var srcBounds image.Rectangle
-	dstBounds := target.Bounds()
-	if mask == nil {
-		srcBounds = dstBounds
-	} else {
-		srcBounds = mask.Bounds()
-	}
-
-	srcWidth, srcHeight := float32(srcBounds.Dx()), float32(srcBounds.Dy())
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	minX, minY := dstMinX+ox, dstMinY+oy
-	maxX, maxY := minX+srcWidth, minY+srcHeight
-	r.setDstRectCoords(minX, minY, maxX, maxY)
-
-	srcMinX, srcMinY := float32(srcBounds.Min.X), float32(srcBounds.Min.Y)
-	srcMaxX, srcMaxY := float32(srcBounds.Max.X), float32(srcBounds.Max.Y)
-	r.setSrcRectCoords(srcMinX, srcMinY, srcMaxX, srcMaxY)
-	fromF64, toF64 := colorToF64(from), colorToF64(to)
-	memo := r.GetColorF32()
-	fromOklab := rgbToOklab([3]float64(fromF64[:3]))
-	toOklab := rgbToOklab([3]float64(toF64[:3]))
-	r.SetColorF32(float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3]))
-	r.setFlatCustomVAs(float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3]))
-
-	r.opts.Uniforms["Area"] = [4]float32{ox, oy, srcWidth, srcHeight}
-	r.opts.Uniforms["DirRadians"] = dirRadians
-	r.opts.Uniforms["NumSteps"] = numSteps
-	r.opts.Uniforms["CurveFactor"] = curveFactor
-	if mask != nil {
-		r.opts.Uniforms["UseMask"] = 1
-	} else {
-		r.opts.Uniforms["UseMask"] = 0
-	}
-
-	// draw shader
-	r.opts.Images[0] = mask
-	ensureShaderGradientLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradient, &r.opts)
-	r.opts.Images[0] = nil
-	clear(r.opts.Uniforms)
-	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
-}
-
-// GradientRadial paints a high quality radial gradient over the given target.
-//
-// CurveFactor allows making the gradient linear (1.0), or ease it towards an
-// early start (e.g. 0.5) or late start (e.g. 2.0). Reasonable CurveFactor values
-// typically fall in the ~[0.2...4.0] range.
-//
-// Three radiuses are necessary:
-//   - fromRadius: distances below this threshold take 'from' color. Use 0.0 if
-//     you don't need a solid central area.
-//   - transRadius: distances below this threshold but above fromRadius interpolate
-//     colors between 'from' and 'to'.
-//   - toRadius: distances below this threshold but above transRadius take 'to' color.
-//     Distances above this threshold are not painted. Use toRadius = transRadius for
-//     a gradient that ends at the given radius, or Float32Inf() if you want 'to'
-//     color to extend beyond the gradient radius.
-//
-// To mask the gradient over an existing image, consider [Renderer.SetBlend](ebiten.BlendSourceIn)
-// and similar tricks.
-func (r *Renderer) GradientRadial(target *ebiten.Image, cx, cy float32, from, to color.RGBA, fromRadius, transRadius, toRadius float32, numSteps int, curveFactor float32) {
-	if curveFactor < 0.001 {
-		panic("curveFactor must be positive above 0.001")
-	}
-	if transRadius < fromRadius || toRadius < transRadius {
-		panic("invalid radius values (radiuses must be equal or increasing)")
-	}
-
-	dstBounds := target.Bounds()
-	dstMinX, dstMinY := float32(dstBounds.Min.X), float32(dstBounds.Min.Y)
-	dstWidthF64, dstHeightF64 := float64(dstBounds.Dx()), float64(dstBounds.Dy())
-	cxF64, cyF64, toRadiusF64 := float64(cx), float64(cy), float64(toRadius)
-	ox, oy := float32(max(math.Floor(cxF64-toRadiusF64), 0)), float32(max(math.Floor(cyF64-toRadiusF64), 0))
-	fx, fy := float32(min(math.Ceil(cxF64+toRadiusF64), dstWidthF64)), float32(min(math.Ceil(cyF64+toRadiusF64), dstHeightF64))
-	minX, minY := dstMinX+ox, dstMinY+oy
-	maxX, maxY := dstMinX+fx, dstMinY+fy
-	r.setDstRectCoords(minX, minY, maxX, maxY)
-
-	fromF64, toF64 := colorToF64(from), colorToF64(to)
-	memo := r.GetColorF32()
-	fromOklab := rgbToOklab([3]float64(fromF64[:3]))
-	toOklab := rgbToOklab([3]float64(toF64[:3]))
-	r.SetColorF32(float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3]))
-	r.setFlatCustomVAs(float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3]))
-
-	r.opts.Uniforms["Radius"] = [3]float32{fromRadius, transRadius, toRadius}
-	r.opts.Uniforms["Origin"] = [2]float32{cx, cy}
-	r.opts.Uniforms["NumSteps"] = numSteps
-	r.opts.Uniforms["CurveFactor"] = curveFactor
-
-	// draw shader
-	ensureShaderGradientRadialLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderGradientRadial, &r.opts)
-	clear(r.opts.Uniforms)
-	r.SetColorF32(memo[0], memo[1], memo[2], memo[3])
-}
-
-func rgbToOklab(rgb [3]float64) [3]float64 {
-	linR, linG, linB := linearize(rgb[0]), linearize(rgb[1]), linearize(rgb[2])
-	x := math.Pow(0.4122214708*linR+0.5363325363*linG+0.0514459929*linB, 1.0/3.0)
-	y := math.Pow(0.2119034982*linR+0.6806995451*linG+0.1073969566*linB, 1.0/3.0)
-	z := math.Pow(0.0883024619*linR+0.2817188376*linG+0.6299787005*linB, 1.0/3.0)
-
-	l := 0.2104542553*x + 0.7936177850*y - 0.0040720468*z
-	a := 1.9779984951*x - 2.4285922050*y + 0.4505937099*z
-	b := 0.0259040371*x + 0.7827717662*y - 0.8086757660*z
-	return [3]float64{l, a, b}
-}
-
-func linearize(colorChan float64) float64 {
-	if colorChan >= 0.04045 {
-		return math.Pow((colorChan+0.055)/1.055, 2.4)
-	} else {
-		return colorChan / 12.92
-	}
-}
-
 // OklabShift draws the source image to the target, at the given coordinates,
-// with the given LCh shifts applied on oklab color space. The expected value
-// ranges are the following:
-//   - lightness: [0, 1]
-//   - chroma: [0, 0.5]
+// with the given LCh shifts applied on Oklab color space. Shifts can be positive
+// or negative, with the typical ranges being common:
+//   - chroma: [0, 0.37]. Most clearly distinguishable colors don't even exceed 0.15.
+//   - lightness: [0, 1]. High chromas happen around 0.9 lightness for yellow, around
+//     0.8 for orange, cyan, pink and lime green, 0.7 for light blues, magentas, greens
+//     and light reds, 0.5 for deeper reds, green, purple and blue, and down to 0.3 for
+//     deep blue. Lightness below or above these values in the given hue ranges leads
+//     to very dark or whitish colors with significantly lower chromas.
 //   - hue: in radians, wrapping is done automatically
+//
+// Notice: absolute shifts in perceptually uniform color spaces aren't particularly
+// helpful. Hue itself is not perceptually uniform, so that's one of the most useful
+// values to tweak. Other more effective tools might be exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
-	ensureShaderOklabShiftLoaded()
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderOklabShift)
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderOklabShift.Load())
 }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the
 // lightness of each source pixel and remapping it to a color between 'from' and 'to'.
 //
 // Key parameters:
-//   - fromLightness: pixels below this threshold take 'from' color.
+//   - fromLightness: pixels before this threshold take 'from' color.
 //     Expected range: [0.0, 1.0]
-//   - toLightness: pixels above this threshold take 'to' color.
+//   - toLightness: pixels after this threshold take 'to' color.
 //     Expected range: [0.0, 1.0].
-//   - steps: number of color steps in the gradient. Use steps <= 0 for a continuous gradient.
-//   - curveFactor: adjusts the gradient's interpolation curve; use 1.0 for linear,
-//     <= 1.0 to bias towards 'from', > 1.0 to bias towards 'to'. Recommended
-//     range: [0.2, 5.0].
-func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, x, y float32, from, to color.RGBA, fromLightness, toLightness float32, steps int, curveFactor float32) {
-	ensureShaderColorizeByLightnessLoaded()
-	fromF64, toF64 := colorToF64(from), colorToF64(to)
-	fromOklab, toOklab := rgbToOklab([3]float64(fromF64[:3])), rgbToOklab([3]float64(toF64[:3]))
-	r.opts.Uniforms["From"] = [4]float32{float32(fromOklab[0]), float32(fromOklab[1]), float32(fromOklab[2]), float32(fromF64[3])}
-	r.opts.Uniforms["To"] = [4]float32{float32(toOklab[0]), float32(toOklab[1]), float32(toOklab[2]), float32(toF64[3])}
-	r.setFlatCustomVAs(fromLightness, toLightness, float32(steps), curveFactor)
-	r.DrawShaderAt(target, source, x, y, 0, 0, shaderColorizeByLightness)
-	clear(r.opts.Uniforms)
-}
-
-// ColorMix draws 'base' and 'over' to 'target' using the mix() function
-// for color mixing instead of BlendSourceOver or other standard composition
-// operations. This is useful to interpolate color transitions or other image
-// changes when the images have translucent areas.
-//
-// The bounds of 'base' and 'over' must match.
-func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y int, alpha, mixLevel float32) {
-	srcBounds := base.Bounds()
-	if !srcBounds.Eq(over.Bounds()) {
-		panic("'base' and 'over' bounds must match")
+func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts GradientOptions, x, y, fromLightness, toLightness float32) {
+	if fromLightness > 1.0 || fromLightness < 0.0 {
+		r.Warnings.report(WarnInvalidRateClamped, fromLightness)
+		fromLightness = clamp(fromLightness, 0.0, 1.0)
+	}
+	if toLightness > 1.0 || toLightness < 0.0 {
+		r.Warnings.report(WarnInvalidRateClamped, toLightness)
+		toLightness = clamp(fromLightness, 0.0, 1.0)
+	}
+	if opts.Bias < -1.0 || opts.Bias > 1.0 {
+		r.Warnings.report(WarnInvalidBiasClamped, opts.Bias)
+		opts.Bias = clamp(opts.Bias, -1.0, 1.0)
+	}
+	if opts.Dither {
+		r.opts.Uniforms["Dither"] = 1
+		r.loadBlueNoise64RGBAt(1)
 	}
 
-	srcWidth, srcHeight := srcBounds.Dx(), srcBounds.Dy()
-	srcWidthF32, srcHeightF32 := float32(srcWidth), float32(srcHeight)
-	dstBounds := target.Bounds()
-	minX := float32(dstBounds.Min.X) + float32(x)
-	minY := float32(dstBounds.Min.Y) + float32(y)
-	r.setDstRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
-	minX = float32(srcBounds.Min.X)
-	minY = float32(srcBounds.Min.Y)
-	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
+	fromL, fromA, fromB := toOklab(opts.From[0], opts.From[1], opts.From[2])
+	toL, toA, toB := toOklab(opts.To[0], opts.To[1], opts.To[2])
 
-	r.setFlatCustomVAs01(alpha, mixLevel)
-	r.opts.Images[0] = base
+	from := [4]float32{float32(fromL), float32(fromA), float32(fromB), float32(opts.From[3])}
+	to := [4]float32{float32(toL), float32(toA), float32(toB), float32(opts.To[3])}
+	if fromLightness > toLightness {
+		fromLightness, toLightness = toLightness, fromLightness
+		from, to = to, from
+	}
+	r.opts.Uniforms["From"] = from
+	r.opts.Uniforms["To"] = to
+	r.setFlatCustomVAs(fromLightness, toLightness, float32(max(opts.Steps, 0)), (opts.Bias+1.0)/2.0)
+	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
+	clear(r.opts.Uniforms)
+	if opts.Dither {
+		r.opts.Images[1] = nil
+	}
+}
+
+// ColorMix draws base and over to target using the mix() function for color mixing
+// instead of standard composition operations.
+//
+// This is the cleanest way to interpolate a transition between two images (morphing)
+// while there's also an alpha transition, or if the two images have different alphas
+// at different pixel positions.
+//
+// The sizes of base and over must match.
+//
+// Supported flags: [Bilinear], [Dithered].
+func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alpha, mixLevel float32, flags ...Flag) {
+	baseBounds, overBounds := base.Bounds(), over.Bounds()
+	if baseBounds.Dx() != overBounds.Dx() || baseBounds.Dy() != overBounds.Dy() {
+		panic(fmt.Sprintf(
+			"base and over sizes must match (found %dx%d vs %dx%d)",
+			baseBounds.Dx(), baseBounds.Dy(), overBounds.Dx(), overBounds.Dy(),
+		))
+	}
+
+	var dither, bilinear bool
+	for _, flag := range flags {
+		switch flag {
+		case noFlag:
+			// ignore
+		case Dithered:
+			dither = true
+		case Bilinear:
+			bilinear = true
+		default:
+			r.Warnings.report(WarnInvalidFlag, flag)
+		}
+	}
+
 	r.opts.Images[1] = over
-	ensureShaderColorMixLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderColorMix, &r.opts)
-	r.opts.Images[0] = nil
+	if dither {
+		r.opts.Uniforms["Dither"] = 1
+		r.loadBlueNoise64RGBAt(2)
+	}
+
+	if bilinear {
+		r.setFlatCustomVAs01(alpha, mixLevel)
+		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMixBilinear.Load())
+	} else {
+		r.setFlatCustomVAs01(alpha, mixLevel)
+		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMix.Load())
+	}
+
 	r.opts.Images[1] = nil
+	if dither {
+		clear(r.opts.Uniforms)
+		r.opts.Images[2] = nil
+	}
 }
 
-var DitherBayes [16]float32 = [16]float32{
-	0.0 / 16.0, 12.0 / 16.0, 3.0 / 16.0, 15.0 / 16.0,
-	8.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 7.0 / 16.0,
-	2.0 / 16.0, 14.0 / 16.0, 1.0 / 16.0, 13.0 / 16.0,
-	10.0 / 16.0, 6.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
-}
-var DitherDots [16]float32 = [16]float32{
-	12.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 15.0 / 16.0,
-	5.0 / 16.0, 0.0 / 16.0, 3.0 / 16.0, 10.0 / 16.0,
-	6.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 9.0 / 16.0,
-	13.0 / 16.0, 7.0 / 16.0, 8.0 / 16.0, 14.0 / 16.0,
-}
-var DitherSerp [16]float32 = [16]float32{
-	0.0 / 16.0, 12.0 / 16.0, 13.0 / 16.0, 1.0 / 16.0,
-	3.0 / 16.0, 7.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
-	4.0 / 16.0, 8.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
-	11.0 / 16.0, 15.0 / 16.0, 14.0 / 16.0, 10.0 / 16.0,
-}
-var DitherGlitch [16]float32 = [16]float32{
-	0.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 3.0 / 16.0,
-	4.0 / 16.0, 5.0 / 16.0, 6.0 / 16.0, 7.0 / 16.0,
-	8.0 / 16.0, 9.0 / 16.0, 10.0 / 16.0, 11.0 / 16.0,
-	12.0 / 16.0, 13.0 / 16.0, 14.0 / 16.0, 15.0 / 16.0,
-}
+// Predefined color palettes for use with [Renderer.DitherMat4].
+var (
+	PaletteBW []float32 = []float32{
+		0.0, 0.0, 0.0, 1.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteBW4 []float32 = []float32{
+		0.0, 0.0, 0.0, 1.0,
+		0.333, 0.333, 0.333, 1.0,
+		0.666, 0.666, 0.666, 1.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteAlpha8 []float32 = []float32{
+		0.0, 0.0, 0.0, 0.0,
+		1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0,
+		2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0,
+		3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0,
+		4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0,
+		5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0,
+		6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0,
+		1.0, 1.0, 1.0, 1.0,
+	}
+	PaletteBRG []float32 = []float32{
+		0.0, 0.0, 1.0, 1.0,
+		1.0, 0.0, 0.0, 1.0,
+		0.0, 1.0, 0.0, 1.0,
+	}
+)
 
-var DitherCrumbs [16]float32 = [16]float32{
-	0.0 / 16.0, 4.0 / 16.0, 8.0 / 16.0, 1.0 / 16.0,
-	11.0 / 16.0, 14.0 / 16.0, 12.0 / 16.0, 5.0 / 16.0,
-	7.0 / 16.0, 13.0 / 16.0, 15.0 / 16.0, 9.0 / 16.0,
-	3.0 / 16.0, 10.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
-}
-
-var DitherBW []float32 = []float32{
-	0.0, 0.0, 0.0, 1.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-var DitherBW4 []float32 = []float32{
-	0.0, 0.0, 0.0, 1.0,
-	0.333, 0.333, 0.333, 1.0,
-	0.666, 0.666, 0.666, 1.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-
-var DitherAlpha8 []float32 = []float32{
-	0.0, 0.0, 0.0, 0.0,
-	1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0,
-	2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0, 2.0 / 7.0,
-	3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0, 3.0 / 7.0,
-	4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0, 4.0 / 7.0,
-	5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0, 5.0 / 7.0,
-	6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0, 6.0 / 7.0,
-	1.0, 1.0, 1.0, 1.0,
-}
-var DitherBRG []float32 = []float32{
-	0.0, 0.0, 1.0, 1.0,
-	1.0, 0.0, 0.0, 1.0,
-	0.0, 1.0, 0.0, 1.0,
-}
+// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4], in column-major
+// order.
+//
+// Tip: average multiple matrices for more interesting variations.
+var (
+	DitherBayes [16]float32 = [16]float32{
+		0.0 / 16.0, 12.0 / 16.0, 3.0 / 16.0, 15.0 / 16.0,
+		8.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 7.0 / 16.0,
+		2.0 / 16.0, 14.0 / 16.0, 1.0 / 16.0, 13.0 / 16.0,
+		10.0 / 16.0, 6.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
+	}
+	DitherDots [16]float32 = [16]float32{
+		12.0 / 16.0, 4.0 / 16.0, 11.0 / 16.0, 15.0 / 16.0,
+		5.0 / 16.0, 0.0 / 16.0, 3.0 / 16.0, 10.0 / 16.0,
+		6.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 9.0 / 16.0,
+		13.0 / 16.0, 7.0 / 16.0, 8.0 / 16.0, 14.0 / 16.0,
+	}
+	DitherSerp [16]float32 = [16]float32{
+		0.0 / 16.0, 12.0 / 16.0, 13.0 / 16.0, 1.0 / 16.0,
+		3.0 / 16.0, 7.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
+		4.0 / 16.0, 8.0 / 16.0, 9.0 / 16.0, 5.0 / 16.0,
+		11.0 / 16.0, 15.0 / 16.0, 14.0 / 16.0, 10.0 / 16.0,
+	}
+	DitherGlitch [16]float32 = [16]float32{
+		0.0 / 16.0, 1.0 / 16.0, 2.0 / 16.0, 3.0 / 16.0,
+		4.0 / 16.0, 5.0 / 16.0, 6.0 / 16.0, 7.0 / 16.0,
+		8.0 / 16.0, 9.0 / 16.0, 10.0 / 16.0, 11.0 / 16.0,
+		12.0 / 16.0, 13.0 / 16.0, 14.0 / 16.0, 15.0 / 16.0,
+	}
+	DitherCrumbs [16]float32 = [16]float32{
+		0.0 / 16.0, 4.0 / 16.0, 8.0 / 16.0, 1.0 / 16.0,
+		11.0 / 16.0, 14.0 / 16.0, 12.0 / 16.0, 5.0 / 16.0,
+		7.0 / 16.0, 13.0 / 16.0, 15.0 / 16.0, 9.0 / 16.0,
+		3.0 / 16.0, 10.0 / 16.0, 6.0 / 16.0, 2.0 / 16.0,
+	}
+)
 
 // DitherMat4 draws the given mask to the target applying a static 4x4 dithering pattern to select colors from
-// rgbaColors. The rgbaColors argument can contain up to 8 colors, flattened as RGBA quadruplets in [0...1] range.
-// You can test with DitherBW4. The ditherMatrix argument is a 4x4 dithering matrix in column major order (like
-// GLSL), where the values indicate the thresholds of the pattern in 0...1 range. You can test with [DitherBayes].
+// rgbaColors.
+//   - The rgbaColors argument can contain up to 8 colors, flattened as RGBA quadruplets in [0...1] range.
+//     See [PaletteBW4] and others for predefined palettes.
+//   - The ditherMatrix argument is a 4x4 dithering matrix in column major order (like GLSL), where the
+//     values indicate the thresholds of the pattern in 0...1 range. See [DitherBayes] and others for
+//     predefined matrices.
 func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffset, yOffset int, rgbaColors []float32, ditherMatrix [16]float32, rendererClrMix, maskColorMix float32) {
 	if len(rgbaColors)%4 != 0 {
 		panic("rgbaColors must have length multiple of 4")
 	}
-	numColors := len(rgbaColors) / 4
-	if numColors > 8 {
-		panic("DitherMat4 currently only supports up to 8 colors")
-	} else if numColors <= 1 {
-		panic("DitherMat4 expects at least 2 colors (as 8 float32 values)")
+	if len(rgbaColors) > 8*4 {
+		r.Warnings.report(WarnTooManyColorsClamped, len(rgbaColors)/4)
+		rgbaColors = rgbaColors[:8*4]
 	}
+	numColors := len(rgbaColors) / 4
+	if numColors <= 1 {
+		panic("DitherMat4 requires at least 2 colors (as 8 float32 values)")
+	}
+	// TODO: check alpha premult?
 	var palette [4 * 8]float32
 	copy(palette[:], rgbaColors)
 
@@ -305,6 +217,6 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	r.opts.Uniforms["Matrix"] = ditherMatrix
 	r.opts.Uniforms["NumColors"] = numColors
 	r.opts.Uniforms["Colors"] = palette
-	ensureShaderDitherMat4Loaded()
-	r.DrawShaderAt(target, mask, ox, oy, 0, 0, shaderDitherMat4)
+	r.DrawImgShader(target, mask, ox, oy, NoMargins, shaderDitherMat4.Load())
+	clear(r.opts.Uniforms)
 }

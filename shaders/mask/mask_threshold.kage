@@ -1,0 +1,49 @@
+//kage:unit pixels
+package main
+
+var Bilinear int
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	scaling, reveal := customVAs.xy, customVAs.z
+	relCoords := sourceCoords - imageSrc0Origin()
+	maskCoords := relCoords*scaling + imageSrc0Origin()
+
+	var srcColor vec4
+	var maskAlpha float
+	if Bilinear == 1 {
+		srcColor = bilinearSampling0(sourceCoords)
+		maskAlpha = bilinearSampling1(maskCoords, scaling).a
+	} else {
+		srcColor = imageSrc0UnsafeAt(sourceCoords)
+		maskAlpha = imageSrc1At(maskCoords).a
+	}
+
+	gate := step(maskAlpha, reveal)
+	return srcColor * gate
+}
+
+func bilinearSampling0(coords vec2) vec4 {
+	tl := imageSrc0At(coords - vec2(0.5))
+	tr := imageSrc0At(coords + vec2(+0.5, -0.5))
+	bl := imageSrc0At(coords + vec2(-0.5, +0.5))
+	br := imageSrc0At(coords + vec2(0.5))
+	delta := fract(coords + vec2(0.5))
+	return bilinearMix(tl, tr, bl, br, delta)
+}
+
+func bilinearSampling1(coords, unit vec2) vec4 {
+	tl := imageSrc1At(coords - unit/2.0)
+	tr := imageSrc1At(coords + vec2(+unit.x/2.0, -unit.y/2.0))
+	bl := imageSrc1At(coords + vec2(-unit.x/2.0, +unit.y/2.0))
+	br := imageSrc1At(coords + unit/2.0)
+	delta := min(fract(coords+unit/2.0), unit) / unit
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}

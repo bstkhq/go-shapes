@@ -1,0 +1,19 @@
+//kage:unit pixels
+package main
+
+var Dither int
+
+func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	tint := customVAs[0]
+	alpha := customVAs[1]
+	out := imageSrc0UnsafeAt(sourceCoords)
+	clr := mix(out, color*out.a, tint) * alpha
+
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc1UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		clr.rgb += vec3((noise - 0.5) / 255.0)
+		clr.rgb = clamp(clr.rgb, 0.0, 1.0)
+	}
+	return clr
+}

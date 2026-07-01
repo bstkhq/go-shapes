@@ -1,628 +1,188 @@
 package shapes
 
 import (
-	"image"
 	"math"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-func (r *Renderer) NewRect(width, height int) *ebiten.Image {
-	img := ebiten.NewImage(width, height)
-	r.DrawIntArea(img, 0, 0, width, height)
-	return img
-}
-
-func (r *Renderer) NewCircle(radius float64) *ebiten.Image {
-	side := float32(math.Ceil(radius * 2))
-	img := ebiten.NewImage(int(side), int(side))
-	r.DrawCircle(img, side/2, side/2, float32(radius))
-	return img
-}
-
-func (r *Renderer) NewRing(inRadius, outRadius float64) *ebiten.Image {
-	side := float32(math.Ceil(outRadius * 2))
-	img := ebiten.NewImage(int(side), int(side))
-	r.DrawRing(img, side/2, side/2, float32(inRadius), float32(outRadius))
-	return img
-}
-
-// DrawRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
-// When no rounding is required, prefer [Renderer.DrawIntArea]() instead.
-func (r *Renderer) DrawRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
-	r.DrawArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), rounding)
-}
-
-func (r *Renderer) DrawArea(target *ebiten.Image, ox, oy, w, h, rounding float32) {
-	if w < 0 {
-		w = -w
-		ox -= w
+// DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
+//
+// This operation is affected by [Renderer.Tint].
+//
+// At first glance DrawAt might seem redundant with [ebiten.DrawImageOptions], but there are two
+// differential features:
+//   - Applying dithering during composition, which can be especially critical at low alphas
+//     and visibility transitions when image and background colors are similar.
+//   - Painting or interpolating an image with the renderer colors, which can be set per vertex.
+//     This is color mixing, as opposed to [ebiten.ColorScale]'s multiplication.
+//
+// Usage example:
+//
+//	r.SetTint(1.0) // use only renderer colors
+//	r.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1) // make top vertices red
+//	r.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3) // make bottom vertices magenta
+//	x, y = shapes.CTR.Adjust(src, x, y) // adjust coordinates to CTR (center)
+//	r.DrawAt(target, source, x, y, alpha, shapes.Dithered) // draw with dithering
+func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float32, alpha float32, flags ...Flag) {
+	if alpha < 0.0 || alpha > 1.0 {
+		r.Warnings.report(WarnInvalidAlphaClamped, alpha)
+		alpha = clamp(alpha, 0, 1)
 	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-	ensureShaderRectLoaded()
-	r.setFlatCustomVAs(ox, oy, w, h)
-	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, 0, 0, shaderRect)
-	clear(r.opts.Uniforms)
-}
-
-// DrawLine draws a smooth line between the given two points, with rounded ends.
-func (r *Renderer) DrawLine(target *ebiten.Image, ox, oy, fx, fy float64, thickness float64) {
-	vdx, vdy := fx-ox, fy-oy // non-normalized vector
-	vpx, vpy := -vdy, vdx    // perpendicular vector
-	length := math.Hypot(vdx, vdy)
-	if length == 0 {
-		length = 1
-	}
-	// scale for vector normalization
-	scale := (thickness / 2) / length
-
-	// adjust bounding ends to include thickness rounding
-	box, boy := ox-vdx*scale, oy-vdy*scale
-	bfx, bfy := fx+vdx*scale, fy+vdy*scale
-
-	// compute bounding vertices applying the perpendicular offset
-	svpx, svpy := vpx*scale, vpy*scale
-	r.vertices[0].DstX = float32(box + svpx)
-	r.vertices[0].DstY = float32(boy + svpy)
-	r.vertices[1].DstX = float32(bfx + svpx)
-	r.vertices[1].DstY = float32(bfy + svpy)
-	r.vertices[2].DstX = float32(bfx - svpx)
-	r.vertices[2].DstY = float32(bfy - svpy)
-	r.vertices[3].DstX = float32(box - svpx)
-	r.vertices[3].DstY = float32(boy - svpy)
-
-	r.setFlatCustomVAs(float32(ox), float32(oy), float32(fx), float32(fy))
-	r.opts.Uniforms["Thickness"] = float32(thickness)
-
-	// draw shader
-	ensureShaderLineLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderLine, &r.opts)
-}
-
-func (r *Renderer) DrawCircle(target *ebiten.Image, cx, cy, radius float32) {
-	r.setDstRectCoords(cx-radius, cy-radius, cx+radius, cy+radius)
-	ensureShaderCircleLoaded()
-	r.setFlatCustomVAs(cx, cy, radius, 0.0)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderCircle, &r.opts)
-}
-
-func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32) {
-	if thickness <= 0 {
-		return // nothing to draw
-	}
-	if radius <= thickness/2.0 {
-		rem := thickness/2.0 - radius
-		if rem > 0 {
-			r.DrawCircle(target, cx, cy, rem)
-		}
+	if alpha == 0 && r.blendSafeToCrop() {
 		return
 	}
 
-	hthickCeil := ceilF32(thickness / 2.0)
-	r.setDstRectCoords(cx-radius-hthickCeil, cy-radius-hthickCeil, cx+radius+hthickCeil, cy+radius+hthickCeil)
-	ensureShaderStrokeCircleLoaded()
-	r.setFlatCustomVAs(cx, cy, radius, thickness)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeCircle, &r.opts)
-}
-
-// DrawRing draws a smooth ring at the given position. For ring segments
-// with start and end angles, see [Renderer.DrawRingSector]() instead.
-func (r *Renderer) DrawRing(target *ebiten.Image, cx, cy, inRadius, outRadius float32) {
-	if inRadius >= outRadius {
-		return // skip empty draws
-	}
-	r.setDstRectCoords(cx-outRadius, cy-outRadius, cx+outRadius, cy+outRadius)
-	ensureShaderRingLoaded()
-	r.setFlatCustomVAs(cx, cy, outRadius, inRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderRing, &r.opts)
-}
-
-// DrawRingSector draws a smooth ring segment. See [RadsRight] constants for
-// angle conventions and docs.
-//
-// Only outer rounding is supported at the moment.
-func (r *Renderer) DrawRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
-	if inRadius >= outRadius || outRadius < 0 || startRads == endRads {
-		return // skip empty draws
-	}
-	if inRadius <= 0 {
-		r.DrawCircle(target, cx, cy, outRadius)
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.DrawRing(target, cx, cy, inRadius, outRadius)
+	bilinear, dither := r.readRenderFlags(flags...)
+	if dither {
+		r.opts.Uniforms["Dither"] = 1
+		r.loadBlueNoise64RGBAt(1)
 	}
 
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalDrawRingSector(target, cx, cy, inRadius, outRadius, startRads, endRads, rounding)
-}
-
-// precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalDrawRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := ringSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
-	if rounding != 0 {
-		r := abs(rounding)
-		pieMinX -= r
-		pieMinY -= r
-		pieMaxX += r
-		pieMaxY += r
-	}
-
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.vertices[0].DstX = dstOX + pieMinX
-	r.vertices[0].DstY = dstOY + pieMinY
-	r.vertices[1].DstX = dstOX + pieMaxX
-	r.vertices[1].DstY = dstOY + pieMinY
-	r.vertices[2].DstX = dstOX + pieMaxX
-	r.vertices[2].DstY = dstOY + pieMaxY
-	r.vertices[3].DstX = dstOX + pieMinX
-	r.vertices[3].DstY = dstOY + pieMaxY
-
-	ensureShaderRingSectorLoaded()
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	ws, wc := math.Sincos(delta / 2.0)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["InRadius"] = inRadius
-	r.opts.Uniforms["Rounding"] = rounding
-	r.setFlatCustomVAs(cx, cy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderRingSector, &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// StrokeRingSector draws the outline of a smooth ring segment. See [RadsRight]
-// constants for angle conventions and docs.
-//
-// Only outer rounding is supported at the moment.
-func (r *Renderer) StrokeRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
-	if inRadius >= outRadius || outRadius < 0 || startRads == endRads || thickness <= 0 {
-		return // skip empty draws
-	}
-	if inRadius <= 0 {
-		r.StrokeCircle(target, cx, cy, outRadius, thickness)
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.StrokeCircle(target, cx, cy, inRadius, thickness)
-		r.StrokeCircle(target, cx, cy, outRadius, thickness)
-	}
-
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	r.internalStrokeRingSector(target, cx, cy, inRadius, outRadius, thickness, startRads, endRads, rounding)
-}
-
-// precondition: angles are normalized to [0, 2*pi)
-func (r *Renderer) internalStrokeRingSector(target *ebiten.Image, cx, cy, inRadius, outRadius, thickness float32, startRads, endRads float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := ringSectorBounds(cx, cy, inRadius, outRadius, startRads, endRads)
-	if rounding != 0 {
-		r := abs(rounding)
-		pieMinX -= r
-		pieMinY -= r
-		pieMaxX += r
-		pieMaxY += r
-	}
-	pieMinX -= thickness / 2.0
-	pieMinY -= thickness / 2.0
-	pieMaxX += thickness / 2.0
-	pieMaxY += thickness / 2.0
-
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.vertices[0].DstX = dstOX + pieMinX
-	r.vertices[0].DstY = dstOY + pieMinY
-	r.vertices[1].DstX = dstOX + pieMaxX
-	r.vertices[1].DstY = dstOY + pieMinY
-	r.vertices[2].DstX = dstOX + pieMaxX
-	r.vertices[2].DstY = dstOY + pieMaxY
-	r.vertices[3].DstX = dstOX + pieMinX
-	r.vertices[3].DstY = dstOY + pieMaxY
-
-	ensureShaderStrokeRingSectorLoaded()
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	ws, wc := math.Sincos(delta / 2.0)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["InRadius"] = inRadius
-	r.opts.Uniforms["Rounding"] = rounding
-	r.opts.Uniforms["Thickness"] = thickness
-	r.setFlatCustomVAs(cx, cy, float32(centerDir), outRadius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokeRingSector, &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// DrawPie draws circular sector defined by (startRads, endRads).
-// See [RadsRight] constants for angle conventions and docs.
-//
-// Some examples:
-//   - startRads = RadsRight, endRads = RadsBottom will draw the bottom-right quarter circle pie.
-//   - startRads = RadsBottom, endRads = RadsRight will draw a pie missing the bottom-right quarter.
-//
-// Notice that the rounding parameter doesn't expand the shape beyond the radius, but it does expand
-// the side flat faces of the pie.
-func (r *Renderer) DrawPie(target *ebiten.Image, cx, cy, radius float32, startRads, endRads float64, rounding float32) {
-	if startRads == endRads || radius < 0 {
-		return // empty
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.DrawCircle(target, cx, cy, radius)
-		return // full circle
-	}
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	r.internalDrawPieRate(target, cx, cy, radius, centerDir, startRads, endRads, float64(delta)/(2*math.Pi), rounding)
-}
-
-// DrawPieRate is similar to DrawPie, but using a single direction for the center of the pie
-// slice and a rate value between (0, 1), with 0 being empty pie and 1 being completely filled.
-// See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) DrawPieRate(target *ebiten.Image, cx, cy, radius float32, centerDir, rate float64, rounding float32) {
-	if rate <= 0 || radius < 0 {
-		return // empty
-	}
-	if rate > 1.0 {
-		r.DrawCircle(target, cx, cy, radius)
-		return // full circle
-	}
-
-	ratePi := rate * math.Pi
-	startRads, endRads := uradsAddCW(centerDir, ratePi), uradsAddCW(centerDir, ratePi)
-	r.internalDrawPieRate(target, cx, cy, radius, centerDir, startRads, endRads, rate, rounding)
-}
-
-// preconditions: 0 < rate < 1.0, centerDir, startRads, endRads and rate are consistent
-func (r *Renderer) internalDrawPieRate(target *ebiten.Image, cx, cy, radius float32, centerDir, startRads, endRads, rate float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := pieBounds(cx, cy, radius, startRads, endRads)
-	pieMinX -= rounding
-	pieMinY -= rounding
-	pieMaxX += rounding
-	pieMaxY += rounding
-
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.setDstRectCoords(dstOX+pieMinX, dstOY+pieMinY, dstOX+pieMaxX, dstOY+pieMaxY)
-
-	ensureShaderPieLoaded()
-	ws, wc := math.Sincos(rate * math.Pi)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["Rounding"] = rounding
-	r.setFlatCustomVAs(cx, cy, float32(normURads(centerDir)), radius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderPie, &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// StrokePie is the stroke version of [Renderer.DrawPie](). The shape is drawn with an ouline of the given thickness.
-func (r *Renderer) StrokePie(target *ebiten.Image, cx, cy, radius, thickness float32, startRads, endRads float64, rounding float32) {
-	if startRads == endRads || radius < 0 {
-		return // empty
-	}
-	if endRads >= startRads+2*math.Pi {
-		r.StrokeCircle(target, cx, cy, radius, thickness)
-		return // full circle
-	}
-	startRads, endRads = normURads(startRads), normURads(endRads)
-	delta := uradsDeltaCW(startRads, endRads)
-	centerDir := uradsAddCW(startRads, delta/2.0)
-	r.internalStrokePieRate(target, cx, cy, radius, thickness, centerDir, startRads, endRads, float64(delta)/(2*math.Pi), rounding)
-}
-
-// StrokePie is the stroke version of [Renderer.DrawPieRate](). The shape is drawn with an ouline of the given thickness.
-func (r *Renderer) StrokePieRate(target *ebiten.Image, cx, cy, radius, thickness float32, centerDir, rate float64, rounding float32) {
-	if rate <= 0 || radius < 0 {
-		return // empty
-	}
-	if rate > 1.0 {
-		r.StrokeCircle(target, cx, cy, radius, thickness)
-		return // full circle
-	}
-
-	ratePi := rate * math.Pi
-	startRads, endRads := uradsAddCW(centerDir, ratePi), uradsAddCW(centerDir, ratePi)
-	r.internalStrokePieRate(target, cx, cy, radius, thickness, centerDir, startRads, endRads, rate, rounding)
-}
-
-// preconditions: 0 < rate < 1.0, centerDir, startRads, endRads and rate are consistent
-func (r *Renderer) internalStrokePieRate(target *ebiten.Image, cx, cy, radius, thickness float32, centerDir, startRads, endRads, rate float64, rounding float32) {
-	pieMinX, pieMinY, pieMaxX, pieMaxY := pieBounds(cx, cy, radius, startRads, endRads)
-	pieMinX -= (rounding + thickness)
-	pieMinY -= (rounding + thickness)
-	pieMaxX += (rounding + thickness)
-	pieMaxY += (rounding + thickness)
-
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.setDstRectCoords(dstOX+pieMinX, dstOY+pieMinY, dstOX+pieMaxX, dstOY+pieMaxY)
-
-	ensureShaderStrokePieLoaded()
-	ws, wc := math.Sincos(rate * math.Pi)
-	r.opts.Uniforms["WedgeNormal"] = [2]float32{float32(ws), float32(wc)}
-	r.opts.Uniforms["Rounding"] = rounding
-	r.opts.Uniforms["Thickness"] = thickness
-	r.setFlatCustomVAs(cx, cy, float32(normURads(centerDir)), radius)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderStrokePie, &r.opts)
-	clear(r.opts.Uniforms)
-}
-
-// Notice: ellipses don't have a perfect SDF, so approximations can be very slightly
-// bigger or smaller than the requested radiuses.
-func (r *Renderer) DrawEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRadius float32, rads float64) {
-	if rads == 0 {
-		r.setDstRectCoords(cx-horzRadius, cy-vertRadius, cx+horzRadius, cy+vertRadius)
-		r.opts.Uniforms["Radians"] = 0
+	var shader *ebiten.Shader
+	if bilinear {
+		shader = shaderDrawTintBilinear.Load()
 	} else {
-		hRadiusF64, vRadiusF64 := float64(horzRadius), float64(vertRadius)
-		rs, rc := math.Sincos(rads)
-		halfWidth := float32(math.Hypot(hRadiusF64*rc, vRadiusF64*rs))
-		halfHeight := float32(math.Hypot(hRadiusF64*rs, vRadiusF64*rc))
-		r.setDstRectCoords(cx-halfWidth, cy-halfHeight, cx+halfWidth, cy+halfHeight)
-		r.opts.Uniforms["Radians"] = rads
-	}
-	r.setFlatCustomVAs(cx, cy, horzRadius, vertRadius)
-	ensureShaderEllipseLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderEllipse, &r.opts)
-}
-
-// DrawIntRect is the image.Rectangle compatible equivalent of [Renderer.DrawIntArea]().
-func (r *Renderer) DrawIntRect(target *ebiten.Image, rect image.Rectangle) {
-	r.DrawIntArea(target, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
-}
-
-func (r *Renderer) DrawIntArea(target *ebiten.Image, ox, oy, w, h int) {
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-	bounds := target.Bounds()
-	minX, minY := bounds.Min.X, bounds.Min.Y
-	r.setDstRectCoords(float32(minX+ox), float32(minY+oy), float32(minX+ox+w), float32(minY+oy+h))
-	ensureShaderDefaultLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderDefault, &r.opts)
-}
-
-// StrokeIntRect is the image.Rectangle compatible equivalent of [Renderer.StrokeIntArea]().
-func (r *Renderer) StrokeIntRect(target *ebiten.Image, area image.Rectangle, outThickness, inThickness int) {
-	r.StrokeIntArea(target, area.Min.X, area.Min.Y, area.Dx(), area.Dy(), outThickness, inThickness)
-}
-
-func (r *Renderer) StrokeIntArea(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness int) {
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-	if outThickness < 0 || inThickness < 0 {
-		panic("outThickness < 0 || inThickness < 0")
+		shader = shaderDrawTintNearest.Load()
 	}
 
-	if outThickness == 0 {
-		if inThickness != 0 {
-			r.strokeIntInnerArea(target, ox, oy, w, h, inThickness)
-		}
-	} else {
-		r.strokeIntInnerArea(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness)
+	r.setFlatCustomVAs01(r.tint, alpha)
+	r.DrawImgShader(target, source, x, y, NoMargins, shader)
+
+	if dither {
+		clear(r.opts.Uniforms)
+		r.opts.Images[1] = nil
 	}
 }
 
-func (r *Renderer) strokeIntInnerArea(target *ebiten.Image, ox, oy, w, h, thickness int) {
-	bounds := target.Bounds()
-	minX, minY := bounds.Min.X, bounds.Min.Y
-	oox, ooy := float32(minX+ox), float32(minY+oy)
-	ofx, ofy := float32(minX+ox+w), float32(minY+oy+h)
-	r.setDstRectCoords(oox, ooy, ofx, ofy)
+// DrawImgShader calls DrawTrianglesShader using the renderer's option and
+// passing the given source image as imageSrc0.
+//
+// Notice that the target origin matters; to align the shader to the top left
+// corner, (ox, oy) must match target.Bounds().Min.
+//
+// This is a low level method mostly used by other higher level renderer calls.
+func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, shader *ebiten.Shader) {
+	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
+	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+srcWidthF32+margins.Right), ceilF32(oy+srcHeightF32+margins.Bottom))
+	r.setSrcRectCoords(srcOX-margins.Left, srcOY-margins.Top, srcOX+srcWidthF32+margins.Right, srcOY+srcHeightF32+margins.Bottom)
 
-	// add inner points
-	thickF32 := float32(thickness)
-	iox, ioy := oox+thickF32, ooy+thickF32
-	ifx, ify := ofx-thickF32, ofy-thickF32
-	if r.singleClr || r.opts.Blend == ebiten.BlendClear {
-		r.vertices = append(r.vertices,
-			ebiten.Vertex{DstX: iox, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ify},
-			ebiten.Vertex{DstX: iox, DstY: ify},
-		)
-		for i := range 4 {
-			r.vertices[4+i].ColorR = r.vertices[i].ColorR
-			r.vertices[4+i].ColorG = r.vertices[i].ColorG
-			r.vertices[4+i].ColorB = r.vertices[i].ColorB
-			r.vertices[4+i].ColorA = r.vertices[i].ColorA
-		}
-	} else {
-		// we need to interpolate colors. this code takes advantage of
-		// the heavy symmetries in the geometry to reduce the number of
-		// operations, but as a downside, it's a bit tricky to understand
+	r.opts.Images[0] = source
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+	r.opts.Images[0] = nil
+}
 
-		// compute uv coords for inner points
-		iou := min(max((iox-oox)/(ofx-oox), 0), 1)
-		iov := min(max((ioy-ooy)/(ofy-ooy), 0), 1)
+// DrawRectShader calls target.DrawTrianglesShader using the renderer's options.
+//
+// Notice that the target origin matters; to align the shader to the top left
+// corner, (ox, oy) must match target.Bounds().Min.
+//
+// This is a low level method mostly used by other higher level renderer calls.
+func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, shader *ebiten.Shader) {
+	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+w+margins.Right), ceilF32(oy+h+margins.Bottom))
+	r.setSrcRectCoords(-margins.Left, -margins.Top, w+margins.Right, h+margins.Bottom)
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+}
 
-		// compute top and bottom left colors
-		tR, tG, tB, tA := interpVertexColor(r.vertices[0], r.vertices[1], iou)
-		bR, bG, bB, bA := interpVertexColor(r.vertices[3], r.vertices[2], iou)
+// CircShaderOptions are used for [Renderer.DrawCircShader]().
+type CircShaderOptions struct {
+	// Radius defines the radius of the circular region.
+	Radius float32
 
-		// append all vertices with left side colors set
-		r.vertices = append(r.vertices,
-			ebiten.Vertex{DstX: iox, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ioy},
-			ebiten.Vertex{DstX: ifx, DstY: ify},
-			ebiten.Vertex{DstX: iox, DstY: ify},
-		)
+	// Thickness defines the width of the circular outline:
+	//  - If thickness > 0, outline expands [-thickness/2, thickness/2]
+	//    around the radius.
+	//  - If thickness < 0, the outline goes from [-thickness, 0].
+	Thickness float32
 
-		tli, tri, bli, bri := 4, 5, 7, 6 // NOTE: use other orders for cool effects
-		r.vertices[tli].ColorR = lerp(tR, bR, iov)
-		r.vertices[tli].ColorG = lerp(tG, bG, iov)
-		r.vertices[tli].ColorB = lerp(tB, bB, iov)
-		r.vertices[tli].ColorA = lerp(tA, bA, iov)
+	// See [RadsRight] constants for angle conventions and docs.
+	StartAngle float32
 
-		r.vertices[bli].ColorR = lerp(bR, tR, iov)
-		r.vertices[bli].ColorG = lerp(bG, tG, iov)
-		r.vertices[bli].ColorB = lerp(bB, tB, iov)
-		r.vertices[bli].ColorA = lerp(bA, tA, iov)
+	// See [RadsRight] constants for angle conventions and docs.
+	EndAngle float32
 
-		// compute right side colors by symmetry
-		tR = r.vertices[1].ColorR - (tR - r.vertices[0].ColorR)
-		tG = r.vertices[1].ColorG - (tG - r.vertices[0].ColorG)
-		tB = r.vertices[1].ColorB - (tB - r.vertices[0].ColorB)
-		tA = r.vertices[1].ColorA - (tA - r.vertices[0].ColorA)
-		bR = r.vertices[2].ColorR - (bR - r.vertices[3].ColorR)
-		bG = r.vertices[2].ColorG - (bG - r.vertices[3].ColorG)
-		bB = r.vertices[2].ColorB - (bB - r.vertices[3].ColorB)
-		bA = r.vertices[2].ColorA - (bA - r.vertices[3].ColorA)
+	// Tolerance sets the maximum allowed tessellation overshoot
+	// in pixels.
+	//
+	// If zero, a default coarse tolerance of 7.5 is used.
+	// The minimum non-zero value is 0.1.
+	Tolerance float32
+}
 
-		// set right vertex colors
-		r.vertices[tri].ColorR = lerp(tR, bR, iov)
-		r.vertices[tri].ColorG = lerp(tG, bG, iov)
-		r.vertices[tri].ColorB = lerp(tB, bB, iov)
-		r.vertices[tri].ColorA = lerp(tA, bA, iov)
+// CircShaderOpts creates a full circle [CircShaderOptions] with the given radius
+// and thickness.
+func CircShaderOpts(radius, thickness float32) CircShaderOptions {
+	return CircShaderOptions{
+		Radius:     radius,
+		Thickness:  thickness,
+		StartAngle: 0.0,
+		EndAngle:   2 * math.Pi,
+	}
+}
 
-		r.vertices[bri].ColorR = lerp(bR, tR, iov)
-		r.vertices[bri].ColorG = lerp(bG, tG, iov)
-		r.vertices[bri].ColorB = lerp(bB, tB, iov)
-		r.vertices[bri].ColorA = lerp(bA, tA, iov)
+// DrawCircShader draws a shader within a circular triangle strip. This is particularly
+// useful when the bounding rectangle of a circle is much bigger than the actual area
+// that we need to render.
+//
+// Due to the dynamically adjusted number of segments and rendering area, notice that:
+//   - You can't use per-vertex colors, only the first vertex color will be used.
+//   - You shouldn't rely on blends like BlendSourceIn or BlendClear that aren't "safe
+//     to crop".
+func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts CircShaderOptions, shader *ebiten.Shader) {
+	if opts.Thickness == 0 {
+		return // ignore blends, this is already a crop operation
+	}
+	if opts.Tolerance == 0.0 {
+		opts.Tolerance = 7.5 // default tolerance, update opts.Tolerance docs if changed
+	}
+	if opts.Radius < 0.0 {
+		r.Warnings.report(WarnRadiusClamped, opts.Radius)
+		opts.Radius = 0.0
+	}
+	if opts.Tolerance < 0.1 {
+		r.Warnings.report(WarnLowToleranceRaised, opts.Tolerance)
+		opts.Tolerance = 0.1
+	}
+	if opts.StartAngle == opts.EndAngle {
+		return
 	}
 
-	ensureShaderDefaultLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.strokeIndices[:], shaderDefault, &r.opts)
+	// prepare vertices and indices
+	memo := r.memorizeColors()
+	r.vertices = r.vertices[:0]
+	rads := uradsDeltaCW(opts.StartAngle, opts.EndAngle)
+	r.vertices = appendArcVertices(r.vertices, float64(opts.Radius), float64(opts.Thickness), float64(opts.StartAngle), float64(rads), float64(opts.Tolerance))
+
+	for i := range r.vertices {
+		r.vertices[i].DstX += cx
+		r.vertices[i].DstY += cy
+		r.vertices[i].ColorR = memo[0]
+		r.vertices[i].ColorG = memo[1]
+		r.vertices[i].ColorB = memo[2]
+		r.vertices[i].ColorA = memo[3]
+	}
+
+	r.indices = r.indices[:0]
+	numQuads := len(r.vertices)/2 - 1
+	numIndices := numQuads * 6
+	r.indices = slices.Grow(r.indices, numIndices)[:numIndices]
+	i := 0
+	for q := range uint32(numQuads) {
+		vertIndex := q << 1
+		r.indices[i+0] = vertIndex + 0
+		r.indices[i+1] = vertIndex + 1
+		r.indices[i+2] = vertIndex + 2
+		r.indices[i+3] = vertIndex + 2
+		r.indices[i+4] = vertIndex + 1
+		r.indices[i+5] = vertIndex + 3
+		i += 6
+	}
+
+	// draw and restore state
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+
 	r.vertices = r.vertices[:4]
-}
-
-// StrokeRect is the image.Rectangle compatible equivalent of [Renderer.DrawArea]().
-// When no rounding is required, prefer [Renderer.DrawIntArea]() instead.
-func (r *Renderer) StrokeRect(target *ebiten.Image, rect image.Rectangle, outThickness, inThickness, rounding float32) {
-	r.StrokeArea(target, float32(rect.Min.X), float32(rect.Min.Y), float32(rect.Dx()), float32(rect.Dy()), outThickness, inThickness, rounding)
-}
-
-func (r *Renderer) StrokeArea(target *ebiten.Image, ox, oy, w, h, outThickness, inThickness, rounding float32) {
-	if w < 0 {
-		w = -w
-		ox -= w
-	}
-	if h < 0 {
-		h = -h
-		oy -= h
-	}
-
-	if outThickness < 0 || inThickness < 0 {
-		panic("outThickness < 0 || inThickness < 0")
-	}
-
-	if outThickness == 0 {
-		if inThickness != 0 {
-			r.strokeInnerArea(target, ox, oy, w, h, inThickness, rounding)
-		}
-	} else {
-		r.strokeInnerArea(target, ox-outThickness, oy-outThickness, w+outThickness*2, h+outThickness*2, outThickness+inThickness, rounding)
-	}
-}
-
-func (r *Renderer) strokeInnerArea(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32) {
-	ensureShaderStrokeRectLoaded()
-	r.setFlatCustomVAs(ox, oy, w, h)
-	r.opts.Uniforms["InnerThickness"] = inThickness
-	r.opts.Uniforms["Rounding"] = rounding
-	r.DrawRectShader(target, ox, oy, w, h, 0, 0, shaderStrokeRect)
-	clear(r.opts.Uniforms)
-}
-
-// DrawTriangle draws a smooth triangle using the given vertices and an optional rounding factor.
-// Notice that, if provided, handling the rounding is relatively non-trivial (two dozen f64 products
-// and 3 square roots for CPU-side precomputations).
-func (r *Renderer) DrawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, rounding float64) {
-	r.drawTriangle(target, ox1, oy1, ox2, oy2, ox3, oy3, 0.0, rounding)
-}
-
-// StrokeTriangle draws an unfilled triangle. The outline will expand [-thickness/2, +thickness/2] around
-// the given points, unless the passed thickness is negative, in which case the outline will be interior
-// only, going from [-thickness, 0].
-//
-// For more details on rounding, see [Renderer.DrawTriangle]().
-func (r *Renderer) StrokeTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding float64) {
-	r.drawTriangle(target, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding)
-}
-
-func (r *Renderer) drawTriangle(target *ebiten.Image, ox1, oy1, ox2, oy2, ox3, oy3, thickness, rounding float64) {
-	area := math.Abs((ox1*(oy2-oy3) + ox2*(oy3-oy1) + ox3*(oy1-oy2)) / 2)
-	if area < 1e-6 {
-		return // empty triangle
-	}
-
-	var iox1, ioy1, iox2, ioy2, iox3, ioy3 float64 = ox1, oy1, ox2, oy2, ox3, oy3
-	if rounding != 0 {
-		a12, b12, c12 := toLinearFormABC(ox1, oy1, ox2, oy2)
-		a23, b23, c23 := toLinearFormABC(ox2, oy2, ox3, oy3)
-		a31, b31, c31 := toLinearFormABC(ox3, oy3, ox1, oy1)
-		c1_12, c2_12 := parallelsAtDist(a12, b12, c12, rounding)
-		c1_23, c2_23 := parallelsAtDist(a23, b23, c23, rounding)
-		c1_31, c2_31 := parallelsAtDist(a31, b31, c31, rounding)
-		if a12*ox3+b12*oy3+c12 > 0 { // fancy winding order test
-			c12, c23, c31 = c1_12, c1_23, c1_31
-		} else {
-			c12, c23, c31 = c2_12, c2_23, c2_31
-		}
-		iox1, ioy1 = shortCramer(a31, b31, c31, a12, b12, c12)
-		iox2, ioy2 = shortCramer(a12, b12, c12, a23, b23, c23)
-		iox3, ioy3 = shortCramer(a23, b23, c23, a31, b31, c31)
-	}
-
-	minX, maxX := min(ox1, ox2, ox3), max(ox1, ox2, ox3)
-	minY, maxY := min(oy1, oy2, oy3), max(oy1, oy2, oy3)
-	hthick := max(thickness/2.0, 0)
-	r.setDstRectCoords(float32(minX-hthick), float32(minY-hthick), float32(maxX+hthick), float32(maxY+hthick))
-
-	// draw shader
-	ensureShaderTriangleLoaded()
-	r.opts.Uniforms["P0"] = []float32{float32(iox1), float32(ioy1)}
-	r.opts.Uniforms["P1"] = []float32{float32(iox2), float32(ioy2)}
-	r.opts.Uniforms["P2"] = []float32{float32(iox3), float32(ioy3)}
-	r.opts.Uniforms["Rounding"] = float32(rounding)
-	r.opts.Uniforms["Thickness"] = float32(thickness)
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderTriangle, &r.opts)
-}
-
-// DrawHexagon renders an hexagon that can be fully contained within the given radius.
-// Roundness can be used to round the corners. Rads can be used to rotate the hexagon,
-// in radians.
-func (r *Renderer) DrawHexagon(target *ebiten.Image, ox, oy, radius, roundness, rads float32) {
-	r.setDstRectCoords(ox-radius, oy-radius, ox+radius, oy+radius)
-
-	// draw shader
-	const apothemToRadiusFactor = 0.866025404 // math.Sqrt(3)/2
-	apothem := (radius - roundness) * apothemToRadiusFactor
-	r.setFlatCustomVAs(ox, oy, apothem, rads)
-	r.opts.Uniforms["Roundness"] = roundness
-	ensureShaderHexagonLoaded()
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderHexagon, &r.opts)
-}
-
-// DrawQuad renders a convex quad with the current renderer colors.
-// The thickening acts as a rounding parameter, but it extends the shape outwards
-// instead of "cutting" the corners. Notice that non-zero thickening involves
-// additional CPU-side precomputations.
-//
-// quad must be given in clockwise order starting from top-left.
-func (r *Renderer) DrawQuad(target *ebiten.Image, quad [4]PointF32, thickening float32) {
-	r.DrawQuadSoft(target, quad, thickening, 1.3333)
-}
-
-func (r *Renderer) DrawQuadSoft(target *ebiten.Image, quad [4]PointF32, thickening, softEdge float32) {
-	minX, minY, _, _ := rectOriginSizeF32(target.Bounds())
-	for i, pt := range expandQuad(quad, thickening) {
-		r.vertices[i].DstX = minX + pt.X
-		r.vertices[i].DstY = minY + pt.Y
-	}
-
-	r.setFlatCustomVAs01(thickening, softEdge)
-	ensureShaderQuadLoaded()
-	r.opts.Uniforms["Quad"] = [8]float32{
-		quad[0].X, quad[0].Y, quad[1].X, quad[1].Y,
-		quad[2].X, quad[2].Y, quad[3].X, quad[3].Y,
-	}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderQuad, &r.opts)
-	clear(r.opts.Uniforms)
+	r.restoreIndices()
+	r.restoreColors(memo)
 }

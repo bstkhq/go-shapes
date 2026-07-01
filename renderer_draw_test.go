@@ -1,6 +1,8 @@
 package shapes
 
 import (
+	"fmt"
+	"image"
 	"image/color"
 	"math"
 	"testing"
@@ -8,302 +10,159 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestDrawShapes$ . -count 1
-func TestDrawShapes(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+// go test -run ^TestDrawAt$ . -count 1
+func TestDrawAt(t *testing.T) {
+	var flags flagList
+	updater := func(ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		lc := ctx.LeftClickF32()
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		lc.Y += -8.0 + float32(ctx.DistAnim(16, 1.0))
+		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
+			ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0, flags...)
+		} else {
+			mark := image.Rectangle{Max: canvas.Bounds().Max}
+			mark.Min = mark.Max.Sub(image.Pt(16, 8))
+			Paint(canvas, mark, [4]float32{0.5, 0.5, 0, 1.0}, ebiten.BlendSourceOver)
+
+			var opts ebiten.DrawImageOptions
+			if flags.Has(Bilinear) {
+				opts.Filter = ebiten.FilterLinear
+			}
+			opts.GeoM.Translate(float64(lc.X), float64(lc.Y))
+			canvas.DrawImage(ctx.Images[0], &opts)
+		}
+
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[1], rc)
+		ctx.Renderer.SetTint(0.5 + float32(ctx.DistAnim(0.5, 1.0)))
+		alpha := float32(ctx.DistAnim(1.0, 0.333))
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rc.X, rc.Y, alpha, flags...)
+		ctx.Renderer.SetTint(0)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		alpha = float32(0.025 + ctx.DistAnim(0.025, 1.0))
+		ctx.Renderer.SetTint(1)
+		o := CTR.AdjustXY(ctx.Images[1], cw/2, ch/2)
+		o.Y += float32(-4 + ctx.DistAnim(8.0, 1.0))
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], o.X, o.Y, alpha, flags...)
+		ctx.Renderer.SetTint(0)
+	}
+
+	const RW, RH = 96 * 2, 64 * 2
+	const CR = 72
+	app := NewTestApp(updater, drawer)
+	rect := ebiten.NewImage(RW, RH)
+	gradientOpts := GradientOpts(color.RGBA{255, 230, 200, 255}, color.RGBA{200, 230, 255, 255}, false)
+	app.Renderer.Gradient(rect, gradientOpts, DirRadsBLTR)
+	circ := app.Renderer.NewFilledCircle(CR)
+	app.Renderer.Options().Blend = ebiten.BlendSourceIn
+	gradientOpts = GradientOpts(color.RGBA{0, 230, 200, 255}, color.RGBA{255, 0, 236, 255}, false)
+	app.Renderer.Gradient(circ, gradientOpts, DirRadsTTB)
+	app.Renderer.Options().Blend = ebiten.BlendSourceOver
+	app.Images = append(app.Images, rect, circ)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestDrawImgShader$ . -count 1
+func TestDrawImgShader(t *testing.T) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		lx, ly := ctx.LeftClickF64()
-		rx, ry := ctx.RightClickF64()
-		ctx.Renderer.DrawLine(canvas, lx, ly, rx, ry, 6.0)
-		ctx.Renderer.DrawCircle(canvas, 540, 80, 60)
-		x, y := float64(160), float64(40)
-		ctx.Renderer.DrawTriangle(canvas, x, y, x+30, y+10, x+16, y+50, 0)
-		x, y = float64(80), float64(260)
 
-		ctx.Renderer.SetColor(color.RGBA{240, 48, 48, 255})
-		ctx.Renderer.DrawTriangle(canvas, x, y, x+70, y-20, x+114, y+80, 0)
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawTriangle(canvas, x, y, x+70, y-20, x+114, y+80, 8)
-		x, y = float64(200), float64(300)
-		ctx.Renderer.StrokeTriangle(canvas, x+70, y-20, x, y, x+114, y+80, 4, 8)
-		v := uint8(32 + ctx.DistAnim(196-32, 1.0))
-		ctx.Renderer.SetColor(color.RGBA{v, 0, 0, v})
-		ctx.Renderer.StrokeTriangle(canvas, x+70, y-20, x, y, x+114, y+80, -4, 0)
+		for i := range 2 {
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 8+float32(ctx.DistAnim(16, 0.5))
+			if ebiten.IsKeyPressed(ebiten.KeySpace) {
+				var opts ebiten.DrawImageOptions
+				opts.GeoM.Translate(float64(ox), float64(oy))
+				canvas.DrawImage(ctx.Images[i], &opts)
+				opts.GeoM.Translate(16, 72)
+				canvas.DrawImage(ctx.Images[i], &opts)
+			} else {
+				ctx.Renderer.setFlatCustomVAs01(1, 1)
+				ctx.Renderer.DrawImgShader(canvas, ctx.Images[i], ox, oy, NoMargins, shaderBilinear.Load())
+				ctx.Renderer.DrawAt(canvas, ctx.Images[i], ox+16, oy+72, 1.0)
+			}
+		}
 
-		rads := ctx.RadsAnim(1.0)
-		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, 0, float32(rads))
-		ctx.Renderer.DrawHexagon(canvas, 80, 400, 60, 0, float32(rads))
-	})
+		for i := range 2 {
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 300+float32(ctx.DistAnim(16, 0.5))
+			bounds := ctx.Images[i].Bounds()
+			subox, suboy := int(ox)+16, int(oy)+72
+			subRect := image.Rect(subox, suboy, subox+32, suboy+24)
+			sub := canvas.SubImage(subRect).(*ebiten.Image)
+			if ebiten.IsKeyPressed(ebiten.KeySpace) {
+				var opts ebiten.DrawRectShaderOptions
+				opts.GeoM.Translate(float64(ox), float64(oy))
+				canvas.DrawRectShader(bounds.Dx(), bounds.Dy(), shaderDefault.Load(), &opts)
+				sub.Fill(color.White)
+			} else {
+				ctx.Renderer.setFlatCustomVAs01(1, 1)
+				ctx.Renderer.DrawRectShader(canvas, ox, oy, float32(bounds.Dx()), float32(bounds.Dy()), NoMargins, shaderDefault.Load())
+				sox, soy, sw, sh := rectOriginSizeF32(subRect)
+				ctx.Renderer.DrawRectShader(sub, sox, soy, sw, sh, NoMargins, shaderDefault.Load())
+			}
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	rect := app.Renderer.NewFilledRect(64, 48)
+	rectO := ebiten.NewImageWithOptions(image.Rect(16, 16, 16+64, 16+48), nil)
+	rectO.Fill(color.White)
+	app.Images = append(app.Images, rect, rectO)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// go test -run ^TestDrawArea$ . -count 1
-func TestDrawArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+// go test -run ^TestDrawCircShader$ . -count 1
+func TestDrawCircShader(t *testing.T) {
+	var startDegs float32
+	var degs float32 = 360
+	var tolerance float32
+	var radius float32 = 200.0
+	var thickness float32 = 25.0
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		w1, h1 := float32(128), float32(48)
-		w2, h2 := float32(48), float32(128)
-		ctx.Renderer.DrawArea(canvas, lx-w1/2, ly-h1/2, w1, h1, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
-		ctx.Renderer.DrawArea(canvas, rx-w2/2, ry-h2/2, w2, h2, 0)
-
-		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, max(w1, h1)/2.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, max(w2, h2)/2.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s [[S]tartDegs: %.02f, [D]egrees: %.02f, [T]olerance: %.02f, T[H]ickness: %.02f, [R]adius: %.02f]",
+			ctx.Title(), startDegs, degs, tolerance, thickness, radius,
+		))
+		startDegs = updateParam(ctx, ebiten.KeyS, startDegs, 0, 360, 15)
+		degs = updateParam(ctx, ebiten.KeyD, degs, 0, 360, 15)
+		tolerance = updateParam(ctx, ebiten.KeyT, tolerance, 0, 10.0, 0.2)
+		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 600.0, 15.0)
+		thickness = updateParam(ctx, ebiten.KeyH, thickness, -40.0, 80.0, 5.0)
+		if thickness < 0.1 && thickness > 0 {
+			thickness = 0.0 // floating point error correction
+		}
 	}
-}
-
-// go test -run ^TestDrawIntArea$ . -count 1
-func TestStrokeIntArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClick.X, ctx.LeftClick.Y
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawIntArea(canvas, lx, ly, 200, 50)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeIntArea(canvas, lx-1, ly-1, 200+2, 50+2, 1, 0)
-
-		ctx.Renderer.SetColor(color.RGBA{0, 128, 0, 128})
-		ctx.Renderer.StrokeIntArea(canvas, lx, ly, 200, 50, 0, 1)
-
-		rx, ry := ctx.RightClick.X, ctx.RightClick.Y
-		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeIntArea(canvas, rx, ry, 100, 50, 4, 4)
-
-		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
-		ctx.Renderer.DrawIntArea(canvas, rx, ry, 100, 50)
-
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-		ctx.Renderer.StrokeIntArea(canvas, lx, ry, 80, 50, 8, 8)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokeArea$ . -count 1
-func TestStrokeArea(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.DrawArea(canvas, lx, ly, 200, 50, 16)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 2, 0, 16)
-
-		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
-		ctx.Renderer.StrokeArea(canvas, lx, ly, 200, 50, 0, 2, 16)
-
-		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
-		ctx.Renderer.StrokeArea(canvas, rx, ry, 100, 50, 4, 4, 25)
-
-		a := uint8(ctx.DistAnim(144.0, 1.0))
-		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
-		ctx.Renderer.DrawIntArea(canvas, int(rx), int(ry), 100, 50)
-
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
-		extra := float32(ctx.DistAnim(16, 1.0))
-		subRounding := float32(ctx.DistAnim(20, 1.0))
-		ctx.Renderer.StrokeArea(canvas, lx, ry, 80+extra, 50, 8, 8, 25-subRounding)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokeCircle$ . -count 1
-func TestStrokeCircle(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ri, ro := float32(64.0), float32(128.0)
-		ctx.Renderer.ScaleAlphaBy(0.25)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, ri)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, ro)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		thick := float32(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.StrokeCircle(canvas, lx, ly, ri, thick)
-		ctx.Renderer.StrokeCircle(canvas, lx, ly, ro, thick)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawEllipse$ . -count 1
-func TestDrawEllipse(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+		w, h := rectSizeF32(canvas.Bounds())
 
 		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 64.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 32.0)
+		ctx.Renderer.StrokeCircle(canvas, w/2, h/2, radius, thickness)
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawEllipse(canvas, lx, ly, 24.0, 64.0, ctx.RadsAnim(1.0))
-		ctx.Renderer.DrawEllipse(canvas, rx, ry, 32.0, 16.0, 0)
-
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 24.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 16.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawRing$ . -count 1
-func TestDrawRing(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawCircle(canvas, lx, ly, 64.0)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 48.0)
-
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 1)
-		ctx.Renderer.SetColorF32(0.5, 1.0, 0.5, 1.0, 2, 3)
-		ctx.Renderer.DrawRing(canvas, lx, ly, 65.0, 67.0)
-		ctx.Renderer.DrawRing(canvas, rx, ry, 48.0-4, 48+0)
-
-		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawCircle(canvas, rx, ry, 48.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawRingSector$ . -count 1
-func TestDrawRingSector(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		startRads := ctx.ModAnim(2*math.Pi, 1.0)
-		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 8.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokeRingSector$ . -count 1
-func TestStrokeRingSector(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		startRads := ctx.ModAnim(2*math.Pi, 1.0)
-		endRads := startRads + 0.4 + ctx.DistAnim(1.6, 1.0)
-
-		ctx.Renderer.SetColorF32(0, 0, 0.5, 0.5)
-		ctx.Renderer.DrawRingSector(canvas, cx, cy, 48, 128, startRads, endRads, 0.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		thick := float32(ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.StrokeRingSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 0.0)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5)
-		ctx.Renderer.StrokeRingSector(canvas, cx, cy, 48, 128, thick, startRads, endRads, 8.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawPie$ . -count 1
-func TestDrawPie(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		rate := -0.01 + ctx.DistAnim(1.02, 1.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.DrawPieRate(canvas, cx, cy, 96.0, RadsRight, rate, 6.0)
-
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0)
-		ctx.Renderer.DrawPie(canvas, cx, cy, 64.0, RadsRight+rate, RadsBottom, 3.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestStrokePie$ . -count 1
-func TestStrokePie(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		w, h := rectSizeF32(canvas.Bounds())
-		cx, cy := w/2.0, h/2.0
-		rate := -0.01 + ctx.DistAnim(1.02, 1.0)
-		thick := float32(4.0)
-
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
-		ctx.Renderer.StrokePieRate(canvas, cx, cy, 96.0, thick, RadsRight, rate, 6.0)
-
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0)
-		ctx.Renderer.StrokePie(canvas, cx, cy, 64.0, thick, RadsRight+rate, RadsBottom, 3.0)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawQuad$ . -count 1
-func TestDrawQuad(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
-
-		w, h := rectSizeF32(canvas.Bounds())
-		quad := [4]PointF32{
-			{X: lx, Y: ly},
-			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rx, Y: ry},
-			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
+		ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
+		opts := CircShaderOpts(radius, thickness)
+		opts.StartAngle = startDegs * math.Pi / 180
+		if degs >= 359.999 {
+			opts.EndAngle = opts.StartAngle + degs*math.Pi/180
+		} else {
+			opts.EndAngle = uradsAddCW(opts.StartAngle, degs*math.Pi/180)
 		}
-		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.DrawQuad(canvas, quad, thickening)
-	})
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestDrawQuadSoft$ . -count 1
-func TestDrawQuadSoft(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
-
-		w, h := rectSizeF32(canvas.Bounds())
-		quad := [4]PointF32{
-			{X: lx, Y: ly},
-			{X: w/2.0 + w/4.0, Y: h/2.0 - h/4.0},
-			{X: rx, Y: ry},
-			{X: w/2.0 - w/4.0, Y: h/2.0 + h/4.0},
+		opts.Tolerance = tolerance
+		if !ctx.SpacePressed {
+			ctx.Renderer.DrawCircShader(canvas, w/2, h/2, opts, shaderDefault.Load())
 		}
-		thickening := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.DrawQuadSoft(canvas, quad, thickening, 64.0)
-	})
+	}
+
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

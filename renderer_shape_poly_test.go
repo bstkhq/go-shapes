@@ -1,0 +1,864 @@
+package shapes
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"math"
+	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+// go test -run ^TestDrawShapes$ . -count 1
+func TestDrawShapes(t *testing.T) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
+		ctx.Renderer.StrokeLine(canvas, lc, rc, 6.0)
+
+		x, y := float64(160), float64(40)
+		var points [3]PointF32
+		points[0] = PointF32{X: float32(x), Y: float32(y)}
+		points[1] = points[0].AddXY(30, 10)
+		points[2] = points[0].AddXY(16, 50)
+		ctx.Renderer.FillTriangle(canvas, points, 0)
+
+		x, y = float64(80), float64(260)
+		ctx.Renderer.SetColor(color.RGBA{240, 48, 48, 255})
+		points[0] = PointF32{X: float32(x), Y: float32(y)}
+		points[1] = points[0].AddXY(70, -20)
+		points[2] = points[0].AddXY(114, 80)
+		ctx.Renderer.FillTriangle(canvas, points, 0)
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.FillTriangle(canvas, points, -8)
+		x, y = float64(200), float64(300)
+		points[1] = PointF32{X: float32(x), Y: float32(y)}
+		points[0] = points[1].AddXY(70, -20)
+		points[2] = points[1].AddXY(114, 80)
+		ctx.Renderer.StrokeTriangle(canvas, points, 4, -8)
+		v := uint8(32 + ctx.DistAnim(196-32, 1.0))
+		ctx.Renderer.SetColor(color.RGBA{v, 0, 0, v})
+		ctx.Renderer.StrokeTriangle(canvas, points, -4, 0)
+
+		rads := ctx.RadsAnim(1.0)
+		ctx.Renderer.FillHexagon(canvas, 540, 80, 60, 0, float32(rads))
+
+		rounding := float32(ctx.DistAnim(48.0, 1.0))
+		ctx.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
+		ctx.Renderer.FillHexagon(canvas, 100, 400, 60, rounding, float32(rads))
+		ctx.Renderer.ScaleAlphaBy(0.5)
+		ctx.Renderer.FillHexagon(canvas, 540, 80, 60, rounding, float32(rads))
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeLine$ . -count 1
+func TestStrokeLine(t *testing.T) {
+	var flags flagList
+	var thick float32 = 8.0
+	var softMode bool
+	var softEdge float32 = 8.0
+
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(AABB, ebiten.KeyA)
+		flags.UpdateFlag(ColorAABB, ebiten.KeyC)
+		thick = updateParam(ctx, ebiten.KeyT, thick, 0.0, 32.0, 1.0)
+		softMode = updateToggle(ctx, ebiten.KeyS, softMode)
+		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, -32.0, 32.0, 1.0)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Thickness: %.02f [T]\nColorAABB: %t [C]\nAABB: %t [A]\nSoftMode: %t [S]",
+			thick, flags.Has(ColorAABB), flags.Has(AABB), softMode,
+		)
+		if softMode {
+			info += fmt.Sprintf("\nSoftEdge: %.02f [E]", softEdge)
+		}
+		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		center := PtF32(cw, ch).Scale(0.5)
+
+		s, c := math.Sincos(ctx.RadsAnim(0.666))
+		scale := 64.0 + float32(ctx.DistAnim(64.0, 1.0))
+		dir := PtF32(s, c)
+		origin := center.Sub(dir.Scale(scale))
+		end := center.Add(dir.Scale(scale))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
+		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
+		if softMode {
+			ctx.Renderer.StrokeLineSoft(canvas, origin, end, thick, softEdge, flags...)
+		} else {
+			ctx.Renderer.StrokeLine(canvas, origin, end, thick, flags...)
+		}
+
+		br := PtF32(cw-16, ch-16)
+		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
+
+		// color check
+		setTestMultiColors(ctx.Renderer)
+		bl := PtF32(16, ch-16)
+		blf := bl.Add(PtF32(32, 0))
+		ctx.Renderer.StrokeLine(canvas, bl, blf, thick*2.0, flags...)
+		ctx.Renderer.FillRect(canvas, bl.X-thick, bl.Y-32, 32+thick*2.0, thick*2.0, -thick)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, bl.X+32+thick*2.0, bl.Y, thick)
+
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeTriangle$ . -count 1
+func TestStrokeTriangle(t *testing.T) {
+	var thick float32
+	updater := func(TestAppCtx) {
+		thick = 8.0
+		if ebiten.IsKeyPressed(ebiten.KeyT) {
+			thick = -thick
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+		const a = 0.5
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		cw3, ch3 := cw/3.0, ch/3.0
+
+		var points [3][3]PointF32
+		for x := range 3 {
+			points[x][0] = PointF32{X: 32.0 + float32(x)*cw3, Y: 32.0}
+			points[x][1] = points[x][0].AddXY(cw3*0.7, ch3*0.2)
+			points[x][2] = points[x][0].AddXY(cw3*0.35, ch3*0.6)
+		}
+
+		r := float32(ctx.DistAnim(24.0, 1.0))
+		if ctx.SpacePressed {
+			r *= 3.0
+		}
+		ctx.Renderer.SetColorF32(a, a, a, a)
+		ctx.Renderer.FillTriangle(canvas, points[0], 0.0) // no rounding
+		ctx.Renderer.FillTriangle(canvas, points[1], r)   // outer rounding
+		ctx.Renderer.FillTriangle(canvas, points[2], -r)  // inner rounding
+		ctx.Renderer.SetColorF32(a, 0, a, a)
+		ctx.Renderer.StrokeTriangle(canvas, points[0], thick, 0.0)
+		ctx.Renderer.StrokeTriangle(canvas, points[1], thick, r)
+		ctx.Renderer.StrokeTriangle(canvas, points[2], thick, -r)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillTriangles$ . -count 1
+func TestFillTriangles(t *testing.T) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		outRounding := float32(ctx.DistAnim(16.0, 1.0))
+		inRounding := -float32(ctx.DistAnim(48.0, 1.0))
+
+		baseBlend := ebiten.BlendSourceOver
+		if ctx.SpacePressed {
+			baseBlend = ebiten.BlendCopy
+		}
+
+		var pointsL [3]PointF32
+		pointsL[0] = PointF32{X: 24, Y: 24}
+		pointsL[1] = pointsL[0].AddXY(108, 12)
+		pointsL[2] = pointsL[0].AddXY(23, 48)
+		var pointsM [3]PointF32
+		pointsM[0] = PointF32{X: cw / 2, Y: 24}
+		pointsM[1] = pointsM[0].AddXY(64, 24)
+		pointsM[2] = pointsM[0].AddXY(-32, 56)
+
+		// first row, filled
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.FillTriangle(canvas, pointsL, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.FillTriangle(canvas, pointsM, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, -3.0, inRounding)
+
+		// second row, balanced stroke
+		const CVOffset = -24
+		for i, p := range pointsL {
+			pointsL[i] = p.AddXY(0, -24+ch/2+CVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.StrokeTriangle(canvas, pointsL, 8.0, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		for i, p := range pointsM {
+			pointsM[i] = p.AddXY(0, -24+ch/2+CVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, 8.0, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		// third row, inner stroke
+		const LVOffset = -60
+		for i, p := range pointsL {
+			pointsL[i] = p.AddXY(0, ch/2+LVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.StrokeTriangle(canvas, pointsL, -8.0, outRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColorF32(0.3, 0, 0.3, 0.3)
+		ctx.Renderer.FillCircle(canvas, pointsL[0].X, pointsL[0].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
+		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
+
+		for i, p := range pointsM {
+			pointsM[i] = p.AddXY(0, ch/2+LVOffset)
+		}
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Options().Blend = baseBlend
+		ctx.Renderer.StrokeTriangle(canvas, pointsM, -8.0, inRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestTriangleHull$ . -count 1
+func TestTriangleHull(t *testing.T) {
+	var drag pointsDragger
+	var triangle [3]PointF32
+	var flags flagList
+	var rounding float32 = 0.0
+	var thickness float32
+	pendingInit := true
+
+	updater := func(ctx TestAppCtx) {
+		drag.Update(triangle[:])
+		flags.UpdateFlag(AABB, ebiten.KeyB)
+		flags.UpdateFlag(ColorAABB, ebiten.KeyC)
+		thickness = updateParam(ctx, ebiten.KeyT, thickness, -32.0, 32.0, 1.0)
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -64.0, 64.0, 1.0)
+	}
+
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		if pendingInit {
+			pendingInit = false
+			w, h := rectSizeF32(canvas.Bounds())
+			triangle[0] = PtF32(w/2, h/4)
+			triangle[1] = PtF32(w/2+w/4, h-h/4)
+			triangle[2] = PtF32(w/2-w/4, h-h/4)
+		}
+
+		canvas.Fill(backTestColor)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Thickness: %.02f [T]\nRounding: %.02f [R]\nAABB: %t [B]\nColorAABB: %t [C]\n\nDrag to move the vertices",
+			thickness, rounding, flags.Has(AABB), flags.Has(ColorAABB),
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		setTestMultiColors(ctx.Renderer)
+		if thickness != 0 {
+			ctx.Renderer.StrokeTriangle(canvas, triangle, thickness, rounding, flags...)
+		} else {
+			ctx.Renderer.FillTriangle(canvas, triangle, rounding, flags...)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		memo := ctx.Renderer.memorizeColors()
+		ctx.Renderer.applyTriangleHull(triangle, rounding, memo) // NOTE: triangle is not canonicalized here
+
+		var vs []ebiten.Vertex
+		vs = append(vs, ctx.Renderer.vertices...)
+		ctx.Renderer.vertices = ctx.Renderer.vertices[:4]
+		ctx.Renderer.restoreIndices()
+		ctx.Renderer.restoreColors(memo)
+
+		ctx.Renderer.SetColorF32(1, 0, 0, 1)
+		for _, v := range vs {
+			ctx.Renderer.FillCircle(canvas, v.DstX, v.DstY, 1.5)
+		}
+
+		for i, v := range vs {
+			p := PtF32(v.DstX, v.DstY)
+			minDist := float32(999.9)
+			for _, tv := range triangle {
+				minDist = min(minDist, p.Sub(tv).Length())
+			}
+			if i&1 == 1 {
+				ctx.Renderer.SetColorF32(0.5, 0, 0.3, 0.5)
+			} else {
+				ctx.Renderer.SetColorF32(0.0, 0.5, 0, 0.5)
+			}
+			ctx.Renderer.Text(canvas, fmt.Sprintf("p%d dist: %.02f", i, minDist), p.X, p.Y-3, TextOpts(1.0, BottomCenter))
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillHexagons$ . -count 1
+func TestFillHexagons(t *testing.T) {
+	const Pad, MinRadius, MaxRadius = 16, 48, 64
+	const MinApothem = MinRadius * Sqrt3Div2
+	manRounding := float32(0.0)
+
+	updater := func(ctx TestAppCtx) {
+		// manual control
+		ebiten.SetWindowTitle(fmt.Sprintf("%s  [rounding: %.02f (up/down), apothem: %.02f]", ctx.Title(), manRounding, MinApothem))
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+			manRounding += 1.0
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+			manRounding -= 1.0
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		cw, ch := rectSizeF32(canvas.Bounds())
+
+		radius := MinRadius + float32(ctx.DistAnim(MaxRadius-MinRadius, 1.0))
+		rads := float32(ctx.RadsAnim(1.0))
+
+		// radius bounded hexagon, no roundness
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, Pad+MaxRadius, radius)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagon(canvas, Pad+MaxRadius, Pad+MaxRadius, radius, 0.0, rads)
+
+		// radius bounded hexagon with animated roundness
+		roundness := float32(ctx.DistAnim(MaxRadius+16, 0.5))
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, radius)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, roundness)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagon(canvas, cw/2, Pad+MaxRadius, radius, roundness, rads)
+
+		// apothem bounded hexagon, no rounding
+		apothem := radius * Sqrt3Div2
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, ch/2, apothem)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagonApothem(canvas, Pad+MaxRadius, ch/2, apothem, 0.0, rads)
+
+		// apothem bounded hexagon, outwards rounding
+		rounding := float32(ctx.DistAnim(24.0, 1.0))
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem+rounding)
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, rounding)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
+
+		// apothem bounded hexagon, inwards rounding
+		inRounding := float32(ctx.DistAnim(MinApothem, 0.5))
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, inRounding)
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
+
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
+		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		if manRounding < 0 {
+			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, -manRounding)
+		} else {
+			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem+manRounding)
+		}
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.ScaleAlphaBy(0.666)
+		ctx.Renderer.FillHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillRect$ . -count 1
+func TestFillRect(t *testing.T) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		lc := ctx.LeftClickF32()
+		rc := ctx.RightClickF32()
+
+		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		w1, h1 := float32(128), float32(48)
+		w2, h2 := float32(48), float32(128)
+		ctx.Renderer.FillRect(canvas, lc.X-w1/2, lc.Y-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+		ctx.Renderer.FillRect(canvas, rc.X-w2/2, rc.Y-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
+
+		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, max(w1, h1)/2.0)
+		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, max(w2, h2)/2.0)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+		ctx.Renderer.FillRect(canvas, 16, ch-16, 128, -128, 0)
+		ctx.Renderer.FillRect(canvas, 32, ch-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
+
+		ctx.Renderer.FillCircle(canvas, 164+32, ch-16-32, 32)
+		ctx.Renderer.FillCircle(canvas, 164+128-32, ch-16-128+32, 32)
+		ctx.Renderer.FillRect(canvas, 164, ch-16, 128, -128, -float32(ctx.DistAnim(32, 1.0)))
+
+		collapseRounding := -float32(ctx.DistAnim(196.0, 0.5))
+		const CRW, CRH = 128, 96
+		ctx.Renderer.FillRect(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
+		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
+		ctx.Renderer.FillCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillRectPrecise$ . -count 1
+func TestFillRectPrecise(t *testing.T) {
+	updater := func(ctx TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.FillIntRect(canvas, image.Rect(0, 0, 258, 258), 0)
+		ctx.DrawAtF32(canvas, ctx.Images[0], 1, 1)
+		ctx.DrawAtF32(canvas, ctx.Images[1], 2, 2)
+
+		ctx.DrawAtF32(canvas, ctx.Images[2], 270, 1)
+		ctx.DrawAtF32(canvas, ctx.Images[3], 271, 2)
+	}
+
+	app := NewTestApp(updater, drawer)
+	box := ebiten.NewImage(256, 256)
+	app.Renderer.FillRect(box, 1, 1, 254, 254, 0)
+	box2 := ebiten.NewImage(254, 254)
+	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.FillRect(box2, 1, 1, 252, 252, 0)
+
+	box3 := ebiten.NewImage(256, 256)
+	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Renderer.FillRect(box3, 1, 1, 254, 254, -6.0)
+	box4 := ebiten.NewImage(254, 254)
+	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.FillRect(box4, 1, 1, 252, 252, -6.0)
+
+	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+
+	app.Images = append(app.Images, box, box2, box3, box4)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeIntRect$ . -count 1
+func TestStrokeIntRect(t *testing.T) {
+	var flags flagList
+	colorSets := [][4][4]float32{
+		{
+			{1, 0, 0, 1},
+			{0, 1, 0, 1},
+			{0, 0, 1, 1},
+			{0, 1, 1, 1},
+		},
+		{
+			{1, 1, 0, 1},
+			{0, 1, 1, 1},
+			{1, 0, 1, 1},
+			{0, 1, 0, 1},
+		},
+		{
+			{1, 0, 0, 1},
+			{1, 0, 0, 1},
+			{0, 0.5, 1, 1},
+			{0, 0.5, 1, 1},
+		},
+		{
+			{1, 0.5, 0, 1},
+			{0, 0.5, 1, 1},
+			{1, 0.5, 0, 1},
+			{0, 0.5, 1, 1},
+		},
+	}
+	colorIndex := 0
+
+	w, h, thick := 80, 50, 8
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC)
+		w = updateParam(ctx, ebiten.KeyW, w, 16, 512, 8)
+		h = updateParam(ctx, ebiten.KeyH, h, 16, 256, 8)
+		thick = updateParam(ctx, ebiten.KeyT, thick, 0, 32, 2)
+		colorIndex = updateParam(ctx, ebiten.KeyS, colorIndex, 0, len(colorSets)-1, 1)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nHalfThick: %d [T]\nColorSet: %d [S]",
+			flags.Has(ColorIntrinsic), w, h, thick, colorIndex,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		lcx, lcy := ctx.LeftClick.X, ctx.LeftClick.Y
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0)
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx-1, lcy-1, 200+2, 50+2), 1, 0, flags...)
+
+		ctx.Renderer.SetColor(color.RGBA{0, 128, 0, 128})
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, lcy, 200, 50), 0, 1, flags...)
+
+		rcx, rcy := ctx.RightClick.X, ctx.RightClick.Y
+		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
+		ctx.Renderer.StrokeIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 4, 4, flags...)
+
+		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 0)
+
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][0], 0)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][1], 1)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][2], 2)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][3], 3)
+		if ctx.SpacePressed {
+			ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx-thick, rcy-thick, w+thick*2, h+thick*2), 0)
+		} else {
+			ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, w, h), thick, thick, flags...)
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeRect$ . -count 1
+func TestStrokeRect(t *testing.T) {
+	var flags flagList
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(AABB, ebiten.KeyA)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		info := fmt.Sprintf("AABB: %t [A]", flags.Has(AABB))
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
+		lc := ctx.LeftClickF32()
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.FillRect(canvas, lc.X, lc.Y, 200, 50, 16)
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 0, 2, 16, flags...)
+
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		ctx.Renderer.StrokeRect(canvas, lc.X, lc.Y, 200, 50, 2, 0, 16, flags...)
+
+		rc := ctx.RightClickF32()
+		ctx.Renderer.SetColor(color.RGBA{240, 0, 240, 255}, 0, 2)
+		ctx.Renderer.StrokeRect(canvas, rc.X, rc.Y, 100, 50, 4, 4, 25, flags...)
+
+		a := uint8(ctx.DistAnim(144.0, 1.0))
+		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
+		ctx.Renderer.FillIntRect(canvas, RectWithSize(int(rc.X), int(rc.Y), 100, 50), 0)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
+		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
+		extra := float32(ctx.DistAnim(16, 1.0))
+		subRounding := float32(ctx.DistAnim(20, 1.0))
+		ctx.Renderer.StrokeRect(canvas, lc.X, rc.Y, 80+extra, 50, 8, 8, 25-subRounding, flags...)
+
+		w, h := rectSizeF32(canvas.Bounds())
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.StrokeRect(canvas, w-16, 16, -200, 64, 0, 8, 32, flags...)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		ctx.Renderer.FillCircle(canvas, w-16-32+8, 16+32-8, 32)
+
+		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
+		ctx.Renderer.StrokeRect(canvas, 16, h-16, 96, -64, 0, 8, -32.0, flags...)
+		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
+		ctx.Renderer.FillCircle(canvas, 16+32, h-16-32, 32)
+
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillRectRounding$ . -count 1
+func TestFillRectRounding(t *testing.T) {
+	var inThick, outThick float32
+	updater := func(ctx TestAppCtx) {
+		inThick, outThick = float32(8.0), float32(8.0)
+		if ebiten.IsKeyPressed(ebiten.KeyI) {
+			inThick = 0.0
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyP) {
+			outThick = 0.0
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		const rw, rh, ra = 196, 128, 0.5
+		ctx.Renderer.SetColorF32(ra, ra, ra, ra)
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		rounding := float32(-16.0 + ctx.DistAnim(32.0, 1.0))
+		ctx.Renderer.FillRect(canvas, cw/2-rw-16, ch/2-rh/2, rw, rh, rounding)
+		ctx.Renderer.StrokeRect(canvas, cw/2+16, ch/2-rh/2, rw, rh, inThick, outThick, rounding)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillQuad$ . -count 1
+func TestFillQuad(t *testing.T) {
+	regions := [][2]PointF32{ // origin and sizes
+		{PtF32(0.0, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.333, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.666, 0.0), PtF32(0.333, 0.5)},
+		{PtF32(0.0, 0.5), PtF32(0.333, 0.5)},
+		{PtF32(0.333, 0.5), PtF32(0.333, 0.5)},
+		{PtF32(0.666, 0.5), PtF32(0.333, 0.5)},
+	}
+	quads := [][4]PointF32{
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.9), PtF32(0.4, 0.6), PtF32(0.6, 0.4)}, // self-intersecting (doesn't have to render properly, but don't panic)
+		{PtF32(0.5, 0.1), PtF32(0.8, 0.8), PtF32(0.5, 0.4), PtF32(0.2, 0.8)}, // arrow quad (concave)
+		{PtF32(0.2, 0.1), PtF32(0.25, 0.2), PtF32(0.75, 0.75), PtF32(0.25, 0.9)},
+		{PtF32(0.2, 0.9), PtF32(0.7, 0.8), PtF32(0.8, 0.2), PtF32(0.1, 0.1)}, // CCW quad
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.1), PtF32(0.1, 0.9), PtF32(0.9, 0.9)}, // symmetric bow-tie (self-intersecting)
+		{PtF32(0.1, 0.4), PtF32(0.8, 0.4), PtF32(0.9, 0.6), PtF32(0.2, 0.6)}, // short parallelogram
+	}
+	if len(regions) != len(quads) {
+		panic("each quad must have a region defined")
+	}
+
+	rounding := float32(0.0)
+	animRounding := false
+	updater := func(ctx TestAppCtx) {
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -100.0, +100.0, 2.0)
+		animRounding = updateToggle(ctx, ebiten.KeyA, animRounding)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf("Rounding: %.02f [R]\nAnim Rounding: %t [A]", rounding, animRounding)
+		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		roundingOffset := float32(0.0)
+		if animRounding {
+			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
+		}
+
+		setTestMultiColors(ctx.Renderer)
+		w, h := rectSizeF32(canvas.Bounds())
+		size := PtF32(w, h)
+		for i, region := range regions {
+			quad := quads[i]
+			for v := range 4 {
+				quad[v] = (region[0].Mul(size)).Add(quad[v].Mul(size).Mul(region[1]))
+			}
+			ctx.Renderer.FillQuad(canvas, quad, rounding+roundingOffset)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillQuadSoft$ . -count 1
+func TestFillQuadSoft(t *testing.T) {
+	const W, H = 128, 64
+	rounding := float32(0)
+	softEdge := float32(0)
+
+	updater := func(ctx TestAppCtx) {
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -32, 32, 1)
+		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, -32, 32, 1)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
+			rounding, softEdge,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		w, h := rectSizeF32(canvas.Bounds())
+		ox, oy := w*0.25-W/2, h*0.25-H/2
+		ox2, oy2 := ox+w*0.5, oy+h*0.5
+		quad := [4]PointF32{
+			{X: ox, Y: oy},
+			{X: ox + W, Y: oy},
+			{X: ox + W, Y: oy + H},
+			{X: ox, Y: oy + H},
+		}
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad, rounding, softEdge)
+		ctx.Renderer.FillRectSoft(canvas, ox2, oy, W, H, rounding, softEdge)
+
+		quad2 := [4]PointF32{
+			{X: ox, Y: oy2},
+			{X: ox + W, Y: oy2},
+			{X: ox + W/3, Y: oy2 + H/3},
+			{X: ox, Y: oy2 + H},
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad2, rounding, softEdge)
+
+		quad3 := [4]PointF32{
+			{X: ox2 + W/2, Y: oy2},
+			{X: ox2 + W, Y: oy2 + H/2},
+			{X: ox2 + W/2, Y: oy2 + H},
+			{X: ox2, Y: oy2 + H/2},
+		}
+		ctx.Renderer.FillQuadSoft(canvas, quad3, rounding, softEdge)
+
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestFillRectSoft$ . -count 1
+func TestFillRectSoft(t *testing.T) {
+	const W, H = 128, 64
+	roundingSign := 0
+	softEdgeSign := 0
+	var roundingBase, softEdgeBase float32
+
+	updater := func(ctx TestAppCtx) {
+		roundingSign = updateParam(ctx, ebiten.KeyR, roundingSign, -1, 1, 1)
+		softEdgeSign = updateParam(ctx, ebiten.KeyS, softEdgeSign, -1, 1, 1)
+		roundingBase = updateParam(ctx, ebiten.KeyC, roundingBase, -16.0, 16.0, 1)
+		softEdgeBase = updateParam(ctx, ebiten.KeyE, softEdgeBase, -16.0, 16.0, 1)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		cw, ch := rectSizeF32(canvas.Bounds())
+
+		rounding := float32(roundingSign) * float32(ctx.DistAnim(16.0, 1.000))
+		softEdge := float32(softEdgeSign) * float32(ctx.DistAnim(16.0, 0.666))
+		rounding += roundingBase
+		softEdge += softEdgeBase
+
+		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		info := fmt.Sprintf(
+			"Rounding: %.02f [C]\nSoftEdge: %.02f [E]\nRounding Anim: %.02f (%d) [R]\nSoftEdge Anim: %.02f (%d) [S]",
+			roundingBase, softEdgeBase, rounding, roundingSign, softEdge, softEdgeSign,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		rect := image.Rect(0, 0, W, H)
+		ol := CTR.AdjustXY(rect, cw*0.25, ch*0.25)
+		or := CTR.AdjustXY(rect, cw*0.75, ch*0.25)
+		ctx.Renderer.FillRectSoft(canvas, ol.X, ol.Y, W, H, rounding, softEdge)
+
+		if softEdge >= 0 {
+			roundCeil := max(int(math.Ceil(float64(rounding))), 0)
+			tmpRect := ctx.Renderer.UnsafeTemp(0, W+roundCeil*2, H+roundCeil*2, true)
+			ctx.Renderer.FillRect(tmpRect, float32(roundCeil), float32(roundCeil), W, H, rounding)
+			or := CTR.AdjustXY(tmpRect, cw*0.75, ch*0.25)
+			ctx.Renderer.Blur(canvas, tmpRect, or.X, or.Y, softEdge)
+
+			cmpX, cmpY := cw*0.15, ch*0.65
+			if ctx.SpacePressed {
+				ctx.Renderer.Blur(canvas, tmpRect, cmpX-float32(roundCeil), cmpY-float32(roundCeil), softEdge)
+			} else {
+				ctx.Renderer.FillRectSoft(canvas, cmpX, cmpY, W, H, rounding, softEdge)
+			}
+		}
+
+		ctx.Renderer.SetColorF32(0.25, 0, 0, 0.25)
+		ctx.Renderer.FillRect(canvas, ol.X, ol.Y, W, H, rounding)
+		ctx.Renderer.FillRect(canvas, or.X, or.Y, W, H, rounding)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}

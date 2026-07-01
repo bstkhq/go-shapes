@@ -1,0 +1,23 @@
+//kage:unit pixels
+package main
+
+var Offsets vec2
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	inSize, outSize := customVAs.xy, customVAs.zw
+	relCoords := sourceCoords.xy - imageSrc0Origin() - Offsets
+	cell := floor(relCoords / outSize)
+
+	cellCenter := cell*outSize + outSize/2
+	dist := distanceToRect(relCoords-cellCenter, inSize)
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}
+
+func distanceToRect(p, rect vec2) float {
+	d := abs(p) - rect/2.0
+	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0)
+}

@@ -15,11 +15,12 @@ import (
 // Seed must be in [0, 1].
 func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle float32) {
 	if seed < 0.0 || seed > 1.0 {
-		panic("seed must be in [0..1]")
+		r.Warnings.report(WarnInvalidNoiseSeedClamped, seed)
+		seed = clamp(seed, 0.0, 1.0)
 	}
-	ensureShaderNoiseLoaded()
 	r.setFlatCustomVAs(intensity, seed, cycle, 0.0)
-	r.DrawShader(target, 0, 0, shaderNoise)
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderNoise.Load())
 }
 
 // NoiseGolden draws a grid geometric noise with the current renderer color over the
@@ -31,7 +32,11 @@ func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle fl
 // The param t controls the animation pace. Increase t at a rate of 1.0 per second
 // for a natural animation rate.
 func (r *Renderer) NoiseGolden(target *ebiten.Image, scale, intensity, t float32) {
-	ensureShaderNoiseGoldenLoaded()
 	r.setFlatCustomVAs(scale, intensity, t, 0)
-	r.DrawShader(target, 0, 0, shaderNoiseGolden)
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderNoiseGolden.Load())
+}
+
+func (r *Renderer) loadBlueNoise64RGBAt(imgIndex int) {
+	r.opts.Images[imgIndex] = loadBlueNoise64RGB()
 }

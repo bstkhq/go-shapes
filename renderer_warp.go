@@ -7,8 +7,7 @@ import (
 )
 
 // WarpBarrel draws the given image with a simple, CRT-like barrel warp.
-// Intensity should be in ~[0.2, 1.5], with 0.5 being a good starting value
-// to play with.
+// Intensity should be in ~[0.2, 1.5], with 0.5 being a good starting value.
 //
 // The size of the output image will always be equal or smaller than the
 // input source, as the corner vertices are warped towards the interior.
@@ -26,21 +25,25 @@ import (
 //
 // Warps of different signs will panic.
 func (r *Renderer) WarpBarrel(target, source *ebiten.Image, ox, oy float32, horzWarp, vertWarp float32) {
+	if horzWarp == 0 && vertWarp == 0 {
+		return
+	}
 	if (horzWarp < 0 || vertWarp < 0) && (horzWarp > 0 || vertWarp > 0) {
 		panic("horzWarp and vertWarp must have the same sign")
 	}
-	if horzWarp <= 0 && vertWarp <= 0 {
+
+	switch {
+	case horzWarp <= 0 && vertWarp <= 0:
 		r.warpPincushionQuad(target, source, ox, oy, -horzWarp, -vertWarp)
-		return
+	default:
+		r.setFlatCustomVAs01(horzWarp, vertWarp)
+		r.DrawImgShader(target, source, ox, oy, NoMargins, shaderWarpBarrel.Load())
 	}
-	r.setFlatCustomVAs01(horzWarp, vertWarp)
-	ensureShaderWarpBarrelLoaded()
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpBarrel)
 }
 
 func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float32, horzWarp, vertWarp float32) {
 	if horzWarp < 0 || vertWarp < 0 {
-		panic("horzWarp < 0 || vertWarp < 0")
+		panic("broken internal code")
 	}
 
 	// perceptual adjustment to better match WarpBarrel strength
@@ -48,8 +51,7 @@ func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float
 	vertWarp *= 0.2
 
 	r.setFlatCustomVAs01(horzWarp, vertWarp)
-	ensureShaderWarpPincushionQuadLoaded()
-	r.DrawShaderAt(target, source, ox, oy, 0, 0, shaderWarpPincushionQuad)
+	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderWarpPincushionQuad.Load())
 }
 
 // WarpArc projects the given source image onto a curved arc on target.
@@ -74,21 +76,20 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 		minX, minY = cx-outRadius, cy-outRadius
 		maxX, maxY = cx+outRadius, cy+outRadius
 	} else {
-		minX, minY, maxX, maxY = ringSectorBounds(cx, cy, inRadius, outRadius, startRads, normURads(rads+radsHalfDelta))
+		minX, minY, maxX, maxY = radialSectorBounds(cx, cy, inRadius, outRadius, startRads, normURads(rads+radsHalfDelta))
 	}
 
 	minX, minY, maxX, maxY = minX-1.0, minY-1.0, maxX+1.0, maxY+1.0
-	dstOX, dstOY := rectOriginF32(target.Bounds())
-	r.setDstRectCoords(dstOX+minX, dstOY+minY, dstOX+maxX, dstOY+maxY)
+	r.setDstRectCoords(minX, minY, maxX, maxY)
 
-	sox, soy, sfx, sfy := rectPointsF32(srcBounds)
-	r.setSrcRectCoords(sox, soy, sfx, sfy)
+	so, sf := RectPointsF32(srcBounds)
+	r.setSrcRectCoords(so.X, so.Y, sf.X, sf.Y)
 
+	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))
-	ensureShaderWarpArcLoaded()
 	r.opts.Images[0] = source
-	r.opts.Uniforms["Center"] = [2]float32{cx, cy}
-	target.DrawTrianglesShader(r.vertices[:], r.indices[:], shaderWarpArc, &r.opts)
+	r.opts.Uniforms["Center"] = [2]float32{cx - tox, cy - toy}
+	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
 }

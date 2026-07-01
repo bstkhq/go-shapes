@@ -1,0 +1,25 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	radius := customVAs[0]
+	spacing := customVAs[1]
+	shift := customVAs.zw
+
+	position := (sourceCoords.xy - imageSrc0Origin()) - shift
+	scaledPosition := position / spacing
+	cell := floor(scaledPosition)
+	cellCenter := cell + vec2(0.5)
+	distSq := SquaredDistance(position, cellCenter*spacing)
+	aaStart := (radius - AAMargin) * (radius - AAMargin)
+	alpha := 1.0 - smoothstep(aaStart, radius*radius, distSq)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}
+
+func SquaredDistance(a, b vec2) float {
+	dx, dy := b.x-a.x, b.y-a.y
+	return dx*dx + dy*dy
+}

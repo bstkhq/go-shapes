@@ -1,0 +1,32 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+	const EqTriBaseToHeight = 0.86602540378 // sqrt(3)/2
+
+	offset := customVAs.xy
+	inTriBase, outTriBase := customVAs.z, customVAs.w
+	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
+	relCoords := sourceCoords.xy - imageSrc0Origin() - offset
+	cell := floor(relCoords / outTriSize)
+
+	triCenter := cell*outTriSize + vec2(outTriSize.x/2, outTriSize.y-outTriSize.y/3.0)
+	dist := distanceToEqTriangle(relCoords-triCenter, inTriBase)
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}
+
+func distanceToEqTriangle(p vec2, sideLen float) float {
+	const K = 1.73205080757 // sqrt(3)
+	hs := sideLen / 2.0
+	//return p.y + 0.5*K*max(abs(p.x)+K*-p.y, 0.0) - hs*(1.0/K)
+	p.x = abs(p.x) - hs
+	p.y = -p.y + hs/K
+	if p.x+K*p.y > 0.0 {
+		p = vec2(p.x-K*p.y, -K*p.x-p.y) / 2.0
+	}
+	p.x -= clamp(p.x, -2.0*hs, 0.0)
+	return -length(p) * sign(p.y)
+}

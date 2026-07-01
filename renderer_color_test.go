@@ -1,36 +1,45 @@
 package shapes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // go test -run ^TestFlatPaint$ . -count 1
 func TestFlatPaint(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	// NOTICE: FlatPaint was removed in favor of DrawAt
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
+		ctx.Renderer.SetTint(1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
-		ctx.Renderer.FlatPaint(canvas, ctx.Images[0], lx, ly)
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0)
 
-		rx, ry := ctx.RightClickF32()
+		rc := ctx.RightClickF32()
 		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
 		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
-		ctx.Renderer.FlatPaint(canvas, ctx.Images[1], rx, ry)
-	})
+		rc = CTR.Adjust(ctx.Images[1], rc)
+		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rc.X, rc.Y, 1.0)
+		ctx.Renderer.SetTint(0)
+	}
 
-	rect := app.Renderer.NewRect(120, 80)
-	circ := app.Renderer.NewCircle(64.0)
+	app := NewTestApp(updater, drawer)
+	rect := app.Renderer.NewFilledRect(120, 80)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.Options().Blend = ebiten.BlendDestinationOut
 	app.Renderer.SetColorF32(0.8, 0.8, 0.8, 0.8, 0, 1)
 	app.Renderer.SetColorF32(0.3, 0.3, 0.3, 0.3, 2, 3)
-	app.Renderer.DrawCircle(circ, 64.0, 64.0, 42.0)
+	app.Renderer.FillCircle(circ, 64.0, 64.0, 42.0)
 	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, rect, circ)
 	if err := ebiten.RunGame(app); err != nil {
@@ -38,97 +47,62 @@ func TestFlatPaint(t *testing.T) {
 	}
 }
 
-// go test -run ^TestGradient$ . -count 1
-func TestGradient(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
-		lx, ly := ctx.LeftClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx, ly)
-
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[1], rx, ry)
-
-		ox, oy := 50, 400
-		sub := canvas.SubImage(image.Rect(ox, oy, ox+80, oy+60)).(*ebiten.Image)
-		ctx.Renderer.SimpleGradient(sub, color.RGBA{0, 255, 0, 255}, color.RGBA{0, 0, 255, 255}, DirRadsBRTL)
-	})
-
-	rectA := app.Renderer.NewRect(120, 80)
-	circ := app.Renderer.NewCircle(64.0)
-	rectB := ebiten.NewImageWithOptions(circ.Bounds(), nil)
-	app.Renderer.Gradient(rectA, nil, 0, 0, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, 4, math.Pi/7, 1.0)
-	app.Renderer.Gradient(rectB, circ, 0, 0, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 255, 0, 255}, -1, math.Pi, 0.2)
-	app.Images = append(app.Images, rectA, rectB)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// go test -run ^TestGradientRadial$ . -count 1
-func TestGradientRadial(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
-		lx, ly := ctx.LeftClickF32()
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], lx-64, ly-64)
-
-		curveShift := float32(ctx.DistAnim(2.0, 2.0))
-		ctx.Renderer.GradientRadial(canvas, lx, ly, color.RGBA{0, 255, 0, 255}, color.RGBA{0, 0, 255, 255}, 16.0, 64.0, 64.0, -1, 1.0+curveShift)
-		steps := int(math.Floor(ctx.DistAnim(8.0, 1.0)))
-		inner := float32(ctx.DistAnim(32.0, 1.0))
-		ctx.Renderer.GradientRadial(canvas, rx, ry, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 0, 255, 255}, inner, 96.0, 128.0, steps, 1.0)
-
-		ctx.DrawAtF32(canvas, ctx.Images[1], 120, 320)
-	})
-
-	circ := app.Renderer.NewCircle(64.0)
-	circ2 := app.Renderer.NewCircle(48.0)
-
-	app.Renderer.SetBlend(ebiten.BlendSourceIn)
-	app.Renderer.GradientRadial(circ2, 48, 48, color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, 0.0, 48.0, Float32Inf(), -1, 2.5)
-	app.Renderer.SetBlend(ebiten.BlendSourceOver)
-
-	app.Images = append(app.Images, circ, circ2)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // go test -run ^TestColorizeByLightness$ . -count 1
 func TestColorizeByLightness(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	bias := float32(0.0)
+	steps := 7
+	dither := false
+	var fromThresh, toThresh float32 = 0.0, 1.0
+
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf(
+			"%s [[S]teps: %d, [B]ias: %.02f, [D]ither: %t, [F]romL: %.02f, [T]oL: %.02f]",
+			ctx.Title(), steps, bias, dither, fromThresh, toThresh,
+		))
+		steps = updateParam(ctx, ebiten.KeyS, steps, 0, 12, 1)
+		fromThresh = updateParam(ctx, ebiten.KeyF, fromThresh, 0.0, 1.0, 0.1)
+		toThresh = updateParam(ctx, ebiten.KeyT, toThresh, 0.0, 1.0, 0.1)
+		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.1)
+		if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			dither = !dither
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		iw, ih := rectSizeF32(ctx.Images[0].Bounds())
 		x, y := (cw-iw)/2.0, (ch-ih)/2.0
-		from, to := color.RGBA{0, 196, 196, 255}, color.RGBA{255, 0, 255, 255}
-		curveFactor := float32(0.75 + ctx.DistAnim(1.75, 1.0))
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+
+		opts := GradientOpts(color.RGBA{0, 196, 196, 255}, color.RGBA{255, 0, 255, 255}, dither)
+		opts.Steps = steps
+		opts.Bias = bias
+
+		if ctx.SpacePressed {
 			ctx.DrawAtF32(canvas, ctx.Images[0], x, y)
 		} else {
-			var thresA, thresB float32 = 0.0, 1.0
-			ctx.Renderer.ColorizeByLightness(canvas, ctx.Images[0], x, y, from, to, thresA, thresB, 7, curveFactor)
+			ctx.Renderer.ColorizeByLightness(canvas, ctx.Images[0], opts, x, y, fromThresh, toThresh)
 		}
-	})
+	}
+	app := NewTestApp(updater, drawer)
 
 	const Radius = 48
-	base := app.Renderer.NewSimpleGradient(Radius*8, Radius*8, color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, DirRadsTLBR)
-	app.Renderer.Noise(base, 0.1, 26.26, 0.0)
+	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
+	base := ebiten.NewImage(Radius*8, Radius*8)
+	app.Renderer.Gradient(base, gradientOpts, DirRadsTLBR)
+	app.Renderer.Noise(base, 0.1, 0.26, 0.0)
 	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*2, Radius*4, Radius)
+	app.Renderer.FillCircle(base, Radius*2, Radius*4, Radius)
 	app.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*6, Radius*4, Radius)
+	app.Renderer.FillCircle(base, Radius*6, Radius*4, Radius)
 	app.Renderer.SetColorF32(1.0, 1.0, 0.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*4, Radius*2, Radius)
+	app.Renderer.FillCircle(base, Radius*4, Radius*2, Radius)
 	app.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
-	app.Renderer.DrawCircle(base, Radius*4, Radius*6, Radius)
+	app.Renderer.FillCircle(base, Radius*4, Radius*6, Radius)
 
 	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
 	app.Images = append(app.Images, base)
@@ -139,21 +113,26 @@ func TestColorizeByLightness(t *testing.T) {
 
 // go test -run ^TestOklabShift$ . -count 1
 func TestOklabShift(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		lx, ly := ctx.LeftClickF32()
+		lc := ctx.LeftClickF32()
 		chromaShift := float32(0.3 - ctx.DistAnim(0.6, 0.4))
 		lightnessShift := float32(0.5 - ctx.DistAnim(1.0, 1.0))
 		hueShift := float32(ctx.ModAnim(2*math.Pi, 0.5))
-		ctx.Renderer.OklabShift(canvas, ctx.Images[0], lx, ly, lightnessShift, chromaShift, hueShift)
 
-		rx, ry := ctx.RightClickF32()
-		ctx.DrawAtF32(canvas, ctx.Images[0], rx, ry)
-	})
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.OklabShift(canvas, ctx.Images[0], lc.X, lc.Y, lightnessShift, chromaShift, hueShift)
 
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
+		ctx.DrawAtF32(canvas, ctx.Images[0], rc.X, rc.Y)
+	}
+
+	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.8, 0.5, 0.0, 1.0)
-	circ := app.Renderer.NewCircle(64.0)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Images = append(app.Images, circ)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -162,42 +141,41 @@ func TestOklabShift(t *testing.T) {
 
 // go test -run ^TestDitherMat4$ . -count 1
 func TestDitherMat4(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.RGBA{128, 0, 128, 255})
 
-		var mat [16]float32
-		switch int(ctx.ModAnim(5.0, 0.25)) {
-		case 0:
-			mat = DitherBayes
-		case 1:
-			mat = DitherDots
-		case 2:
-			mat = DitherGlitch
-		case 3:
-			mat = DitherSerp
-		case 4:
-			mat = DitherCrumbs
-		}
-		mat = combineDitherMat4(mat, DitherBayes)
+		mats := [][16]float32{DitherBayes, DitherDots, DitherGlitch, DitherSerp, DitherCrumbs}
+		mat := mats[int(ctx.ModAnim(float64(len(mats)), 0.25))]
 
-		lx, ly := ctx.LeftClickF32()
+		if ctx.SpacePressed {
+			mat = combineDitherMat4(mat, DitherBayes)
+		}
+
+		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
 		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
 		anim := float32(ctx.DistAnim(1.0, 1.0))
 		yOffset := int(ctx.ModAnim(4.0, 1.0))
 		xOffset := 8 - int(ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lx, ly, xOffset, yOffset, DitherBW4, mat, anim, 0.0)
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[0], lc.X, lc.Y, xOffset, yOffset, PaletteBW4, mat, anim, 0.0)
 
-		rx, ry := ctx.RightClickF32()
-		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rx, ry, 0, 0, DitherAlpha8, mat, 0, anim)
-	})
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
+		ctx.Renderer.DitherMat4(canvas, ctx.Images[1], rc.X, rc.Y, 0, 0, PaletteAlpha8, mat, 0.0, anim)
+	}
 
-	from, to := color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
-	gradient := app.Renderer.NewSimpleGradient(160, 160, from, to, DirRadsLTR)
+	app := NewTestApp(updater, drawer)
+	gradient := ebiten.NewImage(160, 160)
+	gradientOpts := GradientOpts(color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}, false)
+	app.Renderer.Gradient(gradient, gradientOpts, DirRadsLTR)
 	app.Images = append(app.Images, gradient)
-	from, to = color.RGBA{0, 0, 0, 255}, color.RGBA{255, 255, 255, 255}
-	gradient = app.Renderer.NewSimpleGradient(160, 160, from, to, DirRadsTLBR)
+
+	gradient = ebiten.NewImage(160, 160)
+	app.Renderer.Gradient(gradient, gradientOpts, DirRadsTLBR)
 	app.Images = append(app.Images, gradient)
+
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -213,15 +191,30 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 
 // go test -run ^TestColorMix$ . -count 1
 func TestColorMix(t *testing.T) {
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+	var flags flagList
+	updater := func(ctx TestAppCtx) {
+		setMaskFlagsAndTitle(ctx, flags)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
-		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], ctx.LeftClick.X, ctx.LeftClick.Y, 0.5, lvl)
-	})
+		lc := ctx.LeftClickF32()
+		lc = CTR.Adjust(ctx.Images[0], lc)
+		ctx.Renderer.ColorMix(canvas, ctx.Images[0], ctx.Images[1], lc.X, lc.Y, 0.5, lvl, flags...)
 
-	circ := app.Renderer.NewCircle(64.0)
+		rc := ctx.RightClickF32()
+		rc = CTR.Adjust(ctx.Images[0], rc)
+		alpha := float32(ctx.DistAnim(1.0, 0.333))
+		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
+		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rc.X+offX, rc.Y, alpha, lvl, flags...)
+	}
+
+	app := NewTestApp(updater, drawer)
+	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
-	circ2 := app.Renderer.NewCircle(64.0)
+	circ2 := ebiten.NewImage(128+16, 128+16)
+	app.Renderer.FillCircle(circ2, 64+16, 64+16, 64)
+	circ2 = circ2.SubImage(image.Rect(16, 16, 16+128, 16+128)).(*ebiten.Image)
 	app.Images = append(app.Images, circ, circ2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
