@@ -5,8 +5,7 @@ import (
 	"math"
 )
 
-// PointF32 is a helper type for operations with triangles, quads and paths like
-// [Renderer.FillTriangle](), [Renderer.FillQuad](), etc.
+// PointF32 is a helper type for operations with shapes.
 type PointF32 struct {
 	X, Y float32
 }
