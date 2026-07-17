@@ -13,26 +13,51 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+// The showcase is fully resizable: the layout is derived from the live logical
+// screen size (see LayoutF, which folds in the monitor's device scale factor)
+// and every panel renders its demo at native resolution, so nothing is drawn at
+// a fixed pixel size.
 const (
-	screenWidth    = 1480
-	screenHeight   = 980
-	panelGap       = 16
-	panelCols      = 4
-	panelRows      = 3
-	panelTextLine1 = 8
-	panelTextLine2 = 24
+	// Initial window size only; the real layout follows the current screen size.
+	initialWindowWidth  = 1480
+	initialWindowHeight = 980
+
+	// Reference coordinate box each demo is authored in. It is mapped uniformly
+	// into whatever size the panel currently has, so demos stay crisp and keep
+	// their proportions at any window size or device scale factor.
+	refDemoWidth  = 320
+	refDemoHeight = 210
 )
 
-type demoPage struct {
+// Offscreen indices reserved for the showcase. The renderer only uses indices 0
+// and 1 for its internal composition, so anything from 8 upwards is safe to hold
+// across renderer calls (see Renderer.UnsafeTemp docs).
+const (
+	tempPanel = 8
+	tempAuxA  = 10
+	tempAuxB  = 11
+)
+
+type panel struct {
 	title string
-	draw  func(*Showcase, *ebiten.Image)
+	// draw renders the demo and returns optional notes (e.g. animated values or
+	// hints) rendered at the bottom of the panel. Returning []string keeps adding
+	// extra lines trivial.
+	draw func(demoCtx) []string
+}
+
+type page struct {
+	title  string
+	panels []panel
 }
 
 type Showcase struct {
 	renderer *shapes.Renderer
 	tick     uint64
 	page     int
-	pages    []demoPage
+	pages    []page
+
+	screenW, screenH int
 
 	spriteA *ebiten.Image
 	spriteB *ebiten.Image
@@ -41,8 +66,9 @@ type Showcase struct {
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(initialWindowWidth, initialWindowHeight)
 	ebiten.SetWindowTitle("go-shapes showcase")
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	app := NewShowcase()
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)
@@ -52,19 +78,21 @@ func main() {
 func NewShowcase() *Showcase {
 	app := &Showcase{renderer: shapes.NewRenderer()}
 	app.makeAssets()
-	app.pages = []demoPage{
-		{title: "Primitives", draw: (*Showcase).drawPrimitivesPage},
-		{title: "Rects and sectors", draw: (*Showcase).drawRectsPage},
-		{title: "Color and tiles", draw: (*Showcase).drawColorPage},
-		{title: "Masks and noise", draw: (*Showcase).drawMaskNoisePage},
-		{title: "Filters and light", draw: (*Showcase).drawEffectsPage},
-		{title: "Mapping and warps", draw: (*Showcase).drawWarpPage},
-		{title: "JFM and generated assets", draw: (*Showcase).drawJFMPage},
-	}
+	app.pages = buildPages()
 	return app
 }
 
-func (a *Showcase) Layout(_, _ int) (int, int) { return screenWidth, screenHeight }
+// LayoutF makes the logical resolution track the window size and the monitor's
+// device scale factor, so the showcase stays sharp on high-DPI displays and
+// fills the window at any size. Implementing LayoutFer means Layout is unused.
+func (a *Showcase) LayoutF(outsideWidth, outsideHeight float64) (float64, float64) {
+	scale := ebiten.Monitor().DeviceScaleFactor()
+	return outsideWidth * scale, outsideHeight * scale
+}
+
+func (a *Showcase) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return outsideWidth, outsideHeight
+}
 
 func (a *Showcase) Update() error {
 	a.tick++
@@ -81,82 +109,146 @@ func (a *Showcase) Update() error {
 }
 
 func (a *Showcase) Draw(screen *ebiten.Image) {
+	bounds := screen.Bounds()
+	a.screenW, a.screenH = bounds.Dx(), bounds.Dy()
+
 	a.paintBackground(screen)
 	a.drawHeader(screen)
-	a.pages[a.page].draw(a, screen)
+
+	pg := a.pages[a.page]
+	cols, rows := gridDims(len(pg.panels))
+	for i, p := range pg.panels {
+		a.drawPanel(screen, cols, rows, i, p)
+	}
 }
+
+func (a *Showcase) gap() int    { return max(8, a.screenW/92) }
+func (a *Showcase) header() int { return max(44, a.screenH/18) }
 
 func (a *Showcase) paintBackground(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{12, 14, 20, 255})
-	grid := ebiten.NewImage(screenWidth, screenHeight)
-	a.renderer.SetColor(color.RGBA{22, 27, 35, 255})
-	a.renderer.TileDotsGrid(grid, 1.4, 28, 0, 0)
-	var opts ebiten.DrawImageOptions
-	opts.ColorScale.ScaleAlpha(0.45)
-	screen.DrawImage(grid, &opts)
+	spacing := float32(max(18, a.screenW/52))
+	a.renderer.SetColor(color.RGBA{20, 24, 31, 255})
+	a.renderer.TileDotsGrid(screen, spacing*0.05, spacing, 0, 0)
 }
 
 func (a *Showcase) drawHeader(screen *ebiten.Image) {
 	title := fmt.Sprintf("go-shapes showcase  •  page %d/%d  •  %s", a.page+1, len(a.pages), a.pages[a.page].title)
-	help := "Left/Right or PgUp/PgDn to switch pages • Esc to quit"
-	ebitenutil.DebugPrintAt(screen, title, 20, 16)
-	ebitenutil.DebugPrintAt(screen, help, 20, 34)
+	help := "Left/Right or PgUp/PgDn to switch pages • Esc to quit • resize the window freely"
+	ebitenutil.DebugPrintAt(screen, title, a.gap(), 12)
+	ebitenutil.DebugPrintAt(screen, help, a.gap(), 30)
 }
 
-func (a *Showcase) panelRect(col, row int) image.Rectangle {
-	top := 70
-	w := (screenWidth - panelGap*(panelCols+1)) / panelCols
-	h := (screenHeight - top - panelGap*(panelRows+1)) / panelRows
-	x := panelGap + col*(w+panelGap)
-	y := top + panelGap + row*(h+panelGap)
+// gridDims picks a roughly square grid that fits n panels.
+func gridDims(n int) (cols, rows int) {
+	if n <= 0 {
+		return 1, 1
+	}
+	cols = int(math.Ceil(math.Sqrt(float64(n))))
+	rows = (n + cols - 1) / cols
+	return cols, rows
+}
+
+func (a *Showcase) panelRect(cols, rows, idx int) image.Rectangle {
+	gap := a.gap()
+	top := a.header()
+	w := (a.screenW - gap*(cols+1)) / cols
+	h := (a.screenH - top - gap*(rows+1)) / rows
+	col, row := idx%cols, idx/cols
+	x := gap + col*(w+gap)
+	y := top + gap + row*(h+gap)
 	return image.Rect(x, y, x+w, y+h)
 }
 
-func centeredRect(outer image.Rectangle, w, h int) image.Rectangle {
-	x := outer.Min.X + (outer.Dx()-w)/2
-	y := outer.Min.Y + (outer.Dy()-h)/2
-	return image.Rect(x, y, x+w, y+h)
-}
+func (a *Showcase) drawPanel(screen *ebiten.Image, cols, rows, idx int, p panel) {
+	bounds := a.panelRect(cols, rows, idx)
+	w, h := bounds.Dx(), bounds.Dy()
 
-func (a *Showcase) drawPanel(screen *ebiten.Image, col, row int, title string, drawFn func(dst *ebiten.Image, bounds image.Rectangle)) {
-	bounds := a.panelRect(col, row)
-	panel := ebiten.NewImage(bounds.Dx(), bounds.Dy())
+	panel := a.renderer.UnsafeTemp(tempPanel, w, h, false)
 	panel.Fill(color.RGBA{18, 22, 31, 245})
-
 	a.renderer.SetColor(color.RGBA{55, 68, 84, 255})
-	a.renderer.StrokeArea(panel, 0, 0, float32(bounds.Dx()), float32(bounds.Dy()), 1, 0, 14)
+	a.renderer.StrokeArea(panel, 0, 0, float32(w), float32(h), 1, 0, float32(min(w, h))/22)
 
-	content := image.Rect(12, 30, bounds.Dx()-12, bounds.Dy()-12)
+	ebitenutil.DebugPrintAt(panel, p.title, 12, 8)
 
-	demoW := min(content.Dx()-20, 320)
-	demoH := min(content.Dy()-20, 180)
-	demo := centeredRect(content, demoW, demoH)
+	// Map the reference demo box uniformly into the panel's content area.
+	const top, bottom, padX = 28.0, 34.0, 12.0
+	rw := float64(w) - 2*padX
+	rh := float64(h) - top - bottom
+	k := math.Min(rw/refDemoWidth, rh/refDemoHeight)
+	bw, bh := refDemoWidth*k, refDemoHeight*k
+	ctx := demoCtx{
+		a:   a,
+		r:   a.renderer,
+		dst: panel,
+		bx:  float32(padX + (rw-bw)/2),
+		by:  float32(top + (rh-bh)/2),
+		k:   float32(k),
+	}
 
-	drawFn(panel, demo)
-	ebitenutil.DebugPrintAt(panel, title, 12, 10)
+	a.renderer.SetColor(color.White)
+	a.renderer.SetBlend(ebiten.BlendSourceOver)
+	notes := p.draw(ctx)
+
+	for i, note := range notes {
+		ebitenutil.DebugPrintAt(panel, note, 12, h-30+i*14)
+	}
 
 	var opts ebiten.DrawImageOptions
 	opts.GeoM.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	screen.DrawImage(panel, &opts)
 }
 
-func fillChecker(img *ebiten.Image) {
-	b := img.Bounds()
-	tile := 16
-	for y := b.Min.Y; y < b.Max.Y; y += tile {
-		for x := b.Min.X; x < b.Max.X; x += tile {
-			clr := color.RGBA{36, 42, 52, 255}
-			if ((x/tile)+(y/tile))%2 == 0 {
-				clr = color.RGBA{28, 33, 42, 255}
-			}
-			r := image.Rect(x, y, min(x+tile, b.Max.X), min(y+tile, b.Max.Y))
-			sub := img.SubImage(r).(*ebiten.Image)
-			sub.Fill(clr)
-		}
-	}
+// demoCtx maps the reference demo box into panel coordinates and hands out
+// temporary offscreens from the renderer instead of allocating per frame.
+type demoCtx struct {
+	a         *Showcase
+	r         *shapes.Renderer
+	dst       *ebiten.Image
+	bx, by, k float32
+}
+
+func (d demoCtx) x(v float32) float32 { return d.bx + v*d.k }
+func (d demoCtx) y(v float32) float32 { return d.by + v*d.k }
+func (d demoCtx) s(v float32) float32 { return v * d.k }
+
+func (d demoCtx) xf(v float32) float64 { return float64(d.x(v)) }
+func (d demoCtx) yf(v float32) float64 { return float64(d.y(v)) }
+func (d demoCtx) sf(v float32) float64 { return float64(d.s(v)) }
+
+func (d demoCtx) xi(v float32) int { return int(d.x(v)) }
+func (d demoCtx) yi(v float32) int { return int(d.y(v)) }
+
+func (d demoCtx) pt(x, y float32) shapes.PointF32 {
+	return shapes.PointF32{X: d.x(x), Y: d.y(y)}
+}
+
+// tempRef returns a temporary offscreen sized from reference dimensions scaled
+// to the current panel, so intermediate images scale with the window too.
+func (d demoCtx) tempRef(idx int, refW, refH float32, clear bool) *ebiten.Image {
+	return d.r.UnsafeTemp(idx, int(refW*d.k), int(refH*d.k), clear)
+}
+
+// scaled returns a scaled copy of a static asset, so asset-based demos also
+// grow and shrink with the window (dogfooding Renderer.Scale in the process).
+func (d demoCtx) scaled(idx int, src *ebiten.Image) *ebiten.Image {
+	b := src.Bounds()
+	w := int(math.Ceil(float64(b.Dx()) * float64(d.k)))
+	h := int(math.Ceil(float64(b.Dy()) * float64(d.k)))
+	t := d.r.UnsafeTemp(idx, w, h, true)
+	d.r.Scale(t, src, 0, 0, d.k, false)
+	return t
+}
+
+// blit draws src into the demo at reference coordinates (x, y).
+func (d demoCtx) blit(src *ebiten.Image, x, y float32) {
+	var opts ebiten.DrawImageOptions
+	opts.GeoM.Translate(d.xf(x), d.yf(y))
+	d.dst.DrawImage(src, &opts)
 }
 
 func (a *Showcase) makeAssets() {
+	// Assets are built once at startup, so plain NewImage is appropriate here.
 	a.spriteA = ebiten.NewImage(220, 220)
 	a.maskA = ebiten.NewImage(220, 220)
 	a.jfMask = ebiten.NewImage(220, 220)
@@ -187,581 +279,429 @@ func (a *Showcase) makeAssets() {
 	a.renderer.StrokeTriangle(a.spriteB, 48, 172, 110, 46, 172, 172, 7, 10)
 }
 
-func blit(dst, src *ebiten.Image, x, y float64) {
-	var opts ebiten.DrawImageOptions
-	opts.GeoM.Translate(x, y)
-	dst.DrawImage(src, &opts)
-}
-
-func blitAt(dst, src *ebiten.Image, pt image.Point) {
-	blit(dst, src, float64(pt.X), float64(pt.Y))
-}
-
-func (a *Showcase) drawPrimitivesPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "DrawArea / StrokeArea", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{68, 180, 255, 255})
-		a.renderer.DrawArea(dst, float32(b.Min.X+28), float32(b.Min.Y+44), 120, 86, 18)
-		a.renderer.SetColor(color.RGBA{255, 204, 84, 255})
-		a.renderer.StrokeArea(dst, float32(b.Min.X+170), float32(b.Min.Y+38), 120, 98, 5, 8, 24)
-	})
-
-	a.drawPanel(screen, 1, 0, "DrawLine / DrawCircle", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-		a.renderer.DrawLine(dst, float64(b.Min.X+20), float64(b.Min.Y+130), float64(b.Max.X-30), float64(b.Min.Y+30), 10)
-		a.renderer.SetColor(color.RGBA{90, 225, 170, 255})
-		a.renderer.DrawCircle(dst, float32(b.Min.X+115), float32(b.Min.Y+86), 46)
-	})
-
-	a.drawPanel(screen, 2, 0, "StrokeCircle / DrawRing", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.StrokeCircle(dst, float32(b.Min.X+84), float32(b.Min.Y+84), 46, 8)
-		a.renderer.SetColor(color.RGBA{255, 193, 84, 255})
-		a.renderer.DrawRing(dst, float32(b.Min.X+214), float32(b.Min.Y+84), 26, 52)
-	})
-
-	a.drawPanel(screen, 3, 0, "DrawPie / StrokePie", func(dst *ebiten.Image, b image.Rectangle) {
-		t := 0.7 + 0.6*math.Sin(float64(a.tick)*0.03)
-		a.renderer.SetColor(color.RGBA{255, 99, 132, 255})
-		a.renderer.DrawPie(dst, float32(b.Min.X+90), float32(b.Min.Y+86), 52, shapes.RadsTop, shapes.RadsTop+t*math.Pi, 12)
-		a.renderer.SetColor(color.RGBA{115, 215, 255, 255})
-		a.renderer.StrokePie(dst, float32(b.Min.X+220), float32(b.Min.Y+86), 54, 12, shapes.RadsLeft, shapes.RadsLeft+t*math.Pi, 8)
-	})
-
-	a.drawPanel(screen, 0, 1, "DrawEllipse", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{170, 120, 255, 255})
-		a.renderer.DrawEllipse(dst, float32(b.Min.X+160), float32(b.Min.Y+84), 108, 50, math.Sin(float64(a.tick)*0.02)*0.7)
-	})
-
-	a.drawPanel(screen, 1, 1, "DrawTriangle / StrokeTriangle", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.DrawTriangle(dst, 50, 190, 110, 84, 180, 202, 10)
-		a.renderer.SetColor(color.RGBA{255, 210, 96, 255})
-		a.renderer.StrokeTriangle(dst, 190, 190, 250, 88, 310, 190, 8, 10)
-	})
-
-	a.drawPanel(screen, 2, 1, "DrawHexagon", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.DrawHexagon(dst, float32(b.Min.X+160), float32(b.Min.Y+88), 66, 16, float32(a.tick)*0.01)
-	})
-
-	a.drawPanel(screen, 3, 1, "DrawQuad / DrawQuadSoft", func(dst *ebiten.Image, b image.Rectangle) {
-		quadA := [4]shapes.PointF32{{50, 92}, {174, 70}, {196, 172}, {38, 188}}
-		quadB := [4]shapes.PointF32{{194, 98}, {304, 112}, {292, 200}, {170, 190}}
-		a.renderer.SetColor(color.RGBA{255, 104, 104, 255})
-		a.renderer.DrawQuad(dst, quadA, 0)
-		a.renderer.SetColor(color.RGBA{100, 180, 255, 255})
-		a.renderer.DrawQuadSoft(dst, quadB, 3, 4)
-	})
-
-	a.drawPanel(screen, 0, 2, "NewRect", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.renderer.NewRect(150, 90), float64(b.Min.X+85), float64(b.Min.Y+40))
-	})
-
-	a.drawPanel(screen, 1, 2, "NewCircle", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.renderer.NewCircle(54), float64(b.Min.X+104), float64(b.Min.Y+32))
-	})
-
-	a.drawPanel(screen, 2, 2, "NewRing", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.renderer.NewRing(34, 64), float64(b.Min.X+94), float64(b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 3, 2, "Angles constants", func(dst *ebiten.Image, b image.Rectangle) {
-		cx, cy := float32(b.Min.X+160), float32(b.Min.Y+86)
-		a.renderer.SetColor(color.RGBA{90, 100, 120, 255})
-		a.renderer.StrokeCircle(dst, cx, cy, 64, 2)
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.DrawLine(dst, float64(cx), float64(cy), float64(cx+64), float64(cy), 3)
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.DrawLine(dst, float64(cx), float64(cy), float64(cx), float64(cy+64), 3)
-		ebitenutil.DebugPrintAt(dst, "0 = right", b.Min.X+16, b.Max.Y-panelTextLine2)
-		ebitenutil.DebugPrintAt(dst, "pi/2 = bottom", b.Min.X+16, b.Max.Y-panelTextLine1)
-	})
-}
-
-func (a *Showcase) drawRectsPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "DrawIntArea / StrokeIntArea", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{90, 215, 255, 255})
-		a.renderer.DrawIntArea(dst, b.Min.X+28, b.Min.Y+38, 122, 88)
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.StrokeIntArea(dst, b.Min.X+172, b.Min.Y+28, 116, 106, 6, 8)
-	})
-
-	a.drawPanel(screen, 1, 0, "DrawRect / StrokeRect", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.DrawRect(dst, image.Rect(b.Min.X+24, b.Min.Y+34, b.Min.X+146, b.Min.Y+118), 18)
-		a.renderer.SetColor(color.RGBA{255, 118, 118, 255})
-		a.renderer.StrokeRect(dst, image.Rect(b.Min.X+176, b.Min.Y+30, b.Min.X+300, b.Min.Y+124), 5, 9, 22)
-	})
-
-	a.drawPanel(screen, 2, 0, "DrawRingSector", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{170, 120, 255, 255})
-		a.renderer.DrawRingSector(dst, float32(b.Min.X+160), float32(b.Min.Y+84), 28, 68, shapes.RadsTopRight, shapes.RadsBottomLeft+0.4, 10)
-	})
-
-	a.drawPanel(screen, 3, 0, "StrokeRingSector", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 210, 84, 255})
-		a.renderer.StrokeRingSector(dst, float32(b.Min.X+160), float32(b.Min.Y+84), 30, 72, 10, shapes.RadsLeft+0.2, shapes.RadsTopRight, 8)
-	})
-
-	a.drawPanel(screen, 0, 1, "DrawPieRate", func(dst *ebiten.Image, b image.Rectangle) {
-		rate := (math.Sin(float64(a.tick)*0.03) + 1) * 0.5
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.DrawPieRate(dst, float32(b.Min.X+160), float32(b.Min.Y+84), 60, shapes.RadsTop, rate, 10)
-		ebitenutil.DebugPrintAt(dst, fmt.Sprintf("rate = %.2f", rate), b.Min.X+18, b.Max.Y-panelTextLine1)
-	})
-
-	a.drawPanel(screen, 1, 1, "StrokePieRate", func(dst *ebiten.Image, b image.Rectangle) {
-		rate := (math.Cos(float64(a.tick)*0.04) + 1) * 0.5
-		a.renderer.SetColor(color.RGBA{255, 123, 123, 255})
-		a.renderer.StrokePieRate(dst, float32(b.Min.X+160), float32(b.Min.Y+84), 64, 14, shapes.RadsRight, rate, 8)
-		ebitenutil.DebugPrintAt(dst, fmt.Sprintf("rate = %.2f", rate), b.Min.X+18, b.Max.Y-panelTextLine1)
-	})
-
-	a.drawPanel(screen, 2, 1, "Rounded stroke contrast", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{88, 205, 255, 255})
-		a.renderer.StrokeArea(dst, float32(b.Min.X+26), float32(b.Min.Y+30), 120, 104, 0, 12, 0)
-		a.renderer.SetColor(color.RGBA{255, 200, 84, 255})
-		a.renderer.StrokeArea(dst, float32(b.Min.X+176), float32(b.Min.Y+30), 120, 104, 0, 12, 28)
-	})
-
-	a.drawPanel(screen, 3, 1, "BlendMultiply", func(dst *ebiten.Image, b image.Rectangle) {
-		dst.Fill(color.RGBA{30, 34, 45, 255})
-		a.renderer.SetBlend(ebiten.BlendSourceOver)
-		a.renderer.SetColor(color.RGBA{255, 110, 110, 220})
-		a.renderer.DrawCircle(dst, float32(b.Min.X+136), float32(b.Min.Y+80), 50)
-		a.renderer.SetBlend(shapes.BlendMultiply)
-		a.renderer.SetColor(color.RGBA{110, 180, 255, 220})
-		a.renderer.DrawCircle(dst, float32(b.Min.X+192), float32(b.Min.Y+88), 50)
-		a.renderer.SetBlend(ebiten.BlendSourceOver)
-	})
-
-	a.drawPanel(screen, 0, 2, "BlendSubtract", func(dst *ebiten.Image, b image.Rectangle) {
-		dst.Fill(color.RGBA{50, 70, 100, 255})
-		a.renderer.SetColor(color.RGBA{255, 100, 100, 255})
-		a.renderer.DrawArea(dst, float32(b.Min.X+44), float32(b.Min.Y+34), 120, 90, 20)
-		a.renderer.SetBlend(shapes.BlendSubtract)
-		a.renderer.SetColor(color.RGBA{40, 40, 40, 255})
-		a.renderer.DrawCircle(dst, float32(b.Min.X+198), float32(b.Min.Y+84), 54)
-		a.renderer.SetBlend(ebiten.BlendSourceOver)
-	})
-
-	a.drawPanel(screen, 1, 2, "SetCustomVAs (quad shader helper)", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{95, 200, 255, 255})
-		quad := [4]shapes.PointF32{{48, 72}, {274, 66}, {250, 174}, {70, 180}}
-		a.renderer.DrawQuadSoft(dst, quad, 10, 12)
-		ebitenutil.DebugPrintAt(dst, "Used internally by many shader paths.", b.Min.X+16, b.Max.Y-panelTextLine1)
-	})
-
-	a.drawPanel(screen, 2, 2, "ScaleAlphaBy", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.DrawCircle(dst, float32(b.Min.X+120), float32(b.Min.Y+84), 54)
-		a.renderer.ScaleAlphaBy(0.45)
-		a.renderer.DrawCircle(dst, float32(b.Min.X+190), float32(b.Min.Y+84), 54)
-		a.renderer.SetColor(color.White)
-	})
-
-	a.drawPanel(screen, 3, 2, "PointF32 helpers", func(dst *ebiten.Image, b image.Rectangle) {
-		p0 := shapes.PointF32{70, 130}
-		p1 := shapes.PointF32{255, 42}
-		d := p1.Sub(p0)
-		u := d.Normalize().Scale(80)
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.DrawLine(dst, float64(p0.X), float64(p0.Y), float64(p1.X), float64(p1.Y), 4)
-		a.renderer.SetColor(color.RGBA{255, 210, 84, 255})
-		a.renderer.DrawLine(dst, float64(p0.X), float64(p0.Y), float64(p0.X+u.X), float64(p0.Y+u.Y), 7)
-		ebitenutil.DebugPrintAt(dst, fmt.Sprintf("len = %.1f", d.Length()), b.Min.X+18, b.Max.Y-panelTextLine1)
-	})
-}
-
-func (a *Showcase) drawColorPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "FlatPaint", func(dst *ebiten.Image, b image.Rectangle) {
-		mask := ebiten.NewImage(180, 120)
-		a.renderer.SetColor(color.White)
-		a.renderer.DrawHexagon(mask, 90, 60, 48, 10, 0)
-		a.renderer.SetColor(color.RGBA{255, 150, 72, 255})
-		a.renderer.FlatPaint(dst, mask, float32(b.Min.X+70), float32(b.Min.Y+28))
-	})
-
-	a.drawPanel(screen, 1, 0, "SimpleGradient", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SimpleGradient(dst.SubImage(image.Rect(b.Min.X+30, b.Min.Y+26, b.Min.X+292, b.Min.Y+144)).(*ebiten.Image), color.RGBA{45, 164, 255, 255}, color.RGBA{171, 94, 255, 255}, shapes.DirRadsTLBR)
-	})
-
-	a.drawPanel(screen, 2, 0, "Gradient", func(dst *ebiten.Image, b image.Rectangle) {
-		mask := ebiten.NewImage(220, 130)
-		a.renderer.SetColor(color.White)
-		a.renderer.DrawArea(mask, 10, 10, 200, 110, 30)
-		a.renderer.Gradient(dst, mask, float32(b.Min.X+48), float32(b.Min.Y+22), color.RGBA{255, 190, 80, 255}, color.RGBA{255, 80, 120, 255}, 8, shapes.DirRadsLTR, 1.4)
-	})
-
-	a.drawPanel(screen, 3, 0, "GradientRadial", func(dst *ebiten.Image, b image.Rectangle) {
-		tmp := ebiten.NewImage(220, 150)
-		a.renderer.GradientRadial(tmp, 110, 75, color.RGBA{70, 200, 255, 255}, color.RGBA{0, 0, 0, 0}, 10, 60, 74, 8, 2)
-		blit(dst, tmp, float64(b.Min.X+48), float64(b.Min.Y+16))
-	})
-
-	a.drawPanel(screen, 0, 1, "ColorizeByLightness", func(dst *ebiten.Image, b image.Rectangle) {
-		src := ebiten.NewImage(220, 130)
-		a.renderer.SimpleGradient(src, color.RGBA{20, 20, 20, 255}, color.RGBA{240, 240, 240, 255}, shapes.DirRadsLTR)
-		a.renderer.ColorizeByLightness(dst, src, float32(b.Min.X+48), float32(b.Min.Y+20), color.RGBA{30, 60, 255, 255}, color.RGBA{255, 120, 60, 255}, 0, 1, 8, 1.0)
-	})
-
-	a.drawPanel(screen, 1, 1, "OklabShift", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.OklabShift(dst, a.spriteB, float32(b.Min.X+50), float32(b.Min.Y+18), 0.15, 0.08, float32(math.Sin(float64(a.tick)*0.03))*0.5)
-	})
-
-	a.drawPanel(screen, 2, 1, "ColorMix", func(dst *ebiten.Image, b image.Rectangle) {
-		base := ebiten.NewImage(220, 130)
-		over := ebiten.NewImage(220, 130)
-		base.Fill(color.RGBA{35, 45, 70, 255})
-		a.renderer.SetColor(color.RGBA{75, 185, 255, 255})
-		a.renderer.DrawCircle(base, 76, 66, 48)
-		a.renderer.SetColor(color.RGBA{255, 128, 84, 255})
-		a.renderer.DrawHexagon(over, 140, 65, 50, 12, 0.2)
-		a.renderer.ColorMix(dst, base, over, b.Min.X+48, b.Min.Y+20, 0.9, 0.55)
-	})
-
-	a.drawPanel(screen, 3, 1, "DitherMat4", func(dst *ebiten.Image, b image.Rectangle) {
-		mask := ebiten.NewImage(220, 130)
-		a.renderer.SimpleGradient(mask, color.RGBA{20, 20, 20, 255}, color.RGBA{240, 240, 240, 255}, shapes.DirRadsLTR)
-		rgbaColors := []float32{
-			0.12, 0.16, 0.24, 1,
-			0.26, 0.50, 0.96, 1,
-			0.98, 0.74, 0.29, 1,
-			0.98, 0.37, 0.46, 1,
+func fillChecker(img *ebiten.Image) {
+	b := img.Bounds()
+	tile := 16
+	for y := b.Min.Y; y < b.Max.Y; y += tile {
+		for x := b.Min.X; x < b.Max.X; x += tile {
+			clr := color.RGBA{36, 42, 52, 255}
+			if ((x/tile)+(y/tile))%2 == 0 {
+				clr = color.RGBA{28, 33, 42, 255}
+			}
+			r := image.Rect(x, y, min(x+tile, b.Max.X), min(y+tile, b.Max.Y))
+			sub := img.SubImage(r).(*ebiten.Image)
+			sub.Fill(clr)
 		}
-		dmat := [16]float32{0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5}
-		a.renderer.DitherMat4(dst, mask, float32(b.Min.X+48), float32(b.Min.Y+20), 0, 0, rgbaColors, dmat, 1, 0)
-	})
-
-	a.drawPanel(screen, 0, 2, "TileDotsGrid", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(272, 136)
-		area.Fill(color.RGBA{12, 16, 24, 255})
-		a.renderer.SetColor(color.RGBA{95, 200, 255, 255})
-		a.renderer.TileDotsGrid(area, 5, 20, 0, 0)
-		blitAt(dst, area, image.Pt(b.Min.X+24, b.Min.Y+18))
-	})
-
-	a.drawPanel(screen, 1, 2, "TileDotsHex", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(272, 136)
-		area.Fill(color.RGBA{12, 16, 24, 255})
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.TileDotsHex(area, 4, 24, 0, 0)
-		blitAt(dst, area, image.Pt(b.Min.X+24, b.Min.Y+18))
-	})
-
-	a.drawPanel(screen, 2, 2, "TileRectsGrid", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(272, 136)
-		area.Fill(color.RGBA{14, 18, 28, 255})
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.TileRectsGrid(area, 28, 22, 16, 12, 0, 0)
-		blitAt(dst, area, image.Pt(b.Min.X+24, b.Min.Y+18))
-	})
-
-	a.drawPanel(screen, 3, 2, "TileTriUpGrid / TileTriHex", func(dst *ebiten.Image, b image.Rectangle) {
-		left := ebiten.NewImage(136, 132)
-		right := ebiten.NewImage(136, 132)
-		left.Fill(color.RGBA{14, 18, 28, 255})
-		right.Fill(color.RGBA{14, 18, 28, 255})
-		a.renderer.SetColor(color.RGBA{255, 118, 118, 255})
-		a.renderer.TileTriUpGrid(left, 20, 10, 0, 0)
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.TileTriHex(right, 18, 10, 0, 0)
-		blitAt(dst, left, image.Pt(b.Min.X+18, b.Min.Y+22))
-		blitAt(dst, right, image.Pt(b.Min.X+166, b.Min.Y+22))
-	})
+	}
 }
 
-func (a *Showcase) drawMaskNoisePage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "Mask", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.Mask(dst, a.spriteA, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 0, "MaskAt", func(dst *ebiten.Image, b image.Rectangle) {
-		t := float32(math.Sin(float64(a.tick)*0.03)) * 18
-		a.renderer.MaskAt(dst, a.spriteA, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 12+t, -8)
-	})
-
-	a.drawPanel(screen, 2, 0, "MaskThreshold", func(dst *ebiten.Image, b image.Rectangle) {
-		reveal := float32((math.Sin(float64(a.tick)*0.03) + 1) * 0.5)
-		a.renderer.MaskThreshold(dst, a.spriteA, a.maskA, reveal, float32(b.Min.X+50), float32(b.Min.Y+20))
-		ebitenutil.DebugPrintAt(dst, fmt.Sprintf("reveal = %.2f", reveal), b.Min.X+16, b.Max.Y-panelTextLine1)
-	})
-
-	a.drawPanel(screen, 3, 0, "MaskHorz", func(dst *ebiten.Image, b image.Rectangle) {
-		inX := float32((math.Sin(float64(a.tick)*0.03) + 1) * 80)
-		a.renderer.MaskHorz(dst, a.spriteA, float32(b.Min.X+50), float32(b.Min.Y+20), inX, inX+30)
-	})
-
-	a.drawPanel(screen, 0, 1, "MaskCircle", func(dst *ebiten.Image, b image.Rectangle) {
-		soft := float32(18 + 8*math.Sin(float64(a.tick)*0.04))
-		a.renderer.MaskCircle(dst, a.spriteA, float32(b.Min.X+160), float32(b.Min.Y+86), 50, 20, 56, soft)
-	})
-
-	a.drawPanel(screen, 1, 1, "DrawAlphaMaskCirc", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.DrawAlphaMaskCirc(dst, float32(b.Min.X+160), float32(b.Min.Y+86), 84, 24, shapes.MaskPatternFlare)
-	})
-
-	a.drawPanel(screen, 2, 1, "Noise", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(264, 128)
-		area.Fill(color.RGBA{22, 26, 36, 255})
-		a.renderer.Noise(area, 0.18, 1.0, float32(a.tick)*0.01)
-		blitAt(dst, area, image.Pt(b.Min.X+28, b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 3, 1, "NoiseGolden", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(264, 128)
-		area.Fill(color.RGBA{22, 26, 36, 255})
-		a.renderer.NoiseGolden(area, 12, 0.22, float32(a.tick)*0.01)
-		blitAt(dst, area, image.Pt(b.Min.X+28, b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 0, 2, "HalftoneTri", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.HalftoneTri(dst, a.spriteB, float32(b.Min.X+50), float32(b.Min.Y+20), 24, 4, 22, 0, 0)
-	})
-
-	a.drawPanel(screen, 1, 2, "Alpha mask patterns", func(dst *ebiten.Image, b image.Rectangle) {
-		left := ebiten.NewImage(136, 132)
-		right := ebiten.NewImage(136, 132)
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.DrawAlphaMaskCirc(left, 68, 66, 54, 12, shapes.MaskPatternEllipseCuts)
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.DrawAlphaMaskCirc(right, 68, 66, 54, 12, shapes.MaskPatternPhiGrid)
-		blitAt(dst, left, image.Pt(b.Min.X+18, b.Min.Y+20))
-		blitAt(dst, right, image.Pt(b.Min.X+166, b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 2, 2, "MaskPatternCircMesh", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-		a.renderer.DrawAlphaMaskCirc(dst, float32(b.Min.X+160), float32(b.Min.Y+86), 86, 6, shapes.MaskPatternCircMesh)
-	})
-
-	a.drawPanel(screen, 3, 2, "Source asset", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
+func buildPages() []page {
+	return []page{
+		{title: "Primitives", panels: primitivesPanels()},
+		{title: "Rounded rects & sectors", panels: rectsPanels()},
+		{title: "Color & gradients", panels: colorPanels()},
+		{title: "Tiles & noise", panels: tilePanels()},
+		{title: "Masks", panels: maskPanels()},
+		{title: "Filters & light", panels: effectPanels()},
+		{title: "Mapping & JFM", panels: mappingPanels()},
+	}
 }
 
-func (a *Showcase) drawEffectsPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "ApplyExpansion", func(dst *ebiten.Image, b image.Rectangle) {
-		thick := float32(12 + 8*math.Sin(float64(a.tick)*0.04))
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.ApplyExpansion(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), thick)
-		blit(dst, a.maskA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 0, "ApplyErosion", func(dst *ebiten.Image, b image.Rectangle) {
-		thick := float32(10 + 6*math.Sin(float64(a.tick)*0.03))
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.ApplyErosion(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), thick)
-	})
-
-	a.drawPanel(screen, 2, 0, "ApplyOutline", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-		a.renderer.ApplyOutline(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 8)
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 3, 0, "ApplyBlur", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{120, 220, 255, 255})
-		a.renderer.ApplyBlur(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 14, 0)
-		blit(dst, a.maskA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 0, 1, "ApplyBlur2", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{170, 120, 255, 255})
-		a.renderer.ApplyBlur2(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 12, 0)
-		blit(dst, a.maskA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 1, "ApplyShadow", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{0, 0, 0, 180})
-		a.renderer.ApplyShadow(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 18, 14, 18, shapes.ClampBottom)
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 2, 1, "ApplyZoomShadow", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{0, 0, 0, 180})
-		a.renderer.ApplyZoomShadow(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 12, 10, 1.3, shapes.ClampBottom)
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 3, 1, "ApplySimpleGlow / ApplyGlow", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 210, 84, 255})
-		a.renderer.ApplySimpleGlow(dst, a.maskA, float32(b.Min.X+18), float32(b.Min.Y+20), 14)
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.ApplyGlow(dst, a.maskA, float32(b.Min.X+162), float32(b.Min.Y+20), 20, 10, 0.15, 0.9, 0)
-		blit(dst, a.maskA, float64(b.Min.X+18), float64(b.Min.Y+20))
-		blit(dst, a.maskA, float64(b.Min.X+162), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 0, 2, "ApplyHorzGlow / ApplyDarkHorzGlow", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.ApplyHorzGlow(dst, a.maskA, float32(b.Min.X+16), float32(b.Min.Y+22), 22, 0.1, 0.8, 0)
-		a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-		a.renderer.ApplyDarkHorzGlow(dst, a.maskA, float32(b.Min.X+168), float32(b.Min.Y+22), 22, 0.8, 0.1, 0)
-		blit(dst, a.maskA, float64(b.Min.X+16), float64(b.Min.Y+22))
-		blit(dst, a.maskA, float64(b.Min.X+168), float64(b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 1, 2, "ApplyScanlinesSharp", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(264, 128)
-		a.renderer.SimpleGradient(area, color.RGBA{60, 160, 255, 255}, color.RGBA{170, 110, 255, 255}, shapes.DirRadsTTB)
-		a.renderer.ApplyScanlinesSharp(area, 2, 4, 0.55, float32(a.tick)*0.04)
-		blitAt(dst, area, image.Pt(b.Min.X+28, b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 2, 2, "ApplyWaveLines", func(dst *ebiten.Image, b image.Rectangle) {
-		area := ebiten.NewImage(264, 128)
-		area.Fill(color.RGBA{12, 16, 24, 255})
-		a.renderer.SetColor(color.RGBA{255, 210, 84, 255})
-		a.renderer.ApplyWaveLines(area, 6, 0.2, 0.8, 6, float32(a.tick)*0.03, math.Pi/8)
-		blitAt(dst, area, image.Pt(b.Min.X+28, b.Min.Y+22))
-	})
-
-	a.drawPanel(screen, 3, 2, "ApplyExpansionRect", func(dst *ebiten.Image, b image.Rectangle) {
-		mask := ebiten.NewImage(160, 110)
-		mask.Fill(color.Transparent)
-		a.renderer.SetColor(color.White)
-		a.renderer.DrawArea(mask, 20, 18, 120, 74, 0)
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.ApplyExpansionRect(dst, mask, float32(b.Min.X+78), float32(b.Min.Y+34), 10)
-		blit(dst, mask, float64(b.Min.X+78), float64(b.Min.Y+34))
-	})
+func primitivesPanels() []panel {
+	return []panel{
+		{"DrawArea / StrokeArea", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{68, 180, 255, 255})
+			d.r.DrawArea(d.dst, d.x(28), d.y(44), d.s(120), d.s(86), d.s(18))
+			d.r.SetColor(color.RGBA{255, 204, 84, 255})
+			d.r.StrokeArea(d.dst, d.x(170), d.y(38), d.s(120), d.s(98), d.s(5), d.s(8), d.s(24))
+			return nil
+		}},
+		{"DrawLine / DrawCircle", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{255, 120, 120, 255})
+			d.r.DrawLine(d.dst, d.xf(20), d.yf(150), d.xf(140), d.yf(40), d.sf(10))
+			d.r.SetColor(color.RGBA{90, 225, 170, 255})
+			d.r.DrawCircle(d.dst, d.x(230), d.y(96), d.s(46))
+			return nil
+		}},
+		{"StrokeCircle / DrawRing", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.StrokeCircle(d.dst, d.x(96), d.y(100), d.s(52), d.s(8))
+			d.r.SetColor(color.RGBA{255, 193, 84, 255})
+			d.r.DrawRing(d.dst, d.x(228), d.y(100), d.s(26), d.s(52))
+			return nil
+		}},
+		{"DrawPie / StrokePie", func(d demoCtx) []string {
+			t := 0.7 + 0.6*math.Sin(float64(d.a.tick)*0.03)
+			d.r.SetColor(color.RGBA{255, 99, 132, 255})
+			d.r.DrawPie(d.dst, d.x(90), d.y(100), d.s(52), shapes.RadsTop, shapes.RadsTop+t*math.Pi, d.s(12))
+			d.r.SetColor(color.RGBA{115, 215, 255, 255})
+			d.r.StrokePie(d.dst, d.x(220), d.y(100), d.s(54), d.s(12), shapes.RadsLeft, shapes.RadsLeft+t*math.Pi, d.s(8))
+			return nil
+		}},
+		{"DrawEllipse", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{170, 120, 255, 255})
+			d.r.DrawEllipse(d.dst, d.x(160), d.y(104), d.s(108), d.s(50), math.Sin(float64(d.a.tick)*0.02)*0.7)
+			return nil
+		}},
+		{"DrawTriangle / StrokeTriangle", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.DrawTriangle(d.dst, d.xf(24), d.yf(170), d.xf(84), d.yf(56), d.xf(150), d.yf(180), d.sf(10))
+			d.r.SetColor(color.RGBA{255, 210, 96, 255})
+			d.r.StrokeTriangle(d.dst, d.xf(172), d.yf(170), d.xf(232), d.yf(60), d.xf(296), d.yf(170), d.sf(8), d.sf(10))
+			return nil
+		}},
+		{"DrawHexagon", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{83, 220, 171, 255})
+			d.r.DrawHexagon(d.dst, d.x(160), d.y(104), d.s(74), d.s(16), float32(d.a.tick)*0.01)
+			return nil
+		}},
+		{"DrawQuad / DrawQuadSoft", func(d demoCtx) []string {
+			quadA := [4]shapes.PointF32{d.pt(24, 78), d.pt(148, 56), d.pt(170, 172), d.pt(12, 188)}
+			quadB := [4]shapes.PointF32{d.pt(168, 84), d.pt(300, 98), d.pt(288, 190), d.pt(164, 178)}
+			d.r.SetColor(color.RGBA{255, 104, 104, 255})
+			d.r.DrawQuad(d.dst, quadA, 0)
+			d.r.SetColor(color.RGBA{100, 180, 255, 255})
+			d.r.DrawQuadSoft(d.dst, quadB, d.s(3), d.s(4))
+			return nil
+		}},
+	}
 }
 
-func (a *Showcase) drawWarpPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "Scale", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.Scale(dst, a.spriteB, float32(b.Min.X+42), float32(b.Min.Y+18), 0.75, false)
-	})
-
-	a.drawPanel(screen, 1, 0, "Scale (pixelated sampling)", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.Scale(dst, a.spriteB, float32(b.Min.X+42), float32(b.Min.Y+18), 0.75, true)
-	})
-
-	a.drawPanel(screen, 2, 0, "MapQuad4", func(dst *ebiten.Image, b image.Rectangle) {
-		quad := [4]shapes.PointF32{{float32(b.Min.X + 34), float32(b.Min.Y + 32)}, {float32(b.Min.X + 266), float32(b.Min.Y + 18)}, {float32(b.Min.X + 290), float32(b.Min.Y + 154)}, {float32(b.Min.X + 54), float32(b.Min.Y + 142)}}
-		a.renderer.MapQuad4(dst, a.spriteA, quad)
-	})
-
-	a.drawPanel(screen, 3, 0, "MapProjective", func(dst *ebiten.Image, b image.Rectangle) {
-		quad := [4]shapes.PointF32{{float32(b.Min.X + 56), float32(b.Min.Y + 26)}, {float32(b.Min.X + 260), float32(b.Min.Y + 46)}, {float32(b.Min.X + 280), float32(b.Min.Y + 142)}, {float32(b.Min.X + 26), float32(b.Min.Y + 156)}}
-		a.renderer.MapProjective(dst, a.spriteA, quad)
-	})
-
-	a.drawPanel(screen, 0, 1, "WarpBarrel", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.WarpBarrel(dst, a.spriteB, float32(b.Min.X+50), float32(b.Min.Y+20), 0.18, 0.12)
-	})
-
-	a.drawPanel(screen, 1, 1, "WarpArc", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.WarpArc(dst, a.spriteB, float32(b.Min.X+160), float32(b.Min.Y+162), 120, math.Pi*0.9)
-	})
-
-	a.drawPanel(screen, 2, 1, "Map + overlay", func(dst *ebiten.Image, b image.Rectangle) {
-		quad := [4]shapes.PointF32{{float32(b.Min.X + 40), float32(b.Min.Y + 30)}, {float32(b.Min.X + 274), float32(b.Min.Y + 22)}, {float32(b.Min.X + 266), float32(b.Min.Y + 154)}, {float32(b.Min.X + 46), float32(b.Min.Y + 146)}}
-		a.renderer.MapProjective(dst, a.spriteB, quad)
-		a.renderer.SetColor(color.RGBA{255, 255, 255, 140})
-		a.renderer.DrawQuadSoft(dst, quad, 0, 2)
-	})
-
-	a.drawPanel(screen, 3, 1, "NewSimpleGradient", func(dst *ebiten.Image, b image.Rectangle) {
-		grad := a.renderer.NewSimpleGradient(220, 140, color.RGBA{83, 220, 171, 255}, color.RGBA{255, 120, 120, 255}, shapes.DirRadsBLTR)
-		blit(dst, grad, float64(b.Min.X+50), float64(b.Min.Y+16))
-	})
-
-	a.drawPanel(screen, 0, 2, "Generated asset A", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 2, "Generated asset B", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.spriteB, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 2, 2, "Clamping flags", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{0, 0, 0, 180})
-		a.renderer.ApplyShadow(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 20, 16, 18, shapes.ClampBottom|shapes.ClampLeft)
-		blit(dst, a.spriteA, float64(b.Min.X+50), float64(b.Min.Y+20))
-		ebitenutil.DebugPrintAt(dst, "ClampBottom | ClampLeft", b.Min.X+18, b.Max.Y-panelTextLine1)
-	})
-
-	a.drawPanel(screen, 3, 2, "Shader-backed pipeline", func(dst *ebiten.Image, b image.Rectangle) {
-		ebitenutil.DebugPrintAt(dst, "Most drawing/effects in this package", b.Min.X+18, b.Min.Y+52)
-		ebitenutil.DebugPrintAt(dst, "are implemented with compact Kage shaders", b.Min.X+18, b.Min.Y+70)
-		ebitenutil.DebugPrintAt(dst, "instead of triangle rasterization alone.", b.Min.X+18, b.Min.Y+88)
-	})
+func rectsPanels() []panel {
+	return []panel{
+		{"DrawIntArea / StrokeIntArea", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{90, 215, 255, 255})
+			d.r.DrawIntArea(d.dst, d.xi(28), d.yi(38), int(d.s(122)), int(d.s(88)))
+			d.r.SetColor(color.RGBA{255, 194, 84, 255})
+			d.r.StrokeIntArea(d.dst, d.xi(172), d.yi(28), int(d.s(116)), int(d.s(106)), int(d.s(6)), int(d.s(8)))
+			return nil
+		}},
+		{"DrawRingSector", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{170, 120, 255, 255})
+			d.r.DrawRingSector(d.dst, d.x(160), d.y(100), d.s(28), d.s(68), shapes.RadsTopRight, shapes.RadsBottomLeft+0.4, d.s(10))
+			return nil
+		}},
+		{"StrokeRingSector", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{255, 210, 84, 255})
+			d.r.StrokeRingSector(d.dst, d.x(160), d.y(100), d.s(30), d.s(72), d.s(10), shapes.RadsLeft+0.2, shapes.RadsTopRight, d.s(8))
+			return nil
+		}},
+		{"DrawPieRate", func(d demoCtx) []string {
+			rate := (math.Sin(float64(d.a.tick)*0.03) + 1) * 0.5
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.DrawPieRate(d.dst, d.x(160), d.y(100), d.s(60), shapes.RadsTop, rate, d.s(10))
+			return []string{fmt.Sprintf("rate = %.2f", rate)}
+		}},
+		{"StrokePieRate", func(d demoCtx) []string {
+			rate := (math.Cos(float64(d.a.tick)*0.04) + 1) * 0.5
+			d.r.SetColor(color.RGBA{255, 123, 123, 255})
+			d.r.StrokePieRate(d.dst, d.x(160), d.y(100), d.s(64), d.s(14), shapes.RadsRight, rate, d.s(8))
+			return []string{fmt.Sprintf("rate = %.2f", rate)}
+		}},
+		{"Rounded stroke contrast", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{88, 205, 255, 255})
+			d.r.StrokeArea(d.dst, d.x(26), d.y(40), d.s(120), d.s(104), 0, d.s(12), 0)
+			d.r.SetColor(color.RGBA{255, 200, 84, 255})
+			d.r.StrokeArea(d.dst, d.x(176), d.y(40), d.s(120), d.s(104), 0, d.s(12), d.s(28))
+			return []string{"sharp vs rounded corners"}
+		}},
+	}
 }
 
-func (a *Showcase) drawJFMPage(screen *ebiten.Image) {
-	a.drawPanel(screen, 0, 0, "JFMapFill + JFMHeat", func(dst *ebiten.Image, b image.Rectangle) {
-		jfmap := ebiten.NewImage(a.jfMask.Bounds().Dx(), a.jfMask.Bounds().Dy())
-		a.renderer.JFMapFill(jfmap, a.jfMask, 96, 0.001, 1)
-		a.renderer.JFMHeat(dst, jfmap, float32(b.Min.X+50), float32(b.Min.Y+20), 96)
-	})
+func colorPanels() []panel {
+	return []panel{
+		{"SimpleGradient", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 262, 150, true)
+			d.r.SimpleGradient(area, color.RGBA{45, 164, 255, 255}, color.RGBA{171, 94, 255, 255}, shapes.DirRadsTLBR)
+			d.blit(area, 30, 30)
+			return nil
+		}},
+		{"Gradient (masked)", func(d demoCtx) []string {
+			mask := d.tempRef(tempAuxA, 220, 130, true)
+			d.r.SetColor(color.White)
+			d.r.DrawArea(mask, d.s(10), d.s(10), d.s(200), d.s(110), d.s(30))
+			d.r.Gradient(d.dst, mask, d.x(48), d.y(30), color.RGBA{255, 190, 80, 255}, color.RGBA{255, 80, 120, 255}, 8, shapes.DirRadsLTR, 1.4)
+			return nil
+		}},
+		{"GradientRadial", func(d demoCtx) []string {
+			d.r.GradientRadial(d.dst, d.x(160), d.y(100), color.RGBA{70, 200, 255, 255}, color.RGBA{0, 0, 0, 0}, d.s(10), d.s(66), d.s(82), 8, 2)
+			return nil
+		}},
+		{"ColorizeByLightness", func(d demoCtx) []string {
+			// Recolor a shaded sprite purely by its luminance ramp.
+			src := d.scaled(tempAuxA, d.a.spriteB)
+			d.r.ColorizeByLightness(d.dst, src, d.x(50), d.y(18), color.RGBA{30, 60, 255, 255}, color.RGBA{255, 170, 60, 255}, 0.1, 0.9, 0, 1.0)
+			return []string{"luminance -> two-color ramp"}
+		}},
+		{"OklabShift", func(d demoCtx) []string {
+			src := d.scaled(tempAuxA, d.a.spriteB)
+			d.r.OklabShift(d.dst, src, d.x(50), d.y(18), 0.15, 0.08, float32(math.Sin(float64(d.a.tick)*0.03))*0.5)
+			return []string{"animated hue shift"}
+		}},
+		{"ColorMix", func(d demoCtx) []string {
+			// Two translucent blobs interpolated with mix() rather than composited.
+			base := d.tempRef(tempAuxA, 220, 130, true)
+			over := d.tempRef(tempAuxB, 220, 130, true)
+			d.r.GradientRadial(base, d.s(78), d.s(64), color.RGBA{70, 190, 255, 255}, color.RGBA{70, 190, 255, 0}, 0, d.s(20), d.s(60), 0, 2)
+			d.r.GradientRadial(over, d.s(148), d.s(66), color.RGBA{255, 128, 84, 255}, color.RGBA{255, 128, 84, 0}, 0, d.s(20), d.s(60), 0, 2)
+			mix := float32((math.Sin(float64(d.a.tick)*0.03) + 1) * 0.5)
+			d.r.ColorMix(d.dst, base, over, d.xi(50), d.yi(40), 1.0, mix)
+			return []string{fmt.Sprintf("mixLevel = %.2f", mix)}
+		}},
+		{"DitherMat4", func(d demoCtx) []string {
+			mask := d.tempRef(tempAuxA, 220, 130, true)
+			d.r.SimpleGradient(mask, color.RGBA{20, 20, 20, 255}, color.RGBA{240, 240, 240, 255}, shapes.DirRadsLTR)
+			rgbaColors := []float32{
+				0.12, 0.16, 0.24, 1,
+				0.26, 0.50, 0.96, 1,
+				0.98, 0.74, 0.29, 1,
+				0.98, 0.37, 0.46, 1,
+			}
+			dmat := [16]float32{0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5}
+			d.r.DitherMat4(d.dst, mask, d.x(48), d.y(40), 0, 0, rgbaColors, dmat, 1, 0)
+			return nil
+		}},
+		{"FlatPaint", func(d demoCtx) []string {
+			// Any silhouette in a mask, painted with a flat vertex color.
+			mask := d.tempRef(tempAuxA, 200, 150, true)
+			d.r.SetColor(color.White)
+			d.r.DrawTriangle(mask, d.sf(30), d.sf(120), d.sf(100), d.sf(20), d.sf(170), d.sf(120), d.sf(10))
+			d.r.DrawCircle(mask, d.s(100), d.s(112), d.s(34))
+			d.r.SetColor(color.RGBA{255, 150, 72, 255})
+			d.r.FlatPaint(d.dst, mask, d.x(60), d.y(30))
+			return []string{"any mask -> flat color"}
+		}},
+	}
+}
 
-	a.drawPanel(screen, 1, 0, "JFMExpand", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{255, 194, 84, 255})
-		a.renderer.JFMExpand(dst, a.jfMask, nil, float32(b.Min.X+50), float32(b.Min.Y+20), 12, shapes.AAMargin*4)
-		blit(dst, a.jfMask, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
+func tilePanels() []panel {
+	return []panel{
+		{"TileDotsGrid", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{12, 16, 24, 255})
+			d.r.SetColor(color.RGBA{95, 200, 255, 255})
+			d.r.TileDotsGrid(area, d.s(5), d.s(22), 0, 0)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+		{"TileDotsHex", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{12, 16, 24, 255})
+			d.r.SetColor(color.RGBA{255, 194, 84, 255})
+			d.r.TileDotsHex(area, d.s(4), d.s(26), 0, 0)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+		{"TileRectsGrid", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{14, 18, 28, 255})
+			d.r.SetColor(color.RGBA{83, 220, 171, 255})
+			d.r.TileRectsGrid(area, d.s(30), d.s(24), d.s(18), d.s(14), 0, 0)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+		{"TileTriUpGrid / TileTriHex", func(d demoCtx) []string {
+			left := d.tempRef(tempAuxA, 148, 180, false)
+			right := d.tempRef(tempAuxB, 148, 180, false)
+			left.Fill(color.RGBA{14, 18, 28, 255})
+			right.Fill(color.RGBA{14, 18, 28, 255})
+			d.r.SetColor(color.RGBA{255, 118, 118, 255})
+			d.r.TileTriUpGrid(left, d.s(22), d.s(11), 0, 0)
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.TileTriHex(right, d.s(20), d.s(11), 0, 0)
+			d.blit(left, 10, 15)
+			d.blit(right, 162, 15)
+			return nil
+		}},
+		{"Noise", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{22, 26, 36, 255})
+			d.r.Noise(area, 0.18, 1.0, float32(d.a.tick)*0.01)
+			d.blit(area, 10, 15)
+			return []string{"animated grain"}
+		}},
+		{"NoiseGolden", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{22, 26, 36, 255})
+			d.r.NoiseGolden(area, d.s(12), 0.22, float32(d.a.tick)*0.01)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+	}
+}
 
-	a.drawPanel(screen, 2, 0, "JFMErode", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{114, 217, 255, 255})
-		a.renderer.JFMErode(dst, a.jfMask, nil, float32(b.Min.X+50), float32(b.Min.Y+20), 10, shapes.AAMargin)
-	})
+func maskPanels() []panel {
+	return []panel{
+		{"Mask", func(d demoCtx) []string {
+			sp := d.scaled(tempAuxA, d.a.spriteA)
+			mk := d.scaled(tempAuxB, d.a.maskA)
+			d.r.Mask(d.dst, sp, mk, d.x(50), d.y(20))
+			return []string{"sprite kept only where mask is opaque"}
+		}},
+		{"MaskThreshold", func(d demoCtx) []string {
+			sp := d.scaled(tempAuxA, d.a.spriteA)
+			mk := d.scaled(tempAuxB, d.a.maskA)
+			reveal := float32((math.Sin(float64(d.a.tick)*0.03) + 1) * 0.5)
+			d.r.MaskThreshold(d.dst, sp, mk, reveal, d.x(50), d.y(20))
+			return []string{fmt.Sprintf("reveal = %.2f", reveal)}
+		}},
+		{"MaskCircle", func(d demoCtx) []string {
+			sp := d.scaled(tempAuxA, d.a.spriteA)
+			soft := float32(18 + 8*math.Sin(float64(d.a.tick)*0.04))
+			d.r.MaskCircle(d.dst, sp, d.x(160), d.y(100), d.s(50), d.s(20), d.s(60), d.s(soft))
+			return []string{"soft circular spotlight"}
+		}},
+		{"DrawAlphaMaskCirc", func(d demoCtx) []string {
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.DrawAlphaMaskCirc(d.dst, d.x(160), d.y(100), d.s(84), d.s(24), shapes.MaskPatternFlare)
+			return []string{"procedural flare pattern"}
+		}},
+		{"HalftoneTri", func(d demoCtx) []string {
+			sp := d.scaled(tempAuxA, d.a.spriteB)
+			d.r.HalftoneTri(d.dst, sp, d.x(50), d.y(20), d.s(24), d.s(4), d.s(22), 0, 0)
+			return nil
+		}},
+	}
+}
 
-	a.drawPanel(screen, 3, 0, "JFMapBoundary", func(dst *ebiten.Image, b image.Rectangle) {
-		jfmap := ebiten.NewImage(a.jfMask.Bounds().Dx(), a.jfMask.Bounds().Dy())
-		a.renderer.JFMapBoundary(jfmap, a.jfMask, 96, 0.001, 1, false, false)
-		blit(dst, jfmap, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
+func effectPanels() []panel {
+	return []panel{
+		{"ApplyExpansion", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			thick := float32(12 + 8*math.Sin(float64(d.a.tick)*0.04))
+			d.r.SetColor(color.RGBA{255, 194, 84, 255})
+			d.r.ApplyExpansion(d.dst, mk, d.x(50), d.y(20), d.s(thick))
+			d.blit(mk, 50, 20)
+			return nil
+		}},
+		{"ApplyErosion", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			thick := float32(10 + 6*math.Sin(float64(d.a.tick)*0.03))
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.ApplyErosion(d.dst, mk, d.x(50), d.y(20), d.s(thick))
+			return nil
+		}},
+		{"ApplyOutline", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			sp := d.scaled(tempAuxB, d.a.spriteA)
+			d.r.SetColor(color.RGBA{255, 120, 120, 255})
+			d.r.ApplyOutline(d.dst, mk, d.x(50), d.y(20), d.s(8))
+			d.blit(sp, 50, 20)
+			return nil
+		}},
+		{"ApplyBlur", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			d.r.SetColor(color.RGBA{120, 220, 255, 255})
+			d.r.ApplyBlur(d.dst, mk, d.x(50), d.y(20), d.s(14), 0)
+			return nil
+		}},
+		{"ApplyBlur2", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			d.r.SetColor(color.RGBA{170, 120, 255, 255})
+			d.r.ApplyBlur2(d.dst, mk, d.x(50), d.y(20), d.s(12), 0)
+			return nil
+		}},
+		{"ApplyShadow", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			sp := d.scaled(tempAuxB, d.a.spriteA)
+			d.r.SetColor(color.RGBA{0, 0, 0, 180})
+			d.r.ApplyShadow(d.dst, mk, d.x(50), d.y(20), d.s(18), d.s(14), d.s(18), shapes.ClampBottom)
+			d.blit(sp, 50, 20)
+			return nil
+		}},
+		{"ApplyZoomShadow", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			sp := d.scaled(tempAuxB, d.a.spriteA)
+			d.r.SetColor(color.RGBA{0, 0, 0, 180})
+			d.r.ApplyZoomShadow(d.dst, mk, d.x(50), d.y(20), d.s(12), d.s(10), 1.3, shapes.ClampBottom)
+			d.blit(sp, 50, 20)
+			return nil
+		}},
+		{"ApplySimpleGlow / ApplyGlow", func(d demoCtx) []string {
+			mk := d.scaled(tempAuxA, d.a.maskA)
+			d.r.SetColor(color.RGBA{255, 210, 84, 255})
+			d.r.ApplySimpleGlow(d.dst, mk, d.x(4), d.y(20), d.s(14))
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.ApplyGlow(d.dst, mk, d.x(150), d.y(20), d.s(20), d.s(10), 0.15, 0.9, 0)
+			d.blit(mk, 4, 20)
+			d.blit(mk, 150, 20)
+			return nil
+		}},
+		{"ApplyScanlinesSharp", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			d.r.SimpleGradient(area, color.RGBA{60, 160, 255, 255}, color.RGBA{170, 110, 255, 255}, shapes.DirRadsTTB)
+			d.r.ApplyScanlinesSharp(area, int(d.s(2)+1), int(d.s(4)+1), 0.55, float32(d.a.tick)*0.04)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+		{"ApplyWaveLines", func(d demoCtx) []string {
+			area := d.tempRef(tempAuxA, 300, 180, false)
+			area.Fill(color.RGBA{12, 16, 24, 255})
+			d.r.SetColor(color.RGBA{255, 210, 84, 255})
+			d.r.ApplyWaveLines(area, d.s(6), 0.2, 0.8, 6, float32(d.a.tick)*0.03, math.Pi/8)
+			d.blit(area, 10, 15)
+			return nil
+		}},
+		{"ApplyExpansionRect", func(d demoCtx) []string {
+			mask := d.tempRef(tempAuxA, 160, 110, true)
+			d.r.SetColor(color.White)
+			d.r.DrawArea(mask, d.s(20), d.s(18), d.s(120), d.s(74), 0)
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.ApplyExpansionRect(d.dst, mask, d.x(80), d.y(50), d.s(10))
+			d.blit(mask, 80, 50)
+			return nil
+		}},
+	}
+}
 
-	a.drawPanel(screen, 0, 1, "UnsafeTemp", func(dst *ebiten.Image, b image.Rectangle) {
-		tmp := a.renderer.UnsafeTemp(2, 220, 140, true)
-		tmp.Fill(color.RGBA{22, 30, 44, 255})
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.DrawHexagon(tmp, 110, 70, 44, 12, 0.2)
-		blit(dst, tmp, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 1, "UnsafeTempCopy", func(dst *ebiten.Image, b image.Rectangle) {
-		tmp := a.renderer.UnsafeTempCopy(3, a.spriteA, false)
-		blit(dst, tmp, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 2, 1, "UnsafeTempDual", func(dst *ebiten.Image, b image.Rectangle) {
-		left := a.renderer.UnsafeTempCopy(4, a.spriteA, false)
-		right := a.renderer.UnsafeTemp(5, a.spriteA.Bounds().Dx(), a.spriteA.Bounds().Dy(), true)
-		a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-		a.renderer.ApplyOutline(right, a.maskA, 0, 0, 6)
-		blit(dst, left, float64(b.Min.X+18), float64(b.Min.Y+20))
-		blit(dst, right, float64(b.Min.X+154), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 3, 1, "Renderer color state", func(dst *ebiten.Image, b image.Rectangle) {
-		c := a.renderer.GetColorF32()
-		ebitenutil.DebugPrintAt(dst, fmt.Sprintf("current RGBA = %.2f %.2f %.2f %.2f", c[0], c[1], c[2], c[3]), b.Min.X+18, b.Min.Y+56)
-		ebitenutil.DebugPrintAt(dst, "SetColor / SetBlend drive most samples.", b.Min.X+18, b.Min.Y+74)
-	})
-
-	a.drawPanel(screen, 0, 2, "Mask source for JFM", func(dst *ebiten.Image, b image.Rectangle) {
-		blit(dst, a.jfMask, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 1, 2, "ApplyVertBlur", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{170, 120, 255, 255})
-		a.renderer.ApplyVertBlur(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 14, 0)
-		blit(dst, a.maskA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 2, 2, "ApplyHorzBlur", func(dst *ebiten.Image, b image.Rectangle) {
-		a.renderer.SetColor(color.RGBA{83, 220, 171, 255})
-		a.renderer.ApplyHorzBlur(dst, a.maskA, float32(b.Min.X+50), float32(b.Min.Y+20), 14, 0)
-		blit(dst, a.maskA, float64(b.Min.X+50), float64(b.Min.Y+20))
-	})
-
-	a.drawPanel(screen, 3, 2, "Coverage note", func(dst *ebiten.Image, b image.Rectangle) {
-		ebitenutil.DebugPrintAt(dst, "Included all public drawing, mask,", b.Min.X+18, b.Min.Y+52)
-		ebitenutil.DebugPrintAt(dst, "tile, warp, noise and stable JFM APIs.", b.Min.X+18, b.Min.Y+70)
-		ebitenutil.DebugPrintAt(dst, "Skipped JFMOutline/JFMInsetContour because", b.Min.X+18, b.Min.Y+88)
-		ebitenutil.DebugPrintAt(dst, "they currently panic as unimplemented.", b.Min.X+18, b.Min.Y+106)
-	})
+func mappingPanels() []panel {
+	return []panel{
+		{"Scale", func(d demoCtx) []string {
+			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.k*0.75, false)
+			return []string{"bilinear sampling"}
+		}},
+		{"Scale (pixelated)", func(d demoCtx) []string {
+			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.k*0.75, true)
+			return []string{"nearest-like sampling"}
+		}},
+		{"MapQuad4", func(d demoCtx) []string {
+			quad := [4]shapes.PointF32{d.pt(34, 32), d.pt(266, 18), d.pt(290, 154), d.pt(54, 142)}
+			d.r.MapQuad4(d.dst, d.a.spriteA, quad)
+			return nil
+		}},
+		{"MapProjective", func(d demoCtx) []string {
+			quad := [4]shapes.PointF32{d.pt(56, 26), d.pt(260, 46), d.pt(280, 154), d.pt(26, 168)}
+			d.r.MapProjective(d.dst, d.a.spriteA, quad)
+			return []string{"perspective-correct mapping"}
+		}},
+		{"JFMapFill + JFMHeat", func(d demoCtx) []string {
+			js := d.scaled(tempAuxA, d.a.jfMask)
+			jb := js.Bounds()
+			jfmap := d.r.UnsafeTemp(tempAuxB, jb.Dx(), jb.Dy(), true)
+			d.r.JFMapFill(jfmap, js, int(d.s(96)), 0.001, 1)
+			d.r.JFMHeat(d.dst, jfmap, d.x(50), d.y(20), d.s(96))
+			return []string{"distance field heatmap"}
+		}},
+		{"JFMExpand", func(d demoCtx) []string {
+			js := d.scaled(tempAuxA, d.a.jfMask)
+			d.r.SetColor(color.RGBA{255, 194, 84, 255})
+			d.r.JFMExpand(d.dst, js, nil, d.x(50), d.y(20), d.s(12), shapes.AAMargin*4)
+			d.blit(js, 50, 20)
+			return nil
+		}},
+		{"JFMErode", func(d demoCtx) []string {
+			js := d.scaled(tempAuxA, d.a.jfMask)
+			d.r.SetColor(color.RGBA{114, 217, 255, 255})
+			d.r.JFMErode(d.dst, js, nil, d.x(50), d.y(20), d.s(10), shapes.AAMargin)
+			return nil
+		}},
+		{"JFMapBoundary", func(d demoCtx) []string {
+			js := d.scaled(tempAuxA, d.a.jfMask)
+			jb := js.Bounds()
+			jfmap := d.r.UnsafeTemp(tempAuxB, jb.Dx(), jb.Dy(), true)
+			d.r.JFMapBoundary(jfmap, js, int(d.s(96)), 0.001, 1, false, false)
+			d.blit(jfmap, 50, 20)
+			return nil
+		}},
+	}
 }
