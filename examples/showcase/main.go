@@ -38,6 +38,15 @@ const (
 	tempAuxB  = 11
 )
 
+// Static assets are rendered oversampled and then downscaled into each panel, so
+// asset-based demos stay sharp when the window grows or on high-DPI displays.
+// assetUnit is the reference-space footprint the assets are authored against.
+const (
+	assetUnit       = 220
+	assetOversample = 3
+	assetSize       = assetUnit * assetOversample
+)
+
 type panel struct {
 	title string
 	// draw renders the demo and returns optional notes (e.g. animated values or
@@ -232,12 +241,19 @@ func (d demoCtx) tempRef(idx int, refW, refH float32, clear bool) *ebiten.Image 
 // scaled returns a scaled copy of a static asset, so asset-based demos also
 // grow and shrink with the window (dogfooding Renderer.Scale in the process).
 func (d demoCtx) scaled(idx int, src *ebiten.Image) *ebiten.Image {
+	scale := d.assetK()
 	b := src.Bounds()
-	w := int(math.Ceil(float64(b.Dx()) * float64(d.k)))
-	h := int(math.Ceil(float64(b.Dy()) * float64(d.k)))
+	w := int(math.Ceil(float64(b.Dx()) * float64(scale)))
+	h := int(math.Ceil(float64(b.Dy()) * float64(scale)))
 	t := d.r.UnsafeTemp(idx, w, h, true)
-	d.r.Scale(t, src, 0, 0, d.k, false)
+	d.r.Scale(t, src, 0, 0, scale, false)
 	return t
+}
+
+// assetK is the scale that maps an oversampled asset to its logical footprint at
+// the current panel size (so a 220-unit asset occupies d.s(220) pixels).
+func (d demoCtx) assetK() float32 {
+	return d.k * float32(assetUnit) / float32(assetSize)
 }
 
 // blit draws src into the demo at reference coordinates (x, y).
@@ -249,39 +265,43 @@ func (d demoCtx) blit(src *ebiten.Image, x, y float32) {
 
 func (a *Showcase) makeAssets() {
 	// Assets are built once at startup, so plain NewImage is appropriate here.
-	a.spriteA = ebiten.NewImage(220, 220)
-	a.maskA = ebiten.NewImage(220, 220)
-	a.jfMask = ebiten.NewImage(220, 220)
+	// They are authored in a 220-unit space and scaled by sc for oversampling.
+	sc := float32(assetOversample)
+	scf := float64(assetOversample)
+
+	a.spriteA = ebiten.NewImage(assetSize, assetSize)
+	a.maskA = ebiten.NewImage(assetSize, assetSize)
+	a.jfMask = ebiten.NewImage(assetSize, assetSize)
 
 	fillChecker(a.spriteA)
 	a.renderer.SetColor(color.RGBA{255, 210, 80, 255})
-	a.renderer.DrawHexagon(a.spriteA, 110, 110, 70, 18, float32(shapes.RadsBottomRight))
+	a.renderer.DrawHexagon(a.spriteA, 110*sc, 110*sc, 70*sc, 18*sc, float32(shapes.RadsBottomRight))
 	a.renderer.SetColor(color.RGBA{70, 200, 255, 230})
-	a.renderer.DrawRingSector(a.spriteA, 110, 110, 48, 86, shapes.RadsTopLeft, shapes.RadsBottomRight+0.8, 8)
+	a.renderer.DrawRingSector(a.spriteA, 110*sc, 110*sc, 48*sc, 86*sc, shapes.RadsTopLeft, shapes.RadsBottomRight+0.8, 8*sc)
 	a.renderer.SetColor(color.RGBA{255, 120, 120, 255})
-	a.renderer.StrokeCircle(a.spriteA, 110, 110, 90, 4)
+	a.renderer.StrokeCircle(a.spriteA, 110*sc, 110*sc, 90*sc, 4*sc)
 
 	a.renderer.SetColor(color.White)
-	a.renderer.DrawCircle(a.maskA, 110, 110, 72)
+	a.renderer.DrawCircle(a.maskA, 110*sc, 110*sc, 72*sc)
 	a.renderer.SetColor(color.RGBA{255, 255, 255, 200})
-	a.renderer.DrawPie(a.maskA, 110, 110, 96, shapes.RadsLeft+0.3, shapes.RadsTopRight, 8)
+	a.renderer.DrawPie(a.maskA, 110*sc, 110*sc, 96*sc, shapes.RadsLeft+0.3, shapes.RadsTopRight, 8*sc)
 
 	a.renderer.SetColor(color.White)
-	a.renderer.DrawTriangle(a.jfMask, 32, 190, 110, 28, 188, 190, 12)
-	a.renderer.DrawCircle(a.jfMask, 110, 110, 34)
+	a.renderer.DrawTriangle(a.jfMask, 32*scf, 190*scf, 110*scf, 28*scf, 188*scf, 190*scf, 12*scf)
+	a.renderer.DrawCircle(a.jfMask, 110*sc, 110*sc, 34*sc)
 
-	a.spriteB = ebiten.NewImage(220, 220)
-	a.renderer.GradientRadial(a.spriteB, 110, 110, color.RGBA{76, 164, 255, 255}, color.RGBA{10, 10, 16, 0}, 16, 72, 106, -1, 2.2)
+	a.spriteB = ebiten.NewImage(assetSize, assetSize)
+	a.renderer.GradientRadial(a.spriteB, 110*sc, 110*sc, color.RGBA{76, 164, 255, 255}, color.RGBA{10, 10, 16, 0}, 16*sc, 72*sc, 106*sc, -1, 2.2)
 	a.renderer.SetBlend(ebiten.BlendSourceAtop)
 	a.renderer.Gradient(a.spriteB, nil, 0, 0, color.RGBA{255, 108, 64, 255}, color.RGBA{123, 26, 184, 255}, 8, shapes.DirRadsTLBR, 1.0)
 	a.renderer.SetBlend(ebiten.BlendSourceOver)
 	a.renderer.SetColor(color.RGBA{255, 255, 255, 220})
-	a.renderer.StrokeTriangle(a.spriteB, 48, 172, 110, 46, 172, 172, 7, 10)
+	a.renderer.StrokeTriangle(a.spriteB, 48*scf, 172*scf, 110*scf, 46*scf, 172*scf, 172*scf, 7*scf, 10*scf)
 }
 
 func fillChecker(img *ebiten.Image) {
 	b := img.Bounds()
-	tile := 16
+	tile := max(8, b.Dx()/14) // keep a stable look regardless of the asset resolution
 	for y := b.Min.Y; y < b.Max.Y; y += tile {
 		for x := b.Min.X; x < b.Max.X; x += tile {
 			clr := color.RGBA{36, 42, 52, 255}
@@ -657,11 +677,11 @@ func effectPanels() []panel {
 func mappingPanels() []panel {
 	return []panel{
 		{"Scale", func(d demoCtx) []string {
-			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.k*0.75, false)
+			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.assetK()*0.75, false)
 			return []string{"bilinear sampling"}
 		}},
 		{"Scale (pixelated)", func(d demoCtx) []string {
-			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.k*0.75, true)
+			d.r.Scale(d.dst, d.a.spriteB, d.x(42), d.y(18), d.assetK()*0.75, true)
 			return []string{"nearest-like sampling"}
 		}},
 		{"MapQuad4", func(d demoCtx) []string {
