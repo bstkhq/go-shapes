@@ -45,6 +45,10 @@ func lerp[Float float32 | float64](a, b, t Float) Float {
 	return a + t*(b-a)
 }
 
+func rotate[Float float32 | float64](x, y, sin, cos Float) (Float, Float) {
+	return x*cos - y*sin, x*sin + y*cos
+}
+
 // umod returns the non-negative remainder of x mod m, similar
 // to rust's [rem_euclid]. This is often used in the package for
 // normalizing angles.
