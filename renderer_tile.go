@@ -32,8 +32,8 @@ func (r *Renderer) TileRectsGrid(target *ebiten.Image, inWidth, inHeight, outWid
 		r.opts.Uniforms["Offsets"] = [2]float32{xOffset, yOffset}
 	}
 	r.setFlatCustomVAs(inWidth, inHeight, outWidth, outHeight)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderTileRectsGrid.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderTileRectsGrid.Load())
 	if useOffsets {
 		clear(r.opts.Uniforms)
 	}
@@ -58,8 +58,8 @@ func (r *Renderer) TileDotsHex(target *ebiten.Image, radius, horzSpacing, xOffse
 	}
 
 	r.setFlatCustomVAs(radius, horzSpacing, xOffset, yOffset)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderTileDotsHex.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderTileDotsHex.Load())
 }
 
 // TileDotsGrid draws dots of the given radius distributed in a grid
@@ -80,8 +80,8 @@ func (r *Renderer) TileDotsGrid(target *ebiten.Image, radius, spacing, xOffset, 
 	}
 
 	r.setFlatCustomVAs(radius, spacing, xOffset, yOffset)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderTileDotsGrid.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderTileDotsGrid.Load())
 }
 
 // TileTriUpGrid draws upwards equilateral triangles in a grid. The triangles have base inTriBase
@@ -103,8 +103,8 @@ func (r *Renderer) TileTriUpGrid(target *ebiten.Image, inTriBase, outTriBase, xO
 	}
 
 	r.setFlatCustomVAs(xOffset, yOffset, inTriBase, outTriBase)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderTileTriUpGrid.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderTileTriUpGrid.Load())
 }
 
 // TileTriHex draws equilateral triangles alternating up and down in a hexagonal latice.
@@ -126,6 +126,6 @@ func (r *Renderer) TileTriHex(target *ebiten.Image, inTriBase, outTriBase, xOffs
 	}
 
 	r.setFlatCustomVAs(xOffset, yOffset, inTriBase, outTriBase)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderTileTriHex.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderTileTriHex.Load())
 }

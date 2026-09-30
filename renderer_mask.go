@@ -170,6 +170,8 @@ const (
 	MaskPatternEllipseCuts // modern elliptical cuts
 	MaskPatternCircMesh    // circular mesh
 	MaskPatternPhiGrid     // artistic phi-based grid geometry
+
+	maskPatternEndSentinel
 )
 
 // BakeAlphaMaskRadial renders a circular mask going from RGBA(0, 0, 0, 0) at cx, cy
@@ -181,6 +183,6 @@ func (r *Renderer) BakeAlphaMaskRadial(target *ebiten.Image, cx, cy, dist, distR
 	r.opts.Uniforms["RngPattern"] = int(pattern)
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, dist, distRand)
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderAlphaMaskRadial.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderAlphaMaskRadial.Load())
 	clear(r.opts.Uniforms)
 }

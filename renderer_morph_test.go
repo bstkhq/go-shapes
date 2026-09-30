@@ -180,19 +180,23 @@ func jfmDebugPrint(t *testing.T, out *image.RGBA) {
 // go test -run ^TestJFMCompute$ . -count 1
 func TestJFMCompute(t *testing.T) {
 	r := NewRenderer()
-	src := ebiten.NewImage(9, 9)
+	const Size = 9
+	seedOffset := image.Pt(8, 8)
+	dstOffset := image.Pt(16, 16)
+	seeds := ebiten.NewImageWithOptions(image.Rect(0, 0, Size, Size).Add(seedOffset), nil)
+	seeds.Fill(color.White)
 	// top-left hollow rectangle
-	src.Set(0, 0, color.White)
-	src.Set(1, 0, color.White)
-	src.Set(2, 0, color.White)
-	src.Set(0, 1, color.White)
-	src.Set(2, 1, color.White)
-	src.Set(0, 2, color.White)
-	src.Set(1, 2, color.White)
-	src.Set(2, 2, color.White)
+	seeds.Set(seedOffset.X+0, seedOffset.Y+0, color.Transparent)
+	seeds.Set(seedOffset.X+1, seedOffset.Y+0, color.Transparent)
+	seeds.Set(seedOffset.X+2, seedOffset.Y+0, color.Transparent)
+	seeds.Set(seedOffset.X+0, seedOffset.Y+1, color.Transparent)
+	seeds.Set(seedOffset.X+2, seedOffset.Y+1, color.Transparent)
+	seeds.Set(seedOffset.X+0, seedOffset.Y+2, color.Transparent)
+	seeds.Set(seedOffset.X+1, seedOffset.Y+2, color.Transparent)
+	seeds.Set(seedOffset.X+2, seedOffset.Y+2, color.Transparent)
 
-	dst := ebiten.NewImage(9, 9)
-	r.JFMapBoundary(dst, src, 4, 0.001, 1.0, BoundaryMode{})
+	dst := ebiten.NewImageWithOptions(image.Rect(0, 0, Size, Size).Add(dstOffset), nil)
+	r.JFMapCompute(dst, seeds, 4)
 
 	out := image.NewRGBA(image.Rect(0, 0, 9, 9))
 	if err := ebiten.RunGame(&testOutputWriter{subject: dst, out: out.Pix}); err != nil {

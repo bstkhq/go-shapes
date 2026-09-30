@@ -153,24 +153,26 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	jfmOX, jfmOY := rectOriginF32(tbounds)
 	seedOX, seedOY := rectOriginF32(sbounds)
 	w, h := float32(sw), float32(sh)
-	mapCoords := [2][4]float32{{jfmOX, jfmOY, jfmOX + w, jfmOY + h}, {seedOX, seedOY, seedOX + w, seedOY + h}}
 	r.setFlatCustomVAs01(1.0, float32(maxDistance))
 	r.opts.Images[0] = seeds
-	r.setDstRectCoords(mapCoords[0][0], mapCoords[0][1], mapCoords[0][2], mapCoords[0][3])
-	r.setSrcRectCoords(mapCoords[1][0], mapCoords[1][1], mapCoords[1][2], mapCoords[1][3])
+	r.setDstRectCoords(jfmOX, jfmOY, jfmOX+w, jfmOY+h)
+	r.setSrcRectCoords(seedOX, seedOY, seedOX+w, seedOY+h)
 	jfmap.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 
 	// - main JFA loop -
 	// jump size starts at the base power of 2 of the current number
 	temp, _ := r.getTemp(0, sw, sh, false)
+	// Iterations alternate between jfmap and the zero-origin temp. The seed
+	// coordinates above only apply to the initial pass.
+	bufferCoords := [2][4]float32{{jfmOX, jfmOY, jfmOX + w, jfmOY + h}, {0, 0, w, h}}
 	jumpSize := 1 << (15 - bits.LeadingZeros16(uint16(maxDistance)))
 	maps := [2]*ebiten.Image{jfmap, temp}
 	mapIndex := 1
 	for jumpSize > 0 {
 		r.setFlatCustomVA0(float32(jumpSize)) // set only jump size, maxDistance is already ok
-		r.setDstRectCoords(mapCoords[mapIndex][0], mapCoords[mapIndex][1], mapCoords[mapIndex][2], mapCoords[mapIndex][3])
+		r.setDstRectCoords(bufferCoords[mapIndex][0], bufferCoords[mapIndex][1], bufferCoords[mapIndex][2], bufferCoords[mapIndex][3])
 		newIndex := 1 - mapIndex
-		r.setSrcRectCoords(mapCoords[newIndex][0], mapCoords[newIndex][1], mapCoords[newIndex][2], mapCoords[newIndex][3])
+		r.setSrcRectCoords(bufferCoords[newIndex][0], bufferCoords[newIndex][1], bufferCoords[newIndex][2], bufferCoords[newIndex][3])
 		r.opts.Images[0] = maps[newIndex]
 		maps[mapIndex].DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 		mapIndex = newIndex
@@ -184,6 +186,8 @@ func (r *Renderer) JFMapCompute(jfmap, seeds *ebiten.Image, maxDistance int) {
 	if mapIndex == 0 {
 		var opts ebiten.DrawImageOptions
 		opts.Blend = ebiten.BlendCopy
+		bounds := jfmap.Bounds()
+		opts.GeoM.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 		jfmap.DrawImage(temp, &opts)
 	}
 

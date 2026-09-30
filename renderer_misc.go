@@ -37,8 +37,8 @@ func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, triBaseSize
 // Consider also [Renderer.WaveLines]().
 func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
 	r.setFlatCustomVAs(float32(darkThick), float32(clearThick), intensity, offset)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderScanlinesSharp.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderScanlinesSharp.Load())
 }
 
 // WaveLines is a miscellaneous effect that draws a pattern of lines with oscillating widths.
@@ -83,7 +83,7 @@ func (r *Renderer) WaveLines(target *ebiten.Image, lineThick, minFillRate, maxFi
 	r.opts.Uniforms["DirRadsSin"] = float32(drs)
 	r.opts.Uniforms["DirRadsCos"] = float32(drc)
 	r.setFlatCustomVAs(lineThick, minFillThick, maxFillThick, waveLen)
-	tw, th := rectSizeF32(target.Bounds())
-	r.DrawRectShader(target, 0, 0, tw, th, NoMargins, shaderWaveLines.Load())
+	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderWaveLines.Load())
 	clear(r.opts.Uniforms)
 }

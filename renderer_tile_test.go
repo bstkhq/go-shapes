@@ -8,6 +8,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// Tiling functions cover the whole target: unlike draws at explicit coords,
+// non-zero target origins (Key0) must not displace their output.
+
 // go test -run ^TestTileRectsGrid$ . -count 1
 func TestTileRectsGrid(t *testing.T) {
 	var xOffset, yOffset float32

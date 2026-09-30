@@ -171,46 +171,92 @@ func TestMaskThreshold(t *testing.T) {
 
 // go test -run ^TestBakeAlphaMaskRadial$ . -count 1
 func TestBakeAlphaMaskRadial(t *testing.T) {
-	const Size = 256
+	const (
+		Size             = 256
+		MaskOriginOffset = 64
+	)
 	randomness := float32(0.3)
+	pattern := MaskPatternDefault
+	bakeCX, bakeCY := float32(Size/2), float32(Size/2)
 	var justClicked bool
+	var rebake bool
+	var revealStartTick uint64
+	var smoothMovement = true
+	var useNonZeroMaskOrigin bool
 
 	var flags flagList
 	updater := func(ctx TestAppCtx) {
 		justClicked = false
-		setMaskFlagsAndTitle(ctx, flags)
+		rebake = false
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+		nextPattern := updateParam(ctx, ebiten.KeyP, pattern, MaskPatternDefault, maskPatternEndSentinel-1, 1)
+		if nextPattern != pattern {
+			pattern = nextPattern
+			rebake = true
+			revealStartTick = ctx.Ticks
+		}
 		switch {
 		case inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft):
 			justClicked = true
+			rebake = true
+			revealStartTick = ctx.Ticks
 		case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
 			randomness = min(randomness+0.1, 1.0)
 		case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):
 			randomness = max(randomness-0.1, 0.0)
+		case inpututil.IsKeyJustPressed(ebiten.KeyO):
+			useNonZeroMaskOrigin = !useNonZeroMaskOrigin
 		}
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [randomness %.02f]", randomness))
 	}
 
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
+		info := fmt.Sprintf(
+			"Pattern: %d/%d [P]\nRandomness: %.02f [Up/Down]\nNon-zero mask origin: %t [O]\nBilinear: %t [B]\nSmooth movement: %t [M]\nClick to rebake and restart",
+			pattern+1, maskPatternEndSentinel, randomness, useNonZeroMaskOrigin, flags.Has(Bilinear), smoothMovement,
+		)
+		tox, toy := rectOriginF32(canvas.Bounds())
+		ctx.Renderer.SetColorF32A(tcWhite)
+		ctx.Renderer.Text(canvas, info, tox+8, toy+8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		w, h := rectSizeF32(canvas.Bounds())
 		ox, oy := w/2-Size/2, h/2-Size/2
+		if smoothMovement {
+			ox += float32(-4.0 + ctx.DistAnim(8.0, 0.666))
+			oy += float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
 		if justClicked {
 			lc := ctx.LeftClickF32()
+			bakeCX, bakeCY = lc.X-ox, lc.Y-oy
+		}
+		if rebake {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
-			ctx.Renderer.BakeAlphaMaskRadial(ctx.Images[1], lc.X-ox, lc.Y-oy, Size*1.44, randomness, MaskPatternEllipseCuts)
+			for _, maskOffscreen := range ctx.Images[1:] {
+				tox, toy := rectOriginF32(maskOffscreen.Bounds())
+				ctx.Renderer.BakeAlphaMaskRadial(maskOffscreen, tox+bakeCX, toy+bakeCY, Size*1.44, randomness, pattern)
+			}
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
-		reveal := -0.1 + float32(ctx.ModAnim(2.0, 0.2))
-		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy, flags...)
+		maskIndex := 1
+		if useNonZeroMaskOrigin {
+			maskIndex = 2
+		}
+		mask := ctx.Renderer.UnsafeTempCopy(0, ctx.Images[maskIndex], 0, true)
+		revealCtx := ctx
+		revealCtx.Ticks -= revealStartTick
+		reveal := -0.1 + float32(revealCtx.ModAnim(2.0, 0.2))
+		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], mask, reveal, ox, oy, flags...)
 	}
 
 	app := NewTestApp(updater, drawer)
-	maskTarget := ebiten.NewImage(Size, Size)
+	zeroOriginMask := ebiten.NewImage(Size, Size)
+	nonZeroOriginMask := ebiten.NewImageWithOptions(image.Rect(MaskOriginOffset, MaskOriginOffset, MaskOriginOffset+Size, MaskOriginOffset+Size), nil)
 	whiteRect := app.Renderer.NewFilledRect(Size, Size)
-	app.Renderer.BakeAlphaMaskRadial(maskTarget, Size/2, Size/2, Size, randomness, MaskPatternDefault)
-	app.Images = append(app.Images, whiteRect, maskTarget)
+	app.Renderer.BakeAlphaMaskRadial(zeroOriginMask, bakeCX, bakeCY, Size, randomness, pattern)
+	app.Renderer.BakeAlphaMaskRadial(nonZeroOriginMask, MaskOriginOffset+bakeCX, MaskOriginOffset+bakeCY, Size, randomness, pattern)
+	app.Images = append(app.Images, whiteRect, zeroOriginMask, nonZeroOriginMask)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
