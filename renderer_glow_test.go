@@ -22,7 +22,7 @@ func TestGlow2(t *testing.T) {
 
 		lc := ctx.LeftClickF32()
 		ctx.DrawAtF32(canvas, ctx.Images[1], lc.X, lc.Y)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		if ebiten.IsKeyPressed(ebiten.KeyAlt) {
 			ctx.Renderer.Blur2(canvas, ctx.Images[1], lc.X, lc.Y, 16, 16)
 		} else {
@@ -130,13 +130,13 @@ func TestApplyGlowKBleed(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Renderer.SetColorF32(1, 0, 1, 1)
+	app.Renderer.SetColorF32A(tcMagenta)
 	img1 := app.Renderer.NewFilledRect(33, 33)
-	app.Renderer.SetColorF32(0, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcCyan)
 	img2 := app.Renderer.NewFilledRect(50, 50)
-	app.Renderer.SetColorF32(1, 1, 0, 1)
+	app.Renderer.SetColorF32A(tcYellow)
 	img3 := app.Renderer.NewFilledRect(67, 67)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, img1, img2, img3)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestGlowCompare(t *testing.T) {
 		cw, ch := rectSizeF32(canvas.Bounds())
 		Paint(canvas, image.Rect(0, 0, cwi, chi/2), [4]float32{0, 0, 0, 1}, ebiten.BlendCopy)
 		Paint(canvas, image.Rect(0, chi/2, cwi, chi), RGBAF32(backColors[backColorIdx]), ebiten.BlendCopy)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 
 		info := fmt.Sprintf(
 			"Back color: %v [B]\nRenderer color: %v [R]\nMode: %s [M]\nHorz/Vert Radius: %.02f / %.02f [H / U]\nTint: %.02f [T]\nMotionAnim: %t [A]\nIntensityAnim: %t [I]",
@@ -278,14 +278,13 @@ func TestGlowCompare(t *testing.T) {
 	app.Renderer.StrokeLine(cross, PtF32(128/2.0, 8.0), PtF32(128/2.0, 128.0-8.0), 6.0)
 	swapDiagColors(app.Renderer)
 	app.Renderer.StrokeLine(cross, PtF32(8.0, 128/2.0), PtF32(128.0-8.0, 128/2.0), 6.0)
-	app.Renderer.SetColorF32(0.0, 0.0, 0.0, 1.0, 0, 1)
-	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
+	setColorsTB(app.Renderer, tcBlack, tcMagenta)
 	app.Renderer.StrokeLine(darkCross, PtF32(128/2.0, 8.0), PtF32(128/2.0, 128.0-8.0), 6.0)
 	swapDiagColors(app.Renderer)
 	app.Renderer.StrokeLine(darkCross, PtF32(8.0, 128/2.0), PtF32(128.0-8.0, 128/2.0), 6.0)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, circ, cross, darkCross, darkCirc)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -336,15 +335,14 @@ func TestGlowKCompare(t *testing.T) {
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		cw, ch := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.SetColorF32(0.0, 0.0, 0.0, 1.0, 0, 3)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 0.5, 0.5, 1, 2)
+		setColorsLR(ctx.Renderer, tcBlack, ScaleAlphaF32A(tcCyan, 0.5))
 		ctx.Renderer.FillIntRect(canvas, canvas.Bounds(), 0)
 
 		info := fmt.Sprintf(
 			"\nMode: %s [M]\nDownscaling: x%d\nHorz/Vert Kernels: %d / %d [H / U]\nTint: %.02f [T]\nMotionAnim: %t [A]\nIntensityAnim: %t [I]",
 			modes[mode], downscaling.Factor(), horzKern.Radius(), vertKern.Radius(), ctx.Renderer.Tint(), motionAnim, intensityAnim,
 		)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		o0 := CTR.AdjustXY(ctx.Images[0], cw*0.25, ch*0.25)
@@ -363,7 +361,7 @@ func TestGlowKCompare(t *testing.T) {
 		ctx.DrawAtF32(canvas, ctx.Images[1], o1.X, o1.Y)
 		ctx.DrawAtF32(canvas, ctx.Images[2], o2.X, o2.Y)
 		ctx.DrawAtF32(canvas, ctx.Images[3], o3.X, o3.Y)
-		ctx.Renderer.SetColorF32(0, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcCyan)
 		if intensityAnim {
 			ctx.Renderer.ScaleAlphaBy(float32(ctx.DistAnim(1.0, 1.0)))
 		}

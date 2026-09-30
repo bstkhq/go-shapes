@@ -27,7 +27,7 @@ func TestMap(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ox, oy, w, h := rectOriginSize(canvas.Bounds())
 		c1x, c1y := float32(ox+w/4), float32(oy+h/4)
 		c2x, c2y := float32(ox+3*w/4), float32(oy+h/4)
@@ -36,10 +36,10 @@ func TestMap(t *testing.T) {
 
 		ctx.Renderer.mapQuad2(canvas, ctx.Images[0], card.Quad(c1x, c1y))
 		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y))
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.SetTint(0)
 		if (ctx.Ticks/180)&1 == 1 {
-			ctx.Renderer.SetColorF32(0, 0, 0, 0, 2, 3)
+			setColorsTB(ctx.Renderer, tcWhite, tcClear)
 			ctx.Renderer.SetTint(1)
 		}
 		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
@@ -53,12 +53,12 @@ func TestMap(t *testing.T) {
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
-	app.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcAzure)
 	app.Renderer.StrokeRect(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
 	app.Renderer.opts.Blend = ebiten.BlendClear
 	app.Renderer.FillRect(img, 8, 0, 32, 64, 0)
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 
 	app.Images = append(app.Images, img)
 	if err := ebiten.RunGame(app); err != nil {
@@ -118,14 +118,14 @@ func TestMapQuadTilt(t *testing.T) {
 	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
 	gradientOpts := GradientOpts(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, true)
 	app.Renderer.Gradient(img, gradientOpts, DirRadsTTB)
-	app.Renderer.SetColorF32(0, 0, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcBlue)
 	sr, er := RadsSpan(DirRadsTTB, 0.15)
 	app.Renderer.FillRadialSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
 	app.Renderer.SetColorF32(0, 0, 0, 0.1)
 	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 
 	app.Images = append(app.Images, img)
 	if err := ebiten.RunGame(app); err != nil {
@@ -183,7 +183,7 @@ func TestMapProjectiveStress(t *testing.T) {
 	app.Renderer.TileDotsHex(img2, CardWidth/18, CardWidth/8, 0, 0)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 
 	app.Images = append(app.Images, img, img2)
 	if err := ebiten.RunGame(app); err != nil {

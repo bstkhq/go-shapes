@@ -20,14 +20,12 @@ func TestFlatPaint(t *testing.T) {
 
 		lc := ctx.LeftClickF32()
 		ctx.Renderer.SetTint(1)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
+		setColorsTB(ctx.Renderer, tcRed, tcMagenta)
 		lc = CTR.Adjust(ctx.Images[0], lc)
 		ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0)
 
 		rc := ctx.RightClickF32()
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
+		setColorsLR(ctx.Renderer, tcGreen, tcCyan)
 		rc = CTR.Adjust(ctx.Images[1], rc)
 		ctx.Renderer.DrawAt(canvas, ctx.Images[1], rc.X, rc.Y, 1.0)
 		ctx.Renderer.SetTint(0)
@@ -37,8 +35,7 @@ func TestFlatPaint(t *testing.T) {
 	rect := app.Renderer.NewFilledRect(120, 80)
 	circ := app.Renderer.NewFilledCircle(64.0)
 	app.Renderer.Options().Blend = ebiten.BlendDestinationOut
-	app.Renderer.SetColorF32(0.8, 0.8, 0.8, 0.8, 0, 1)
-	app.Renderer.SetColorF32(0.3, 0.3, 0.3, 0.3, 2, 3)
+	setColorsTB(app.Renderer, ScaleAlphaF32A(tcWhite, 0.8), ScaleAlphaF32A(tcWhite, 0.3))
 	app.Renderer.FillCircle(circ, 64.0, 64.0, 42.0)
 	app.Renderer.Options().Blend = ebiten.BlendSourceOver
 	app.Images = append(app.Images, rect, circ)
@@ -91,20 +88,16 @@ func TestColorizeByLightness(t *testing.T) {
 	base := ebiten.NewImage(Radius*8, Radius*8)
 	app.Renderer.Gradient(base, gradientOpts, DirRadsTLBR)
 	app.Renderer.Noise(base, 0.1, 0.26, 0.0)
-	app.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
-	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
+	setColorsLR(app.Renderer, tcMagenta, tcDarkRed)
 	app.Renderer.FillCircle(base, Radius*2, Radius*4, Radius)
-	app.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 0, 3)
-	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
+	setColorsLR(app.Renderer, tcCyan, tcDarkRed)
 	app.Renderer.FillCircle(base, Radius*6, Radius*4, Radius)
-	app.Renderer.SetColorF32(1.0, 1.0, 0.0, 1.0, 0, 3)
-	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
+	setColorsLR(app.Renderer, tcYellow, tcDarkRed)
 	app.Renderer.FillCircle(base, Radius*4, Radius*2, Radius)
-	app.Renderer.SetColorF32(0.0, 1.0, 0.0, 1.0, 0, 3)
-	app.Renderer.SetColorF32(0.5, 0.0, 0.0, 1.0, 1, 2)
+	setColorsLR(app.Renderer, tcGreen, tcDarkRed)
 	app.Renderer.FillCircle(base, Radius*4, Radius*6, Radius)
 
-	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, base)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -153,8 +146,7 @@ func TestDitherMat4(t *testing.T) {
 		}
 
 		lc := ctx.LeftClickF32()
-		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 0, 1)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 2, 3)
+		setColorsTB(ctx.Renderer, tcRed, tcMagenta)
 		anim := float32(ctx.DistAnim(1.0, 1.0))
 		yOffset := int(ctx.ModAnim(4.0, 1.0))
 		xOffset := 8 - int(ctx.DistAnim(16.0, 1.0))
@@ -211,7 +203,7 @@ func TestColorMix(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewFilledCircle(64.0)
-	app.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcMagenta)
 	circ2 := ebiten.NewImage(128+16, 128+16)
 	app.Renderer.FillCircle(circ2, 64+16, 64+16, 64)
 	circ2 = circ2.SubImage(image.Rect(16, 16, 16+128, 16+128)).(*ebiten.Image)

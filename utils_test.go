@@ -15,11 +15,96 @@ import (
 // test bounds
 var backTestColor = color.RGBA{48, 0, 128, 255}
 
-func setTestMultiColors(renderer *Renderer) {
-	renderer.SetColorF32(1.0, 0.3, 0.3, 1.0, 0)
-	renderer.SetColorF32(0.3, 1.0, 0.75, 1.0, 1)
-	renderer.SetColorF32(0.5, 0.3, 1.0, 1.0, 2)
-	renderer.SetColorF32(0.75, 1.0, 0.3, 1.0, 3)
+// common test colors
+var (
+	tcWhite   = [4]float32{1.0, 1.0, 1.0, 1.0}
+	tcClear   = [4]float32{0.0, 0.0, 0.0, 0.0}
+	tcBlack   = [4]float32{0.0, 0.0, 0.0, 1.0}
+	tcRed     = [4]float32{1.0, 0.0, 0.0, 1.0}
+	tcDarkRed = [4]float32{0.5, 0.0, 0.0, 1.0}
+	tcGreen   = [4]float32{0.0, 1.0, 0.0, 1.0}
+	tcCyan    = [4]float32{0.0, 1.0, 1.0, 1.0}
+	tcMagenta = [4]float32{1.0, 0.0, 1.0, 1.0}
+	tcYellow  = [4]float32{1.0, 1.0, 0.0, 1.0}
+	tcBlue    = [4]float32{0.0, 0.0, 1.0, 1.0}
+	tcAzure   = [4]float32{0.0, 0.5, 1.0, 1.0}
+	tcOrange  = [4]float32{1.0, 0.5, 0.0, 1.0}
+	tcPink    = [4]float32{1.0, 0.25, 0.75, 1.0}
+)
+
+func setColorsLR(renderer *Renderer, left, right [4]float32) {
+	renderer.SetColorF32A(left, 0, 3)
+	renderer.SetColorF32A(right, 1, 2)
+}
+
+func setColorsTB(renderer *Renderer, top, bottom [4]float32) {
+	renderer.SetColorF32A(top, 0, 1)
+	renderer.SetColorF32A(bottom, 2, 3)
+}
+
+var (
+	tcsBase4   = testColorSet{"Base4", [4][4]float32{tcRed, tcCyan, tcBlue, tcYellow}}
+	tcsPastel4 = testColorSet{"Pastel4", [4][4]float32{
+		{1.0, 0.83, 0.5, 1.0}, {0.5, 1.0, 1.0, 1.0}, {0.45, 0.68, 0.9, 1.0}, {1.0, 0.7, 0.95, 1.0},
+	}}
+	tcsVivid4 = testColorSet{"Vivid4", [4][4]float32{
+		{1.0, 0.25, 1.0, 1.0}, {0.0, 1.0, 1.0, 1.0}, {0.6, 1.0, 0.0, 1.0}, {1.0, 0.6, 0.0, 1.0},
+	}}
+	tcsNoCrease4 = testColorSet{"NoCrease4", [4][4]float32{ // minimize diagonal crease
+		{1.0, 0.0, 1.0, 1.0}, {0.25, 0.75, 0.75, 1.0}, {0.25, 1.0, 0.0, 1.0}, {1.0, 0.25, 0.25, 1.0},
+	}}
+)
+
+type testColorSet struct {
+	Name   string
+	Colors [4][4]float32
+}
+
+func tcsSingle(name string, clr [4]float32) testColorSet {
+	return testColorSet{name, [4][4]float32{clr, clr, clr, clr}}
+}
+
+func tcsLTR(name string, left, right [4]float32) testColorSet {
+	return testColorSet{name, [4][4]float32{left, right, right, left}}
+}
+
+func tcsTTB(name string, top, bottom [4]float32) testColorSet {
+	return testColorSet{name, [4][4]float32{top, top, bottom, bottom}}
+}
+
+func (set testColorSet) Apply(renderer *Renderer) {
+	for i, clr := range set.Colors {
+		renderer.SetColorF32A(clr, i)
+	}
+}
+
+// testColorSets is a switchable group of [testColorSet], cycled with a key.
+type testColorSets struct {
+	Sets  []testColorSet
+	Index int
+}
+
+func newTestColorSets(sets ...testColorSet) testColorSets {
+	return testColorSets{Sets: sets}
+}
+
+func (tcs *testColorSets) Update(key ebiten.Key) {
+	if inpututil.IsKeyJustPressed(key) {
+		dir := mapBool(ebiten.IsKeyPressed(ebiten.KeyShift), +1, -1)
+		tcs.Index = wrap(tcs.Index+dir, 0, len(tcs.Sets)-1)
+	}
+}
+
+func (tcs *testColorSets) Apply(renderer *Renderer) {
+	tcs.Sets[tcs.Index].Apply(renderer)
+}
+
+// Info returns "Name (N/T)", or only "N/T" if the current set has no name.
+func (tcs *testColorSets) Info() string {
+	if name := tcs.Sets[tcs.Index].Name; name != "" {
+		return fmt.Sprintf("%s (%d/%d)", name, tcs.Index+1, len(tcs.Sets))
+	}
+	return fmt.Sprintf("%d/%d", tcs.Index+1, len(tcs.Sets))
 }
 
 type BaseTestApp struct{}

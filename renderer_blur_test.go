@@ -21,7 +21,7 @@ func TestBlur(t *testing.T) {
 		canvas.Fill(color.RGBA{0, 0, 255, 255})
 
 		lc := ctx.LeftClickF32()
-		ctx.Renderer.SetColorF32(0, 0, 0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlack)
 		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius+fxRadius)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
 		modRadius := float32(ctx.DistAnim(float64(fxRadius), 1.0))
@@ -122,10 +122,10 @@ func TestDirBlur(t *testing.T) {
 	rect := ebiten.NewImage(80, 80)
 	rect.Fill(color.RGBA{255, 0, 0, 255})
 	rect2 := ebiten.NewImage(80, 80)
-	app.Renderer.SetColorF32(1, 0, 0, 1)
+	app.Renderer.SetColorF32A(tcRed)
 	app.Renderer.FillIntRect(rect2, RectWithSize(0, 20, 80, 40), 0)
 	app.Renderer.FillIntRect(rect2, RectWithSize(20, 0, 40, 80), 0)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)), rect, rect2)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -247,13 +247,13 @@ func TestApplyBlurKBleed(t *testing.T) {
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Renderer.SetColorF32(1, 0, 1, 1)
+	app.Renderer.SetColorF32A(tcMagenta)
 	img1 := app.Renderer.NewFilledRect(33, 33)
-	app.Renderer.SetColorF32(0, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcCyan)
 	img2 := app.Renderer.NewFilledRect(50, 50)
-	app.Renderer.SetColorF32(1, 1, 0, 1)
+	app.Renderer.SetColorF32A(tcYellow)
 	img3 := app.Renderer.NewFilledRect(67, 67)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, img1, img2, img3)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -336,7 +336,7 @@ func TestBlurVogelFull(t *testing.T) {
 		app.Renderer.ScaleAlphaBy(0.5)
 		app.Renderer.FillCircle(full, rand.Float32()*1920, rand.Float32()*1080, 16+rand.Float32()*64)
 	}
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}

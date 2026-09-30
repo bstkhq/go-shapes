@@ -145,10 +145,10 @@ func TestDrawCircShader(t *testing.T) {
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
 
-		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.5))
 		ctx.Renderer.StrokeCircle(canvas, w/2, h/2, radius, thickness)
 
-		ctx.Renderer.SetColorF32(0.5, 0.0, 0.0, 0.5)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcRed, 0.5))
 		opts := CircShaderOpts(radius, thickness)
 		opts.StartAngle = startDegs * math.Pi / 180
 		if degs >= 359.999 {

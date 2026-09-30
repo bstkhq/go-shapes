@@ -21,10 +21,7 @@ func TestWarpBarrel(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	w, h := 640/2, 480/2
 	img := ebiten.NewImage(w, h)
-	app.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
-	app.Renderer.SetColor(color.RGBA{255, 255, 0, 255}, 1)
-	app.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 2)
-	app.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
+	tcsBase4.Apply(app.Renderer)
 	app.Renderer.FillIntRect(img, image.Rect(0, 0, w, h), 0)
 
 	app.Images = append(app.Images, img)
@@ -56,7 +53,7 @@ func TestWarpArc(t *testing.T) {
 	app.Renderer.FillIntRect(img, img.Bounds(), 0)
 	app.Renderer.SetColorF32(0.5, 0.0, 0.5, 0.5)
 	app.Renderer.FillIntRect(img, image.Rect(0, 0, W/8, H/16), 0)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, img)
 
 	if err := ebiten.RunGame(app); err != nil {

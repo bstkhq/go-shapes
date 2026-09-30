@@ -40,8 +40,7 @@ func TestMask(t *testing.T) {
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.5, 0.5, 0.5, 1.0)
 	circ := app.Renderer.NewFilledCircle(72.0)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
-	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2) // right side to zero
+	setColorsLR(app.Renderer, tcWhite, tcClear)
 	bigRect := app.Renderer.NewFilledRect(256, 128)
 	smallRect := app.Renderer.NewFilledRect(16, 8) // being small creates an step effect automatically
 
@@ -49,7 +48,7 @@ func TestMask(t *testing.T) {
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
 	longImg := app.Renderer.NewFilledRect(640, 128)
 
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, circ, bigRect, smallRect, longRect, longImg)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -74,12 +73,12 @@ func TestMaskAt(t *testing.T) {
 
 	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewFilledCircle(32.0)
-	app.Renderer.SetColorF32(0, 0, 0, 0, 1, 2)
+	setColorsLR(app.Renderer, tcWhite, tcClear)
 	trans := app.Renderer.NewFilledRect(256, 64)
 	longRect := app.Renderer.NewFilledRect(640, 128)
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
 	longImg := app.Renderer.NewFilledRect(640-64, 128)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, circ, trans, longImg, longRect)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -107,7 +106,7 @@ func TestMaskHorz(t *testing.T) {
 	rect := app.Renderer.NewFilledRect(256, 64)
 	app.Renderer.SetColorF32(0.2, 0.2, 0.2, 1.0)
 	rectDither := app.Renderer.NewFilledRect(640, 96)
-	app.Renderer.SetColorF32(1, 1, 1, 1)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Images = append(app.Images, rect, rectDither)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)

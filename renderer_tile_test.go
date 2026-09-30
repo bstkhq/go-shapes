@@ -82,7 +82,7 @@ func TestTileTriUpGrid(t *testing.T) {
 		ctx.Renderer.SetColorF32(0, 0.3, 0.3, 0.5)
 		ctx.Renderer.TileRectsGrid(canvas, inSize, inSize, 32, 32*Sqrt3Div2, 0, 0)
 
-		ctx.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.TileTriUpGrid(canvas, inSize, 32, 0, 0)
 	}
 
@@ -103,7 +103,7 @@ func TestTileTriHex(t *testing.T) {
 
 		xOff, yOff := float32(ctx.DistAnim(64, 0.5)), float32(ctx.DistAnim(32, 0.5))
 		dist := ctx.DistAnim(maxInSize-minInSize, 1.0)
-		ctx.Renderer.SetColorF32(1.0, 0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.TileTriHex(canvas, minInSize+float32(dist), 32, xOff, yOff)
 	}
 

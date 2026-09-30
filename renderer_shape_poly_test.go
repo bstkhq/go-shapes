@@ -49,7 +49,7 @@ func TestDrawShapes(t *testing.T) {
 		ctx.Renderer.FillHexagon(canvas, 540, 80, 60, 0, float32(rads))
 
 		rounding := float32(ctx.DistAnim(48.0, 1.0))
-		ctx.Renderer.SetColorF32(0, 0.5, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcAzure)
 		ctx.Renderer.FillHexagon(canvas, 100, 400, 60, rounding, float32(rads))
 		ctx.Renderer.ScaleAlphaBy(0.5)
 		ctx.Renderer.FillHexagon(canvas, 540, 80, 60, rounding, float32(rads))
@@ -78,7 +78,7 @@ func TestStrokeLine(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
 			"Thickness: %.02f [T]\nColorAABB: %t [C]\nAABB: %t [A]\nSoftMode: %t [S]",
 			thick, flags.Has(ColorAABB), flags.Has(AABB), softMode,
@@ -100,8 +100,7 @@ func TestStrokeLine(t *testing.T) {
 		if ctx.SpacePressed {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0, 3)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1, 2)
+		setColorsLR(ctx.Renderer, tcMagenta, tcCyan)
 		if softMode {
 			ctx.Renderer.StrokeLineSoft(canvas, origin, end, thick, softEdge, flags...)
 		} else {
@@ -112,12 +111,12 @@ func TestStrokeLine(t *testing.T) {
 		ctx.Renderer.StrokeLine(canvas, br, br, thick, flags...)
 
 		// color check
-		setTestMultiColors(ctx.Renderer)
+		tcsPastel4.Apply(ctx.Renderer)
 		bl := PtF32(16, ch-16)
 		blf := bl.Add(PtF32(32, 0))
 		ctx.Renderer.StrokeLine(canvas, bl, blf, thick*2.0, flags...)
 		ctx.Renderer.FillRect(canvas, bl.X-thick, bl.Y-32, 32+thick*2.0, thick*2.0, -thick)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, bl.X+32+thick*2.0, bl.Y, thick)
 
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -197,7 +196,7 @@ func TestFillTriangles(t *testing.T) {
 		pointsM[2] = pointsM[0].AddXY(-32, 56)
 
 		// first row, filled
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.FillTriangle(canvas, pointsL, outRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -206,7 +205,7 @@ func TestFillTriangles(t *testing.T) {
 		ctx.Renderer.FillCircle(canvas, pointsL[1].X, pointsL[1].Y, outRounding)
 		ctx.Renderer.FillCircle(canvas, pointsL[2].X, pointsL[2].Y, outRounding)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.FillTriangle(canvas, pointsM, inRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -218,7 +217,7 @@ func TestFillTriangles(t *testing.T) {
 		for i, p := range pointsL {
 			pointsL[i] = p.AddXY(0, -24+ch/2+CVOffset)
 		}
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, 8.0, outRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -230,7 +229,7 @@ func TestFillTriangles(t *testing.T) {
 		for i, p := range pointsM {
 			pointsM[i] = p.AddXY(0, -24+ch/2+CVOffset)
 		}
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, 8.0, inRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -240,7 +239,7 @@ func TestFillTriangles(t *testing.T) {
 		for i, p := range pointsL {
 			pointsL[i] = p.AddXY(0, ch/2+LVOffset)
 		}
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsL, -8.0, outRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -252,7 +251,7 @@ func TestFillTriangles(t *testing.T) {
 		for i, p := range pointsM {
 			pointsM[i] = p.AddXY(0, ch/2+LVOffset)
 		}
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Options().Blend = baseBlend
 		ctx.Renderer.StrokeTriangle(canvas, pointsM, -8.0, inRounding)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
@@ -291,7 +290,7 @@ func TestTriangleHull(t *testing.T) {
 		}
 
 		canvas.Fill(backTestColor)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
 			"Thickness: %.02f [T]\nRounding: %.02f [R]\nAABB: %t [B]\nColorAABB: %t [C]\n\nDrag to move the vertices",
 			thickness, rounding, flags.Has(AABB), flags.Has(ColorAABB),
@@ -301,7 +300,7 @@ func TestTriangleHull(t *testing.T) {
 		if ctx.SpacePressed {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
-		setTestMultiColors(ctx.Renderer)
+		tcsPastel4.Apply(ctx.Renderer)
 		if thickness != 0 {
 			ctx.Renderer.StrokeTriangle(canvas, triangle, thickness, rounding, flags...)
 		} else {
@@ -318,7 +317,7 @@ func TestTriangleHull(t *testing.T) {
 		ctx.Renderer.restoreIndices()
 		ctx.Renderer.restoreColors(memo)
 
-		ctx.Renderer.SetColorF32(1, 0, 0, 1)
+		ctx.Renderer.SetColorF32A(tcRed)
 		for _, v := range vs {
 			ctx.Renderer.FillCircle(canvas, v.DstX, v.DstY, 1.5)
 		}
@@ -332,7 +331,7 @@ func TestTriangleHull(t *testing.T) {
 			if i&1 == 1 {
 				ctx.Renderer.SetColorF32(0.5, 0, 0.3, 0.5)
 			} else {
-				ctx.Renderer.SetColorF32(0.0, 0.5, 0, 0.5)
+				ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcGreen, 0.5))
 			}
 			ctx.Renderer.Text(canvas, fmt.Sprintf("p%d dist: %.02f", i, minDist), p.X, p.Y-3, TextOpts(1.0, BottomCenter))
 		}
@@ -366,66 +365,66 @@ func TestFillHexagons(t *testing.T) {
 		rads := float32(ctx.RadsAnim(1.0))
 
 		// radius bounded hexagon, no roundness
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, Pad+MaxRadius, radius)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagon(canvas, Pad+MaxRadius, Pad+MaxRadius, radius, 0.0, rads)
 
 		// radius bounded hexagon with animated roundness
 		roundness := float32(ctx.DistAnim(MaxRadius+16, 0.5))
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, radius)
-		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlue)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillCircle(canvas, cw/2, Pad+MaxRadius, roundness)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagon(canvas, cw/2, Pad+MaxRadius, radius, roundness, rads)
 
 		// apothem bounded hexagon, no rounding
 		apothem := radius * Sqrt3Div2
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, Pad+MaxRadius, ch/2, apothem)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagonApothem(canvas, Pad+MaxRadius, ch/2, apothem, 0.0, rads)
 
 		// apothem bounded hexagon, outwards rounding
 		rounding := float32(ctx.DistAnim(24.0, 1.0))
-		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlue)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem+rounding)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, apothem)
-		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlue)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillCircle(canvas, cw/2, ch/2, rounding)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagonApothem(canvas, cw/2, ch/2, apothem, rounding, rads)
 
 		// apothem bounded hexagon, inwards rounding
 		inRounding := float32(ctx.DistAnim(MinApothem, 0.5))
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, apothem)
-		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlue)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillCircle(canvas, cw-16-MaxRadius, ch/2, inRounding)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagonApothem(canvas, cw-16-MaxRadius, ch/2, apothem, -inRounding, rads)
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem)
-		ctx.Renderer.SetColorF32(0.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcBlue)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		if manRounding < 0 {
 			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, -manRounding)
 		} else {
 			ctx.Renderer.FillCircle(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem+manRounding)
 		}
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.ScaleAlphaBy(0.666)
 		ctx.Renderer.FillHexagonApothem(canvas, 16+MaxRadius, ch-16-MaxRadius, MinApothem, manRounding, 0.0)
 	}
@@ -443,18 +442,18 @@ func TestFillRect(t *testing.T) {
 		lc := ctx.LeftClickF32()
 		rc := ctx.RightClickF32()
 
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		w1, h1 := float32(128), float32(48)
 		w2, h2 := float32(48), float32(128)
 		ctx.Renderer.FillRect(canvas, lc.X-w1/2, lc.Y-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 		ctx.Renderer.FillRect(canvas, rc.X-w2/2, rc.Y-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 
-		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcMagenta, 0.2))
 		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, max(w1, h1)/2.0)
 		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, max(w2, h2)/2.0)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.5))
 		ctx.Renderer.FillRect(canvas, 16, ch-16, 128, -128, 0)
 		ctx.Renderer.FillRect(canvas, 32, ch-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
 
@@ -465,7 +464,7 @@ func TestFillRect(t *testing.T) {
 		collapseRounding := -float32(ctx.DistAnim(196.0, 0.5))
 		const CRW, CRH = 128, 96
 		ctx.Renderer.FillRect(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
-		ctx.Renderer.SetColorF32(0.2, 0.0, 0.2, 0.2)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcMagenta, 0.2))
 		ctx.Renderer.FillCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
 	}
 
@@ -479,7 +478,7 @@ func TestFillRect(t *testing.T) {
 func TestFillRectPrecise(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0)
+		ctx.Renderer.SetColorF32A(tcMagenta)
 		ctx.Renderer.FillIntRect(canvas, image.Rect(0, 0, 258, 258), 0)
 		ctx.DrawAtF32(canvas, ctx.Images[0], 1, 1)
 		ctx.DrawAtF32(canvas, ctx.Images[1], 2, 2)
@@ -492,17 +491,17 @@ func TestFillRectPrecise(t *testing.T) {
 	box := ebiten.NewImage(256, 256)
 	app.Renderer.FillRect(box, 1, 1, 254, 254, 0)
 	box2 := ebiten.NewImage(254, 254)
-	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.SetColorF32A(tcRed)
 	app.Renderer.FillRect(box2, 1, 1, 252, 252, 0)
 
 	box3 := ebiten.NewImage(256, 256)
-	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcWhite)
 	app.Renderer.FillRect(box3, 1, 1, 254, 254, -6.0)
 	box4 := ebiten.NewImage(254, 254)
-	app.Renderer.SetColorF32(1.0, 0, 0, 1.0)
+	app.Renderer.SetColorF32A(tcRed)
 	app.Renderer.FillRect(box4, 1, 1, 252, 252, -6.0)
 
-	app.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	app.Renderer.SetColorF32A(tcWhite)
 
 	app.Images = append(app.Images, box, box2, box3, box4)
 	if err := ebiten.RunGame(app); err != nil {
@@ -513,33 +512,7 @@ func TestFillRectPrecise(t *testing.T) {
 // go test -run ^TestStrokeIntRect$ . -count 1
 func TestStrokeIntRect(t *testing.T) {
 	var flags flagList
-	colorSets := [][4][4]float32{
-		{
-			{1, 0, 0, 1},
-			{0, 1, 0, 1},
-			{0, 0, 1, 1},
-			{0, 1, 1, 1},
-		},
-		{
-			{1, 1, 0, 1},
-			{0, 1, 1, 1},
-			{1, 0, 1, 1},
-			{0, 1, 0, 1},
-		},
-		{
-			{1, 0, 0, 1},
-			{1, 0, 0, 1},
-			{0, 0.5, 1, 1},
-			{0, 0.5, 1, 1},
-		},
-		{
-			{1, 0.5, 0, 1},
-			{0, 0.5, 1, 1},
-			{1, 0.5, 0, 1},
-			{0, 0.5, 1, 1},
-		},
-	}
-	colorIndex := 0
+	colorSets := newTestColorSets(tcsVivid4, tcsPastel4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure))
 
 	w, h, thick := 80, 50, 8
 	updater := func(ctx TestAppCtx) {
@@ -547,15 +520,15 @@ func TestStrokeIntRect(t *testing.T) {
 		w = updateParam(ctx, ebiten.KeyW, w, 16, 512, 8)
 		h = updateParam(ctx, ebiten.KeyH, h, 16, 256, 8)
 		thick = updateParam(ctx, ebiten.KeyT, thick, 0, 32, 2)
-		colorIndex = updateParam(ctx, ebiten.KeyS, colorIndex, 0, len(colorSets)-1, 1)
+		colorSets.Update(ebiten.KeyS)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
-			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nHalfThick: %d [T]\nColorSet: %d [S]",
-			flags.Has(ColorIntrinsic), w, h, thick, colorIndex,
+			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nHalfThick: %d [T]\nColorSet: %s [S]",
+			flags.Has(ColorIntrinsic), w, h, thick, colorSets.Info(),
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
@@ -575,10 +548,7 @@ func TestStrokeIntRect(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{64, 128, 64, 128})
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(rcx, rcy, 100, 50), 0)
 
-		ctx.Renderer.SetColorF32A(colorSets[colorIndex][0], 0)
-		ctx.Renderer.SetColorF32A(colorSets[colorIndex][1], 1)
-		ctx.Renderer.SetColorF32A(colorSets[colorIndex][2], 2)
-		ctx.Renderer.SetColorF32A(colorSets[colorIndex][3], 3)
+		colorSets.Apply(ctx.Renderer)
 		if ctx.SpacePressed {
 			ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx-thick, rcy-thick, w+thick*2, h+thick*2), 0)
 		} else {
@@ -602,7 +572,7 @@ func TestStrokeRect(t *testing.T) {
 		canvas.Fill(backTestColor)
 
 		info := fmt.Sprintf("AABB: %t [A]", flags.Has(AABB))
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		if ctx.SpacePressed {
@@ -626,10 +596,7 @@ func TestStrokeRect(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{a, a, a, a})
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(int(rc.X), int(rc.Y), 100, 50), 0)
 
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255}, 0)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255}, 1)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255}, 2)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 255, 255}, 3)
+		tcsVivid4.Apply(ctx.Renderer)
 		extra := float32(ctx.DistAnim(16, 1.0))
 		subRounding := float32(ctx.DistAnim(20, 1.0))
 		ctx.Renderer.StrokeRect(canvas, lc.X, rc.Y, 80+extra, 50, 8, 8, 25-subRounding, flags...)
@@ -712,7 +679,7 @@ func TestFillQuad(t *testing.T) {
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf("Rounding: %.02f [R]\nAnim Rounding: %t [A]", rounding, animRounding)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
@@ -724,7 +691,7 @@ func TestFillQuad(t *testing.T) {
 			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
 		}
 
-		setTestMultiColors(ctx.Renderer)
+		tcsPastel4.Apply(ctx.Renderer)
 		w, h := rectSizeF32(canvas.Bounds())
 		size := PtF32(w, h)
 		for i, region := range regions {
@@ -756,7 +723,7 @@ func TestFillQuadSoft(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
 			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
 			rounding, softEdge,
@@ -825,7 +792,7 @@ func TestFillRectSoft(t *testing.T) {
 		rounding += roundingBase
 		softEdge += softEdgeBase
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
 			"Rounding: %.02f [C]\nSoftEdge: %.02f [E]\nRounding Anim: %.02f (%d) [R]\nSoftEdge Anim: %.02f (%d) [S]",
 			roundingBase, softEdgeBase, rounding, roundingSign, softEdge, softEdgeSign,

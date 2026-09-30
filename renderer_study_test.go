@@ -76,7 +76,7 @@ func TestStudyRotation(t *testing.T) {
 				ctx.Renderer.SetColorF32(0.3, 0.3, 0.3, 0.3)
 				ctx.Renderer.FillCircle(canvas, cx, cy, CircRadius)
 
-				ctx.Renderer.SetColorF32(1, 1, 1, 1)
+				ctx.Renderer.SetColorF32A(tcWhite)
 				p := ref.Rotate(rotation)
 				ctx.Renderer.FillCircle(canvas, cx, cy, PointRadius)
 				ctx.Renderer.FillCircle(canvas, cx+p.X, cy+p.Y, PointRadius)
@@ -156,18 +156,12 @@ func TestStudyColorInterpolation(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		canvas.Fill(color.Black)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf("Triangle: %d [T]\nDark Overlay [Hold Space]\nTri/Quad Interp [Hold Q]", triIndex)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
-		tlClr := [4]float32{1, 0, 0, 1}
-		trClr := [4]float32{0, 1, 1, 1}
-		brClr := [4]float32{0, 0, 1, 1}
-		blClr := [4]float32{1, 1, 0, 1}
-		ctx.Renderer.SetColorF32A(tlClr, 0)
-		ctx.Renderer.SetColorF32A(trClr, 1)
-		ctx.Renderer.SetColorF32A(brClr, 2)
-		ctx.Renderer.SetColorF32A(blClr, 3)
+		clrs := tcsBase4.Colors
+		tcsBase4.Apply(ctx.Renderer)
 
 		origins := []PointF32{PtF32(w*0.25+8, 16), PtF32(16, h*0.25+8), PtF32(w*0.25+8, h*0.25+8)}
 		sizes := []PointF32{PtF32(w*0.75-8-16, h*0.25-8-16), PtF32(w*0.25-8-16, h*0.75-8-16), PtF32(w*0.75-8-16, h*0.75-8-16)}
@@ -193,7 +187,7 @@ func TestStudyColorInterpolation(t *testing.T) {
 				p := sizes[i].Mul(tri[v])
 				verts[v].DstX = origins[i].X + p.X
 				verts[v].DstY = origins[i].Y + p.Y
-				clr := clrInterpFunc(tlClr, trClr, brClr, blClr, PtF32(0, 0), sizes[i], p)
+				clr := clrInterpFunc(clrs[0], clrs[1], clrs[2], clrs[3], PtF32(0, 0), sizes[i], p)
 				verts[v].ColorR = clr[0]
 				verts[v].ColorG = clr[1]
 				verts[v].ColorB = clr[2]

@@ -311,7 +311,7 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
 	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
 	r.FillCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
-	r.SetColorF32(1.0, 1.0, 1.0, 1.0)
+	r.SetColorF32A(tcWhite)
 	rect := r.NewFilledRect(256, 192)
 	return []*ebiten.Image{circle, xSign, circ2, rect}
 }
@@ -337,7 +337,7 @@ func TestJFMExpand(t *testing.T) {
 			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
 			ctx.Renderer.FillCircle(canvas, bw/4, bh-bh/4, w/2+16.0)
 			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
-			ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0)
+			ctx.Renderer.SetColorF32A(tcWhite)
 		}
 
 		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)

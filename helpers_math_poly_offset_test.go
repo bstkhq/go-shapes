@@ -120,7 +120,7 @@ func TestOffsetQuad(t *testing.T) {
 			points[3] = PtF32(w*0.2, h*0.8)
 			firstDraw = false
 		}
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		out, shape, offsetReached := offsetQuad(points, rounding)
 		info := fmt.Sprintf("Press and drag the points\nRounding: %.02f [R]\nShape: %s\nOffset reached: %.02f", rounding, shape, offsetReached)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
@@ -129,7 +129,7 @@ func TestOffsetQuad(t *testing.T) {
 			ctx.Renderer.FillCircle(canvas, p.X, p.Y, 3.0)
 		}
 
-		ctx.Renderer.SetColorF32(0, 0.5, 0, 0.5)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcGreen, 0.5))
 		for _, p := range out[:shape.NumPoints()] {
 			ctx.Renderer.FillCircle(canvas, p.X, p.Y, 3.0)
 		}
@@ -164,7 +164,7 @@ func TestShrinkTriangle(t *testing.T) {
 		area := triangleArea(points[0], points[1], points[2])
 		p1, p2, p3, shape, offsetReached := shrinkTriangle(points[0], points[1], points[2], area, offset)
 
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf("Press and drag the points\nShrink offset: %.02f [O]\nShape: %s\nOffset reached: %.02f", offset, shape.String(), offsetReached)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
@@ -172,7 +172,7 @@ func TestShrinkTriangle(t *testing.T) {
 			ctx.Renderer.FillCircle(canvas, p.X, p.Y, 3.0)
 		}
 
-		ctx.Renderer.SetColorF32(0, 0.5, 0, 0.5)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcGreen, 0.5))
 		for _, p := range []PointF32{p1, p2, p3}[:shape.NumPoints()] {
 			ctx.Renderer.FillCircle(canvas, p.X, p.Y, 3.0)
 		}

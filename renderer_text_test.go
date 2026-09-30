@@ -57,7 +57,7 @@ func TestText(t *testing.T) {
 			"Scale: %.02f [S]\nAlign: %s (up/down, left/right, A, A+Shift)\nGap: %d (G)\nSkipMissing: %t [M]",
 			scale, align.String(), TextOptions{LineGap: lineGap}.lineGap(), skipMissing,
 		)
-		ctx.Renderer.SetColorF32(1, 1, 1, 1)
+		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		opts := TextOpts(scale, align).SkipMissing(skipMissing)
@@ -65,11 +65,10 @@ func TestText(t *testing.T) {
 		cbounds := canvas.Bounds()
 		cw, ch := cbounds.Dx(), cbounds.Dy()
 		cx, cy := cw/2, ch/2
-		ctx.Renderer.SetColorF32(0.4, 0.4, 0.4, 0.4)
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.4))
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(0, cy, cw, 1), 0)
 		ctx.Renderer.FillIntRect(canvas, RectWithSize(cx, 0, 1, ch), 0)
-		ctx.Renderer.SetColorF32(1.0, 1.0, 1.0, 1.0, 0, 1)
-		ctx.Renderer.SetColorF32(0.0, 0.5, 1.0, 1.0, 2, 3)
+		setColorsTB(ctx.Renderer, tcWhite, tcAzure)
 		Paint(canvas, image.Rect(cx, cy, cx+8, cy+8), [4]float32{0.5, 0.5, 0.5, 0.5}, ebiten.BlendSourceOver)
 		text := "Hellö World!\n¡HELLO WORLD!\nMoRE" + string(utf8.RuneError) + "_CoNTeNT"
 		ctx.Renderer.Text(canvas, text, float32(cx), float32(cy), opts)
