@@ -157,10 +157,7 @@ func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts Cir
 	for i := range r.vertices {
 		r.vertices[i].DstX += cx
 		r.vertices[i].DstY += cy
-		r.vertices[i].ColorR = memo[0]
-		r.vertices[i].ColorG = memo[1]
-		r.vertices[i].ColorB = memo[2]
-		r.vertices[i].ColorA = memo[3]
+		setVertexColor(&r.vertices[i], memo[0])
 	}
 
 	r.indices = r.indices[:0]

@@ -70,11 +70,11 @@ func Clear(target *ebiten.Image, rect image.Rectangle) {
 	Paint(target, rect, white, ebiten.BlendClear)
 }
 
-func setVertexColor(vertex *ebiten.Vertex, r, g, b, a float32) {
-	vertex.ColorR = r
-	vertex.ColorG = g
-	vertex.ColorB = b
-	vertex.ColorA = a
+func setVertexColor(vertex *ebiten.Vertex, rgba [4]float32) {
+	vertex.ColorR = rgba[0]
+	vertex.ColorG = rgba[1]
+	vertex.ColorB = rgba[2]
+	vertex.ColorA = rgba[3]
 }
 
 func setVertColors(verts []ebiten.Vertex, rgba [4]float32) {

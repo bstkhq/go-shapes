@@ -216,7 +216,7 @@ func (r *Renderer) strokeHullLine(target *ebiten.Image, shader *ebiten.Shader, o
 	r.vertices[3].DstX, r.vertices[3].DstY = quad[3].X, quad[3].Y
 
 	// apply ColorAABB if requested
-	var memo [16]float32
+	var memo [4][4]float32
 	hasMemo := false
 	if colorMode == ColorAABB && !r.singleClr {
 		memo = r.memorizeColors()
@@ -321,7 +321,7 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
 			ci := 4 + (i+indexOffset)%4
-			setVertexColor(&r.vertices[ci], clr[0], clr[1], clr[2], clr[3])
+			setVertexColor(&r.vertices[ci], clr)
 		}
 	}
 
@@ -408,7 +408,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		origin, size := PtF32(ox, oy), PtF32(w, h)
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
-			setVertexColor(&r.vertices[4+i], clr[0], clr[1], clr[2], clr[3])
+			setVertexColor(&r.vertices[4+i], clr)
 		}
 
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
@@ -520,7 +520,7 @@ func (r *Renderer) finishDrawTriangle(target *ebiten.Image, points [3]PointF32, 
 //
 // IMPORTANT: the vertex and index count will be changed after the end of the
 // function, make sure to restore after rendering
-func (r *Renderer) applyTriangleHull(triangle [3]PointF32, rounding float32, memo [16]float32) {
+func (r *Renderer) applyTriangleHull(triangle [3]PointF32, rounding float32, memo [4][4]float32) {
 	const Offset = 1.0
 	const MiterRadius = 5.0
 	const MiterRadiusSq = MiterRadius * MiterRadius
@@ -553,31 +553,31 @@ func (r *Renderer) applyTriangleHull(triangle [3]PointF32, rounding float32, mem
 		p0i, p0o := miter(triangle[0], edge20, edge01)
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0i.X, DstY: p0i.Y})
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0o.X, DstY: p0o.Y})
-		setVertexColor(&r.vertices[len(r.vertices)-2], memo[0], memo[1], memo[2], memo[3])
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[0])
 	} else {
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p0.X, DstY: p0.Y})
 	}
-	setVertexColor(&r.vertices[len(r.vertices)-1], memo[0], memo[1], memo[2], memo[3])
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[0])
 
 	if p1.Sub(triangle[1]).lengthSq() > MiterRadiusSq {
 		p1i, p1o := miter(triangle[1], edge01, edge12)
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1i.X, DstY: p1i.Y})
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1o.X, DstY: p1o.Y})
-		setVertexColor(&r.vertices[len(r.vertices)-2], memo[4], memo[5], memo[6], memo[7])
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[1])
 	} else {
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p1.X, DstY: p1.Y})
 	}
-	setVertexColor(&r.vertices[len(r.vertices)-1], memo[4], memo[5], memo[6], memo[7])
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[1])
 
 	if p2.Sub(triangle[2]).lengthSq() > MiterRadiusSq {
 		p2i, p2o := miter(triangle[2], edge12, edge20)
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2i.X, DstY: p2i.Y})
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2o.X, DstY: p2o.Y})
-		setVertexColor(&r.vertices[len(r.vertices)-2], memo[8], memo[9], memo[10], memo[11])
+		setVertexColor(&r.vertices[len(r.vertices)-2], memo[2])
 	} else {
 		r.vertices = append(r.vertices, ebiten.Vertex{DstX: p2.X, DstY: p2.Y})
 	}
-	setVertexColor(&r.vertices[len(r.vertices)-1], memo[8], memo[9], memo[10], memo[11])
+	setVertexColor(&r.vertices[len(r.vertices)-1], memo[2])
 
 	// fan indices
 	for i := uint32(1); i < uint32(max(len(r.vertices)-1, 0)); i++ {

@@ -108,7 +108,7 @@ func (r *Renderer) FillCircleSoft(target *ebiten.Image, cx, cy, radius float32, 
 // prepareCircleHull is a helper function for FillCircle and FillCircleSoft
 // that sets up vertices and indices for a circle of the given radius, and
 // returns the memorized colors to be restored after operation
-func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode Flag) [16]float32 {
+func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode Flag) [4][4]float32 {
 	memo := r.memorizeColors()
 	r.vertices = r.vertices[:0]
 	r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
@@ -117,19 +117,19 @@ func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode F
 
 	// simple case: no color interpolation
 	if r.singleClr {
-		r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+		r.applySingleColor(memo[0])
 		return memo
 	}
 
 	// ColorIntrinsic case: center is color 0, then colors 1 and 2 alternate
 	// on the outer perimeter
 	if colorMode == ColorIntrinsic {
-		setVertexColor(&r.vertices[0], memo[0], memo[1], memo[2], memo[3])
+		setVertexColor(&r.vertices[0], memo[0])
 		for i := 1; i < len(r.vertices); i += 2 {
-			setVertexColor(&r.vertices[i], memo[4], memo[5], memo[6], memo[7])
+			setVertexColor(&r.vertices[i], memo[1])
 		}
 		for i := 2; i < len(r.vertices); i += 2 {
-			setVertexColor(&r.vertices[i], memo[8], memo[9], memo[10], memo[11])
+			setVertexColor(&r.vertices[i], memo[2])
 		}
 		return memo
 	}
@@ -182,17 +182,16 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		r.vertices = r.vertices[:0]
 		r.indices = r.indices[:0]
 
-		// notice: colors must be applied after the vertices are appended
 		singleColor := r.singleClr || r.opts.Blend == ebiten.BlendClear
 		if radius-thickness/2 <= 0 { // collapse into filled circle (radius = 0)
 			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, thickness/2.0)
 			r.indices = appendCircIndices(r.indices, 8)
 			if singleColor {
-				r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+				r.applySingleColor(memo[0])
 			} else if colorMode == ColorIntrinsic {
-				setVertexColor(&r.vertices[0], (memo[8]+memo[12])/2.0, (memo[9]+memo[13])/2.0, (memo[10]+memo[14])/2.0, (memo[11]+memo[15])/2.0)
-				r.applyOffsetColor(1, 2, memo[0], memo[1], memo[2], memo[3])
-				r.applyOffsetColor(2, 2, memo[4], memo[5], memo[6], memo[7])
+				setVertexColor(&r.vertices[0], MixF32A(memo[2], memo[3], 0.5))
+				r.applyOffsetColor(1, 2, memo[0])
+				r.applyOffsetColor(2, 2, memo[1])
 			} else { // assume ColorAABB
 				r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 			}
@@ -200,12 +199,12 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 			r.vertices = appendCircStrokeOctagonVertices(r.vertices, cx, cy, radius, thickness)
 			r.indices = appendCircStrokeIndices(r.indices, 8)
 			if singleColor {
-				r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+				r.applySingleColor(memo[0])
 			} else if colorMode == ColorIntrinsic {
-				r.applyOffsetColor(0, 4, memo[0], memo[1], memo[2], memo[3])
-				r.applyOffsetColor(1, 4, memo[12], memo[13], memo[14], memo[15])
-				r.applyOffsetColor(2, 4, memo[4], memo[5], memo[6], memo[7])
-				r.applyOffsetColor(3, 4, memo[8], memo[9], memo[10], memo[11])
+				r.applyOffsetColor(0, 4, memo[0])
+				r.applyOffsetColor(1, 4, memo[3])
+				r.applyOffsetColor(2, 4, memo[1])
+				r.applyOffsetColor(3, 4, memo[2])
 			} else { // assume ColorAABB
 				r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 			}
