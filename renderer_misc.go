@@ -49,16 +49,25 @@ func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick in
 //
 // Consider also [Renderer.ScanlinesSharp]().
 func (r *Renderer) WaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dir float64) {
+	if lineThick <= 0 {
+		r.Warnings.report(WarnNonPositiveValueOpSkipped, lineThick)
+		return
+	}
+	if linesPerOsc <= 0 {
+		r.Warnings.report(WarnNonPositiveValueOpSkipped, linesPerOsc)
+		return
+	}
 	if minFillRate > maxFillRate {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{minFillRate, maxFillRate})
+		return
 	}
-	if minFillRate < 0 {
+	if minFillRate < 0 || minFillRate > 1.0 {
 		r.Warnings.report(WarnInvalidRateClamped, minFillRate)
-		minFillRate = 0
+		minFillRate = clamp(minFillRate, 0, 1.0)
 	}
-	if maxFillRate > 1.0 {
+	if maxFillRate < 0 || maxFillRate > 1.0 {
 		r.Warnings.report(WarnInvalidRateClamped, maxFillRate)
-		maxFillRate = 1.0
+		maxFillRate = clamp(maxFillRate, 0, 1.0)
 	}
 	if maxFillRate == 0 {
 		return

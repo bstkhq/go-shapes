@@ -66,6 +66,13 @@ func ceilF32(x float32) float32 {
 	return float32(math.Ceil(float64(x)))
 }
 
+func roundF32ToInt(x float32) int {
+	if x < 0 {
+		return int(x - 0.5)
+	}
+	return int(x + 0.5)
+}
+
 func clamp[T cmp.Ordered](v, minValue, maxValue T) T {
 	return min(max(v, minValue), maxValue)
 }

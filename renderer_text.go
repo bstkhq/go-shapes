@@ -64,7 +64,7 @@ func TextOpts(scale float32, align TextAlign) TextOptions {
 //     motion jitter.
 func (opts TextOptions) Quantized(quantize bool) TextOptions {
 	if quantize {
-		opts.flags |= ^textFlagNoQuantization
+		opts.flags &^= textFlagNoQuantization
 	} else {
 		opts.flags |= textFlagNoQuantization
 	}
@@ -87,7 +87,7 @@ func (opts TextOptions) SkipMissing(skip bool) TextOptions {
 	if skip {
 		opts.flags |= textFlagSkipMissing
 	} else {
-		opts.flags |= ^textFlagSkipMissing
+		opts.flags &^= textFlagSkipMissing
 	}
 	return opts
 }

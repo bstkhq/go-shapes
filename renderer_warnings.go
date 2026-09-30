@@ -159,7 +159,7 @@ func NewWarningLogOnceHandler() func(Warning, any, bool) {
 func logOnceHandlerFunc(warning Warning, value any, alreadySeen bool) {
 	if !alreadySeen {
 		ts := time.Now().Format("Mon Jan 2 15:04:05")
-		fmt.Fprintf(os.Stderr, "[%s] WARNING: %s value=%v valtype=%T ctx=shapes.Renderer", warning.Message(), value, value, ts)
+		fmt.Fprintf(os.Stderr, "[%s] WARNING: %s value=%v valtype=%T ctx=shapes.Renderer\n", ts, warning.Message(), value, value)
 	}
 }
 

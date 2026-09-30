@@ -18,7 +18,7 @@ func (r *Renderer) TileRectsGrid(target *ebiten.Image, inWidth, inHeight, outWid
 		return
 	}
 	if outHeight <= 0 {
-		r.Warnings.report(WarnNonPositiveValueOpSkipped, inWidth)
+		r.Warnings.report(WarnNonPositiveValueOpSkipped, outHeight)
 		return
 	}
 	inWidth = warnZeroNegativeValue(r, inWidth)

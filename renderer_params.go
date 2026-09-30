@@ -168,6 +168,8 @@ func (f Flag) String() string {
 		return "Dithered"
 	case AABB:
 		return "AABB"
+	case Hull:
+		return "Hull"
 	case ColorAABB:
 		return "ColorAABB"
 	case ColorIntrinsic:

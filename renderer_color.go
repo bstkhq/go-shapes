@@ -40,7 +40,7 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 	}
 	if toLightness > 1.0 || toLightness < 0.0 {
 		r.Warnings.report(WarnInvalidRateClamped, toLightness)
-		toLightness = clamp(fromLightness, 0.0, 1.0)
+		toLightness = clamp(toLightness, 0.0, 1.0)
 	}
 	if opts.Bias < -1.0 || opts.Bias > 1.0 {
 		r.Warnings.report(WarnInvalidBiasClamped, opts.Bias)

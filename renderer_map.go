@@ -43,7 +43,7 @@ func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32) {
 
 	minX, minY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
 	ctrVert.SrcX = minX + srcWidth/2.0
-	ctrVert.SrcY = minX + srcHeight/2.0
+	ctrVert.SrcY = minY + srcHeight/2.0
 	r.vertices = append(r.vertices, ctrVert)
 
 	r.setSrcRectCoords(minX, minY, minX+srcWidth, minY+srcHeight)
