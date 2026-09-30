@@ -147,8 +147,11 @@ func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode F
 //
 // For arcs, see [Renderer.StrokeArc]().
 //
-// Supported flags: [AABB], [ColorIntrinsic] (colors follow the stroke
-// clockwise).
+// Supported flags: [AABB], [ColorIntrinsic]. ColorIntrinsic is incompatible
+// with AABB and can only be used with the default hull bounding, which
+// tessellates the circle into 8 segments, starting from the top and going
+// clockwise. With ColorIntrinsic, colors 0 and 1 alternate on the outer
+// vertices, while 3 and 2 alternate on the inner ones.
 func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness float32, flags ...Flag) {
 	if thickness == 0 {
 		return // nothing to draw
@@ -179,36 +182,32 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		r.vertices = r.vertices[:0]
 		r.indices = r.indices[:0]
 
-		pendingColor := true
-		if r.singleClr || r.opts.Blend == ebiten.BlendClear {
-			r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
-			pendingColor = false
-		}
-
-		if radius-thickness/2 <= 0 {
-			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
+		// notice: colors must be applied after the vertices are appended
+		singleColor := r.singleClr || r.opts.Blend == ebiten.BlendClear
+		if radius-thickness/2 <= 0 { // collapse into filled circle (radius = 0)
+			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, thickness/2.0)
 			r.indices = appendCircIndices(r.indices, 8)
-			if pendingColor {
-				if colorMode == ColorIntrinsic {
-					setVertexColor(&r.vertices[0], (memo[8]+memo[12])/2.0, (memo[9]+memo[13])/2.0, (memo[10]+memo[14])/2.0, (memo[11]+memo[15])/2.0)
-					r.applyOffsetColor(1, 2, memo[0], memo[1], memo[2], memo[3])
-					r.applyOffsetColor(2, 2, memo[4], memo[5], memo[6], memo[7])
-				} else { // assume ColorAABB
-					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
-				}
+			if singleColor {
+				r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+			} else if colorMode == ColorIntrinsic {
+				setVertexColor(&r.vertices[0], (memo[8]+memo[12])/2.0, (memo[9]+memo[13])/2.0, (memo[10]+memo[14])/2.0, (memo[11]+memo[15])/2.0)
+				r.applyOffsetColor(1, 2, memo[0], memo[1], memo[2], memo[3])
+				r.applyOffsetColor(2, 2, memo[4], memo[5], memo[6], memo[7])
+			} else { // assume ColorAABB
+				r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 			}
 		} else {
 			r.vertices = appendCircStrokeOctagonVertices(r.vertices, cx, cy, radius, thickness)
 			r.indices = appendCircStrokeIndices(r.indices, 8)
-			if pendingColor {
-				if colorMode == ColorIntrinsic {
-					r.applyOffsetColor(0, 4, memo[0], memo[1], memo[2], memo[3])
-					r.applyOffsetColor(1, 4, memo[12], memo[13], memo[14], memo[15])
-					r.applyOffsetColor(2, 4, memo[4], memo[5], memo[6], memo[7])
-					r.applyOffsetColor(3, 4, memo[8], memo[9], memo[10], memo[11])
-				} else { // assume ColorAABB
-					r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
-				}
+			if singleColor {
+				r.applySingleColor(memo[0], memo[1], memo[2], memo[3])
+			} else if colorMode == ColorIntrinsic {
+				r.applyOffsetColor(0, 4, memo[0], memo[1], memo[2], memo[3])
+				r.applyOffsetColor(1, 4, memo[12], memo[13], memo[14], memo[15])
+				r.applyOffsetColor(2, 4, memo[4], memo[5], memo[6], memo[7])
+				r.applyOffsetColor(3, 4, memo[8], memo[9], memo[10], memo[11])
+			} else { // assume ColorAABB
+				r.applyTriQuadColors(minX, minY, maxX, maxY, memo)
 			}
 		}
 
@@ -224,6 +223,10 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 // cleanStrokeRadiusThickness converts negative thicknesses (inner) to positive
 // (outer), and collapses thicknesses to zero if the circle stroke can become a
 // single filled circle
+//
+// notice than negative radiuses are not reported as a warning, because in the
+// stroke case, unlike with fill, independent animation of thickness and radius
+// can lead to visible results even with radius < 0, for smooth collapses
 func cleanStrokeRadiusThickness(radius, thickness float32) (float32, float32) {
 	if thickness < 0 {
 		thickness = -thickness

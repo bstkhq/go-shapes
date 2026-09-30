@@ -489,17 +489,17 @@ func (r *Renderer) readBoundingAndColorModeFlags(optInBounding, optInColorMode F
 	return bounding, colorMode
 }
 
-func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) Flag {
-	flag := noFlag
+func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) (optIn Flag) {
+	optIn = noFlag
 	for _, flag := range flags {
 		if flag == optInFlag {
-			if flag != noFlag {
+			if optIn != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			flag = optInFlag
+			optIn = optInFlag
 		} else {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
-	return flag
+	return optIn
 }

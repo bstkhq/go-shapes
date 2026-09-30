@@ -50,8 +50,8 @@ func TestFillCircle(t *testing.T) {
 		if killCorner {
 			ctx.Renderer.SetColorF32(0.0, 0.0, 0.0, 0.0, 2)
 		}
+		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 1.0, 3)
 
-		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 0.0, 3)
 		ctx.Renderer.FillCircle(canvas, cw/2+sx, ch/2+sy, max(radius+sr, 0), flags...)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
@@ -127,11 +127,18 @@ func TestStrokeCircle(t *testing.T) {
 	var animatedPos, animatedRadius, animatedThickness bool
 	var radius, thickness float32 = 90.0, 8.0
 	var flags flagList
+	colorSets := [][4][4]float32{
+		{{1.0, 0.0, 1.0, 1.0}, {0.0, 1.0, 1.0, 1.0}, {0.0, 1.0, 0.5, 1.0}, {1.0, 0.0, 0.0, 0.0}}, // per-vertex
+		{{1, 0, 1, 1}, {1, 0, 1, 1}, {1, 0, 1, 1}, {1, 0, 1, 1}},                                 // single
+		{{1, 0.5, 0, 1}, {1, 0.5, 0, 1}, {0, 0.3, 1, 1}, {0, 0.3, 1, 1}},                         // inner == outer
+	}
+	colorIndex := 0
 
 	updater := func(ctx TestAppCtx) {
 		animatedPos = updateToggle(ctx, ebiten.KeyP, animatedPos)
 		animatedRadius = updateToggle(ctx, ebiten.KeyA, animatedRadius)
 		animatedThickness = updateToggle(ctx, ebiten.KeyK, animatedThickness)
+		colorIndex = updateParam(ctx, ebiten.KeyS, colorIndex, 0, len(colorSets)-1, 1)
 		radius = updateParam(ctx, ebiten.KeyR, radius, 0.0, 128.0, 1.5)
 		thickness = updateParam(ctx, ebiten.KeyT, thickness, -32.0, 32.0, 1.0)
 		flags.UpdateFlag(AABB, ebiten.KeyH)
@@ -140,8 +147,8 @@ func TestStrokeCircle(t *testing.T) {
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 		info := fmt.Sprintf(
-			"Radius: %.02f [R]\nThickness: %.02f [T]\nAABB: %t [H]\nColorIntrinsic: %t [C]\nAnim Position: %t [P]\nAnim Radius: %t [A]\nAnim Thick: %t [K]",
-			radius, thickness, flags.Has(AABB), flags.Has(ColorIntrinsic), animatedPos, animatedRadius, animatedThickness,
+			"Radius: %.02f [R]\nThickness: %.02f [T]\nAABB: %t [H]\nColorIntrinsic: %t [C]\nColorSet: %d [S]\nAnim Position: %t [P]\nAnim Radius: %t [A]\nAnim Thick: %t [K]",
+			radius, thickness, flags.Has(AABB), flags.Has(ColorIntrinsic), colorIndex, animatedPos, animatedRadius, animatedThickness,
 		)
 		ctx.Renderer.SetColorF32(1, 1, 1, 1)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
@@ -161,10 +168,10 @@ func TestStrokeCircle(t *testing.T) {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
 
-		ctx.Renderer.SetColorF32(1.0, 0.0, 1.0, 1.0, 0)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 1.0, 1.0, 1)
-		ctx.Renderer.SetColorF32(0.0, 1.0, 0.5, 1.0, 2)
-		ctx.Renderer.SetColorF32(1.0, 0.0, 0.0, 0.0, 3)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][0], 0)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][1], 1)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][2], 2)
+		ctx.Renderer.SetColorF32A(colorSets[colorIndex][3], 3)
 		ctx.Renderer.StrokeCircle(canvas, cw/2+sx, ch/2+sy, max(radius+sr, 0), thickness+st, flags...)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
