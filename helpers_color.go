@@ -39,6 +39,16 @@ func RGBF32(clr color.Color) [3]float32 {
 	return [3]float32{float32(r) / 65535.0, float32(g) / 65535.0, float32(b) / 65535.0}
 }
 
+// MixF32A linearly interpolates the given colors, with t in [0, 1].
+func MixF32A(a, b [4]float32, t float32) [4]float32 {
+	return [4]float32{lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t), lerp(a[3], b[3], t)}
+}
+
+// ScaleAlphaF32A multiplies the color by the given alphaFactor.
+func ScaleAlphaF32A(clr [4]float32, alphaFactor float32) [4]float32 {
+	return [4]float32{clr[0] * alphaFactor, clr[1] * alphaFactor, clr[2] * alphaFactor, clr[3] * alphaFactor}
+}
+
 func colorToF64(clr color.Color) [4]float64 {
 	r, g, b, a := clr.RGBA()
 	return [4]float64{float64(r) / 65535.0, float64(g) / 65535.0, float64(b) / 65535.0, float64(a) / 65535.0}
@@ -56,14 +66,9 @@ func interpQuadColor(tl, tr, br, bl [4]float32, origin, size, iCoords PointF32) 
 	u := clamp((iCoords.X-origin.X)/size.X, 0, 1)
 	v := clamp((iCoords.Y-origin.Y)/size.Y, 0, 1)
 
-	var out [4]float32
-	for i := range 4 {
-		top := lerp(tl[i], tr[i], u)
-		bottom := lerp(bl[i], br[i], u)
-		out[i] = top + v*(bottom-top)
-	}
-
-	return out
+	top := MixF32A(tl, tr, u)
+	bottom := MixF32A(bl, br, u)
+	return MixF32A(top, bottom, v)
 }
 
 // interpTriColor interpolates a 4-channel color within a triangle using barycentric coordinates
