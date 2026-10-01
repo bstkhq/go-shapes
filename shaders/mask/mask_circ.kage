@@ -21,7 +21,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	if Dither == 1 {
 		noise := imageSrc1UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
 		out.rgb += vec3((noise - 0.5) / 255.0)
-		out.rgb = clamp(out.rgb, 0.0, 1.0)
+		out.rgb = clamp(out.rgb, vec3(0.0), vec3(out.a))
 	}
 
 	return out
