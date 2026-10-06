@@ -214,7 +214,7 @@ func snapEdges[Float ~float32 | ~float64](value, min, max, tolerance Float) Floa
 }
 
 // given an (origin, end) line and a thickness, it expands it into 4 points
-func lineToQuad(origin, end PointF32, thickness float32, padOffset float32) [4]PointF32 {
+func lineToQuad(origin, end PointF32, thickness float32) [4]PointF32 {
 	var out [4]PointF32
 
 	vd := end.Sub(origin)    // non-normalized direction vector
@@ -222,7 +222,7 @@ func lineToQuad(origin, end PointF32, thickness float32, padOffset float32) [4]P
 	length := vd.Length()
 	if length < 1e-6 { // treat as point
 		midpoint := origin.Add(end).Scale(0.5)
-		shift := thickness + padOffset
+		shift := thickness / 2
 		out[0] = midpoint.Add(PtF32(-shift, -shift)) // TL
 		out[1] = midpoint.Add(PtF32(+shift, -shift)) // TR
 		out[2] = midpoint.Add(PtF32(+shift, +shift)) // BR
@@ -231,7 +231,7 @@ func lineToQuad(origin, end PointF32, thickness float32, padOffset float32) [4]P
 	}
 
 	// scale for vector normalization
-	scale := (thickness/2 + padOffset) / length
+	scale := thickness / (2 * length)
 
 	// adjust bounding ends to include thickness rounding
 	vds, vps := vd.Scale(scale), vp.Scale(scale)
@@ -316,11 +316,15 @@ const cos45 = 0.70710678118654752440084436210484903928483593768847403658833986  
 // manner with a top-left/bottom-right quad.
 //
 // the indices can be obtained with appendCircIndices(indices, 8)
-func appendCircOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32) []ebiten.Vertex {
+func appendCircOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, radius float32, expandHull bool) []ebiten.Vertex {
 	// unrolled calculations, this is a fairly common case
 	circumradius := radius * apothemToCircumradius
-	axialDist := ceilF32(circumradius)
-	diagDist := ceilF32(circumradius * cos45)
+	axialDist := circumradius
+	diagDist := circumradius * cos45
+	if expandHull {
+		axialDist = ceilF32(axialDist)
+		diagDist = ceilF32(diagDist)
+	}
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy})                       // center
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - axialDist})           // top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx + diagDist, DstY: cy - diagDist}) // top-right
@@ -350,8 +354,10 @@ func appendCircStrokeOctagonVertices(vertices []ebiten.Vertex, cx, cy float32, r
 	// unrolled calculations, this is a fairly common case
 	outRadius := (radius + thickness/2.0) * apothemToCircumradius
 	inRadius := max(radius-thickness/2.0, 0.0)
-	inAxialDist, outAxialDist := floorF32(inRadius), ceilF32(outRadius)
-	inDiagDist, outDiagDist := floorF32(inRadius*cos45), ceilF32(outRadius*cos45)
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	inAxialDist, outAxialDist := inRadius, outRadius
+	inDiagDist, outDiagDist := inRadius*cos45, outRadius*cos45
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - outAxialDist})              // outer top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx, DstY: cy - inAxialDist})               // inner top
 	vertices = append(vertices, ebiten.Vertex{DstX: cx + outDiagDist, DstY: cy - outDiagDist}) // outer top-right

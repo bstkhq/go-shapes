@@ -37,7 +37,9 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 
 	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
 	if bounding == Hull {
-		memo := r.prepareCircleHull(cx, cy, radius, colorMode)
+		// No ceil needed: the analytical shader reaches zero at the boundary, so
+		// every pixel center with non-zero output is inside it.
+		memo := r.prepareCircleHull(cx, cy, radius, colorMode, false)
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, radius, 0.0)
 		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderCircle.Load(), &r.opts)
@@ -87,7 +89,7 @@ func (r *Renderer) FillCircleSoft(target *ebiten.Image, cx, cy, radius float32, 
 
 	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
 	if bounding == Hull {
-		memo := r.prepareCircleHull(cx, cy, outRadius, colorMode)
+		memo := r.prepareCircleHull(cx, cy, outRadius, colorMode, true)
 		tox, toy := rectOriginF32(target.Bounds())
 		r.setFlatCustomVAs(cx-tox, cy-toy, inRadius, abs(softEdge))
 		target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
@@ -108,10 +110,10 @@ func (r *Renderer) FillCircleSoft(target *ebiten.Image, cx, cy, radius float32, 
 // prepareCircleHull is a helper function for FillCircle and FillCircleSoft
 // that sets up vertices and indices for a circle of the given radius, and
 // returns the memorized colors to be restored after operation
-func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode Flag) [4][4]float32 {
+func (r *Renderer) prepareCircleHull(cx, cy float32, radius float32, colorMode Flag, expandHull bool) [4][4]float32 {
 	memo := r.memorizeColors()
 	r.vertices = r.vertices[:0]
-	r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius)
+	r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, radius, expandHull)
 	r.indices = r.indices[:0]
 	r.indices = appendCircIndices(r.indices, 8)
 
@@ -165,9 +167,11 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 	}
 
 	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorIntrinsic, flags...)
-	hthickCeil := ceilF32(thickness / 2.0)
-	minX, minY := cx-radius-hthickCeil, cy-radius-hthickCeil
-	maxX, maxY := cx+radius+hthickCeil, cy+radius+hthickCeil
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	halfThick := thickness / 2.0
+	minX, minY := cx-radius-halfThick, cy-radius-halfThick
+	maxX, maxY := cx+radius+halfThick, cy+radius+halfThick
 
 	if bounding == AABB {
 		if colorMode == ColorIntrinsic {
@@ -184,7 +188,9 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 
 		singleColor := r.singleClr || r.opts.Blend == ebiten.BlendClear
 		if radius-thickness/2 <= 0 { // collapse into filled circle (radius = 0)
-			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, thickness/2.0)
+			// No ceil needed: the analytical shader reaches zero at the boundary, so
+			// every pixel center with non-zero output is inside it.
+			r.vertices = appendCircOctagonVertices(r.vertices, cx, cy, thickness/2.0, false)
 			r.indices = appendCircIndices(r.indices, 8)
 			if singleColor {
 				r.applySingleColor(memo[0])

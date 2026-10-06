@@ -86,8 +86,8 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
 	margins := NewMargins(hmargin, vmargin)
-	// The shader only returns non-zero alpha at pixel centers inside its
-	// analytical bounds, so exact geometry and triangle coverage agree.
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
 	r.DrawRectShader(target, ox, oy, w, h, margins, RegionExact, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
@@ -202,8 +202,14 @@ func (r *Renderer) StrokeLineSoft(target *ebiten.Image, origin, end PointF32, th
 func (r *Renderer) strokeAABBLine(target *ebiten.Image, shader *ebiten.Shader, origin, end PointF32, thickness, softEdge float32) {
 	halfThick := thickness / 2.0
 	margin := halfThick + max(0, softEdge)
-	minX, maxX := floorF32(min(origin.X, end.X)-margin), ceilF32(max(origin.X, end.X)+margin)
-	minY, maxY := floorF32(min(origin.Y, end.Y)-margin), ceilF32(max(origin.Y, end.Y)+margin)
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	minX, maxX := min(origin.X, end.X)-margin, max(origin.X, end.X)+margin
+	minY, maxY := min(origin.Y, end.Y)-margin, max(origin.Y, end.Y)+margin
+	if softEdge > 0 {
+		minX, maxX = floorF32(minX), ceilF32(maxX)
+		minY, maxY = floorF32(minY), ceilF32(maxY)
+	}
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(origin.X-tox, origin.Y-toy, end.X-tox, end.Y-toy)
@@ -213,8 +219,9 @@ func (r *Renderer) strokeAABBLine(target *ebiten.Image, shader *ebiten.Shader, o
 }
 
 func (r *Renderer) strokeHullLine(target *ebiten.Image, shader *ebiten.Shader, origin, end PointF32, thickness float32, softEdge float32, colorMode Flag) {
-	const padOffset = 0.333 // to prevent diagonal clipping (affects color interpolation)
-	quad := lineToQuad(origin, end, thickness+max(0, softEdge*2.0), padOffset)
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	quad := lineToQuad(origin, end, thickness+max(0, softEdge*2.0))
 	r.vertices[0].DstX, r.vertices[0].DstY = quad[0].X, quad[0].Y
 	r.vertices[1].DstX, r.vertices[1].DstY = quad[1].X, quad[1].Y
 	r.vertices[2].DstX, r.vertices[2].DstY = quad[2].X, quad[2].Y
@@ -419,6 +426,8 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		r.vertices = r.vertices[:4]
 	} else { // assume AABB
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
+		// No ceil needed: the analytical shader reaches zero at the boundary, so
+		// every pixel center with non-zero output is inside it.
 		r.DrawRectShader(target, ox, oy, w, h, NoMargins, RegionExact, shaderStrokeRect.Load())
 	}
 	clear(r.opts.Uniforms)
@@ -750,8 +759,14 @@ func innerRoundQuad(quad [4]PointF32, rounding float32) ([4]PointF32, float32, b
 // has no other effect
 func (r *Renderer) internalFillQuad(target *ebiten.Image, quad [4]PointF32, shader *ebiten.Shader, rounding, softEdge float32) {
 	margin := rounding + max(softEdge, 0)
-	minX, maxX := floorF32(min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-margin), ceilF32(max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+margin)
-	minY, maxY := floorF32(min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-margin), ceilF32(max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+margin)
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	minX, maxX := min(quad[0].X, quad[1].X, quad[2].X, quad[3].X)-margin, max(quad[0].X, quad[1].X, quad[2].X, quad[3].X)+margin
+	minY, maxY := min(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)-margin, max(quad[0].Y, quad[1].Y, quad[2].Y, quad[3].Y)+margin
+	if softEdge > 0 {
+		minX, maxX = floorF32(minX), ceilF32(maxX)
+		minY, maxY = floorF32(minY), ceilF32(maxY)
+	}
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 
 	tox, toy := rectOriginF32(target.Bounds())
@@ -813,8 +828,10 @@ func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF
 	minAY, minBY := min(triA[0].Y, triA[1].Y, triA[2].Y)-roundingA, min(triB[0].Y, triB[1].Y, triB[2].Y)-roundingB
 	maxAX, maxBX := max(triA[0].X, triA[1].X, triA[2].X)+roundingA, max(triB[0].X, triB[1].X, triB[2].X)+roundingB
 	maxAY, maxBY := max(triA[0].Y, triA[1].Y, triA[2].Y)+roundingA, max(triB[0].Y, triB[1].Y, triB[2].Y)+roundingB
-	minX, maxX := floorF32(min(minAX, minBX)), ceilF32(max(maxAX, maxBX))
-	minY, maxY := floorF32(min(minAY, minBY)), ceilF32(max(maxAY, maxBY))
+	// No ceil needed: the analytical shader reaches zero at the boundary, so
+	// every pixel center with non-zero output is inside it.
+	minX, maxX := min(minAX, minBX), max(maxAX, maxBX)
+	minY, maxY := min(minAY, minBY), max(maxAY, maxBY)
 	r.setDstRectCoords(minX, minY, maxX, maxY)
 	r.setFlatCustomVAs01(roundingA, roundingB)
 	tox, toy := rectOriginF32(target.Bounds())

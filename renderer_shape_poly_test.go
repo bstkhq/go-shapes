@@ -672,15 +672,19 @@ func TestFillQuad(t *testing.T) {
 	}
 
 	rounding := float32(0.0)
-	animRounding := false
+	animRounding, smoothMovement := false, false
 	updater := func(ctx TestAppCtx) {
 		rounding = updateParam(ctx, ebiten.KeyR, rounding, -100.0, +100.0, 2.0)
 		animRounding = updateToggle(ctx, ebiten.KeyA, animRounding)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 		ctx.Renderer.SetColorF32A(tcWhite)
-		info := fmt.Sprintf("Rounding: %.02f [R]\nAnim Rounding: %t [A]", rounding, animRounding)
+		info := fmt.Sprintf(
+			"Rounding: %.02f [R]\nAnim Rounding: %t [A]\nSmooth movement: %t [M]",
+			rounding, animRounding, smoothMovement,
+		)
 		ctx.Renderer.Text(canvas, info, 12, 12, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		if ctx.SpacePressed {
@@ -690,6 +694,11 @@ func TestFillQuad(t *testing.T) {
 		if animRounding {
 			roundingOffset = -8.0 + float32(ctx.DistAnim(16.0, 1.0))
 		}
+		shift := PointF32{}
+		if smoothMovement {
+			shift.X = float32(-4.0 + ctx.DistAnim(8.0, 0.666))
+			shift.Y = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
 
 		tcsPastel4.Apply(ctx.Renderer)
 		w, h := rectSizeF32(canvas.Bounds())
@@ -697,7 +706,8 @@ func TestFillQuad(t *testing.T) {
 		for i, region := range regions {
 			quad := quads[i]
 			for v := range 4 {
-				quad[v] = (region[0].Mul(size)).Add(quad[v].Mul(size).Mul(region[1]))
+				point := region[0].Mul(size).Add(quad[v].Mul(size).Mul(region[1]))
+				quad[v] = point.Add(shift)
 			}
 			ctx.Renderer.FillQuad(canvas, quad, rounding+roundingOffset)
 		}
@@ -715,23 +725,29 @@ func TestFillQuadSoft(t *testing.T) {
 	const W, H = 128, 64
 	rounding := float32(0)
 	softEdge := float32(0)
+	var smoothMovement bool
 
 	updater := func(ctx TestAppCtx) {
 		rounding = updateParam(ctx, ebiten.KeyR, rounding, -32, 32, 1)
 		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, -32, 32, 1)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
 		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
-			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]",
-			rounding, softEdge,
+			"Rounding: %.02f [R]\nSoft Edge: %.02f [S]\nSmooth movement: %t [M]",
+			rounding, softEdge, smoothMovement,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		w, h := rectSizeF32(canvas.Bounds())
 		ox, oy := w*0.25-W/2, h*0.25-H/2
+		if smoothMovement {
+			ox += float32(-4.0 + ctx.DistAnim(8.0, 0.666))
+			oy += float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
 		ox2, oy2 := ox+w*0.5, oy+h*0.5
 		quad := [4]PointF32{
 			{X: ox, Y: oy},
