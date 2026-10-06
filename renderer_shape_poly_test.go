@@ -437,35 +437,63 @@ func TestFillHexagons(t *testing.T) {
 
 // go test -run ^TestFillRect$ . -count 1
 func TestFillRect(t *testing.T) {
-	updater := func(ctx TestAppCtx) {}
+	var smoothMovement bool
+	updater := func(ctx TestAppCtx) {
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		collapseRounding := -float32(ctx.DistAnim(196.0, 0.5))
+		ctx.Renderer.SetColorF32A(tcWhite)
+		info := fmt.Sprintf(
+			"Collapse rounding: %.02f\nSmooth movement: %t [M]\nCollapse copy blend: [Space]",
+			collapseRounding, smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+		rectBlend := ebiten.BlendSourceOver
+		if ctx.SpacePressed {
+			rectBlend = ebiten.BlendCopy
+		}
+
 		lc := ctx.LeftClickF32()
 		rc := ctx.RightClickF32()
 
 		ctx.Renderer.SetColorF32A(tcWhite)
 		w1, h1 := float32(128), float32(48)
 		w2, h2 := float32(48), float32(128)
+		ctx.Renderer.Options().Blend = rectBlend
 		ctx.Renderer.FillRect(canvas, lc.X-w1/2, lc.Y-h1/2, w1, h1, -float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 		ctx.Renderer.FillRect(canvas, rc.X-w2/2, rc.Y-h2/2, w2, h2, float32(ctx.DistAnim(float64(min(w1, h1))/2.0, 1.0)))
 
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcMagenta, 0.2))
 		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, max(w1, h1)/2.0)
 		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, max(w2, h2)/2.0)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.5))
+		ctx.Renderer.Options().Blend = rectBlend
 		ctx.Renderer.FillRect(canvas, 16, ch-16, 128, -128, 0)
 		ctx.Renderer.FillRect(canvas, 32, ch-32, 128-32, -(128 - 32), float32(ctx.DistAnim(16, 1.0)))
 
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.FillCircle(canvas, 164+32, ch-16-32, 32)
 		ctx.Renderer.FillCircle(canvas, 164+128-32, ch-16-128+32, 32)
+		ctx.Renderer.Options().Blend = rectBlend
 		ctx.Renderer.FillRect(canvas, 164, ch-16, 128, -128, -float32(ctx.DistAnim(32, 1.0)))
 
-		collapseRounding := -float32(ctx.DistAnim(196.0, 0.5))
 		const CRW, CRH = 128, 96
-		ctx.Renderer.FillRect(canvas, cw-CRW-16, 16, CRW, CRH, collapseRounding)
+		shiftX, shiftY := float32(0), float32(0)
+		if smoothMovement {
+			shiftX = float32(-4.0 + ctx.DistAnim(8.0, 0.666))
+			shiftY = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
+		collapseCX, collapseCY := cw-CRW/2-16+shiftX, 16+CRH/2+shiftY
+		ctx.Renderer.Options().Blend = rectBlend
+		ctx.Renderer.FillRect(canvas, collapseCX-CRW/2, collapseCY-CRH/2, CRW, CRH, collapseRounding)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcMagenta, 0.2))
-		ctx.Renderer.FillCircle(canvas, cw-CRW/2-16, 16+CRH/2, min(abs(collapseRounding), CRW/2, CRH/2))
+		ctx.Renderer.FillCircle(canvas, collapseCX, collapseCY, min(abs(collapseRounding), CRW/2, CRH/2))
 	}
 
 	app := NewTestApp(updater, drawer)

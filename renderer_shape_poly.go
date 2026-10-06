@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"image"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -67,18 +68,24 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 		hmargin = rounding
 		vmargin = hmargin
 	} else if rounding < 0 {
-		// TODO: derive tighter collapse bounds from the shader math. These
-		// values are conservative bounds found by manual measurement;
-		// the actual behavior is not linear and harder to narrowly match.
-		// actual collapse is closer to [0.5, 1.707]
-		const CollapseStart, CollapseEnd = 0.76, 1.86
-		if hCS := h * CollapseStart; -rounding > hCS {
-			ht := (-rounding - hCS) / (h * (CollapseEnd - CollapseStart))
-			hmargin = -w / 2 * min(ht*(h/w), 1.0)
+		q := -rounding
+		halfW, halfH := w/2, h/2
+		// solving the shader SDF at the center gives the collapse point:
+		// q = halfW + halfH + sqrt(2*halfW*halfH)
+		collapseQ := halfW + halfH + float32(math.Sqrt(float64(2*halfW*halfH)))
+		if q >= collapseQ {
+			return
 		}
-		if wCS := w * CollapseStart; -rounding > wCS {
-			wt := (-rounding - wCS) / (w * (CollapseEnd - CollapseStart))
-			vmargin = -h / 2 * min(wt*(w/h), 1.0)
+
+		// once q exceeds an axis' opposing half-size, that extent follows the
+		// circular branch of the shader SDF. Its horizontal half-extent is
+		// halfW - q + sqrt(2*q*halfH - halfH*halfH), with the vertical case being
+		// symmetrical. Subtracting the original half-extent gives each margin.
+		if q > halfH {
+			hmargin = -q + float32(math.Sqrt(float64(2*q*halfH-halfH*halfH)))
+		}
+		if q > halfW {
+			vmargin = -q + float32(math.Sqrt(float64(2*q*halfW-halfW*halfW)))
 		}
 	}
 
