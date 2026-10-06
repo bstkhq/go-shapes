@@ -22,7 +22,7 @@ import (
 // values to tweak. Other more effective tools might be exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
-	r.DrawImgShader(target, source, x, y, NoMargins, shaderOklabShift.Load())
+	r.DrawImgShader(target, source, x, y, NoMargins, RegionExact, shaderOklabShift.Load())
 }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the
@@ -63,7 +63,7 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 	r.opts.Uniforms["From"] = from
 	r.opts.Uniforms["To"] = to
 	r.setFlatCustomVAs(fromLightness, toLightness, float32(max(opts.Steps, 0)), (opts.Bias+1.0)/2.0)
-	r.DrawImgShader(target, source, x, y, NoMargins, shaderColorizeByLightness.Load())
+	r.DrawImgShader(target, source, x, y, NoMargins, RegionExact, shaderColorizeByLightness.Load())
 	clear(r.opts.Uniforms)
 	if opts.Dither {
 		r.opts.Images[1] = nil
@@ -109,13 +109,14 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alph
 		r.loadBlueNoise64RGBAt(2)
 	}
 
+	shader := shaderColorMix.Load()
+	regionMode := RegionExact
 	if bilinear {
-		r.setFlatCustomVAs01(alpha, mixLevel)
-		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMixBilinear.Load())
-	} else {
-		r.setFlatCustomVAs01(alpha, mixLevel)
-		r.DrawImgShader(target, base, x, y, NoMargins, shaderColorMix.Load())
+		shader = shaderColorMixBilinear.Load()
+		regionMode = RegionExpanded
 	}
+	r.setFlatCustomVAs01(alpha, mixLevel)
+	r.DrawImgShader(target, base, x, y, NoMargins, regionMode, shader)
 
 	r.opts.Images[1] = nil
 	if dither {
@@ -217,6 +218,6 @@ func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffse
 	r.opts.Uniforms["Matrix"] = ditherMatrix
 	r.opts.Uniforms["NumColors"] = numColors
 	r.opts.Uniforms["Colors"] = palette
-	r.DrawImgShader(target, mask, ox, oy, NoMargins, shaderDitherMat4.Load())
+	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderDitherMat4.Load())
 	clear(r.opts.Uniforms)
 }

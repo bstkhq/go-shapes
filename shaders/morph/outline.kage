@@ -3,22 +3,15 @@ package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxThickness = 16.0
-	const Edge = 0.777
+	const Edge = 0.777 // see morphOutlineEdgeMargin
 	const SafetyMargin = 2.0
-
-	// NOTE: this might be GPU dependent, but I noticed that in some computers
-	// the first half of the image has 0.4999... as fractional value, while
-	// the second half has 0.5000..001 instead. This can cause issues, so in
-	// this exact shader we want to enforce the correct center coordinates.
-	// Outlines are extremely delicate
-	srcCoords := floor(sourceCoords) + vec2(0.5)
 
 	// this algorithm combines expansion.kage and erosion.kage,
 	// please refer to those for further explanations
 	thickness := customVAs[0]
 	halfThick := thickness / 2.0
 	expansionAlpha := 0.0
-	erosionAlpha := imageSrc0At(srcCoords).a
+	erosionAlpha := imageSrc0At(sourceCoords).a
 	scanOffset := vec2(halfThick)
 	for y := -SafetyMargin; y < MaxThickness*2.0+SafetyMargin; y += 1.0 {
 		if y > thickness*2.0+SafetyMargin {
@@ -29,9 +22,9 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 				break
 			}
 			offset := vec2(x, y) - scanOffset
-			sample := floor(srcCoords+offset) + vec2(0.5)
+			sample := floor(sourceCoords+offset) + vec2(0.5)
 			clr := imageSrc0At(sample)
-			dist := distance(srcCoords, sample)
+			dist := distance(sourceCoords, sample)
 			if dist <= halfThick {
 				expansionAlpha = max(expansionAlpha, clr.a)
 				erosionAlpha = min(erosionAlpha, clr.a)

@@ -7,16 +7,22 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// DrawAt draws a source image with the given parameters. Supported flags: [Bilinear], [Dithered].
+// DrawAt draws a source image with the given parameters. Supported flags:
+// [Bilinear], [Dithered].
 //
 // This operation is affected by [Renderer.Tint].
 //
-// At first glance DrawAt might seem redundant with [ebiten.DrawImageOptions], but there are two
-// differential features:
-//   - Applying dithering during composition, which can be especially critical at low alphas
-//     and visibility transitions when image and background colors are similar.
-//   - Painting or interpolating an image with the renderer colors, which can be set per vertex.
-//     This is color mixing, as opposed to [ebiten.ColorScale]'s multiplication.
+// At first glance DrawAt might seem redundant with [ebiten.DrawImageOptions],
+// but there are three differential features:
+//   - Preserving subpixel positions for smoother motion. Ebitengine's DrawImage
+//     quantizes destination vertex positions to roughly one-third-pixel
+//     increments, while DrawAt leaves the supplied positions unquantized.
+//   - Applying dithering during composition, which can be especially critical
+//     at low alphas and visibility transitions when image and background
+//     colors are similar.
+//   - Painting or interpolating an image with the renderer colors, which can
+//     be set per vertex. This is color mixing, as opposed to
+//     [ebiten.ColorScale]'s multiplication.
 //
 // Usage example:
 //
@@ -41,14 +47,16 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 	}
 
 	var shader *ebiten.Shader
+	regionMode := RegionExact
 	if bilinear {
 		shader = shaderDrawTintBilinear.Load()
+		regionMode = RegionExpanded // preserve boundary filter taps
 	} else {
 		shader = shaderDrawTintNearest.Load()
 	}
 
 	r.setFlatCustomVAs01(r.tint, alpha)
-	r.DrawImgShader(target, source, x, y, NoMargins, shader)
+	r.DrawImgShader(target, source, x, y, NoMargins, regionMode, shader)
 
 	if dither {
 		clear(r.opts.Uniforms)
@@ -56,17 +64,25 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 	}
 }
 
-// DrawImgShader calls DrawTrianglesShader using the renderer's option and
+// DrawImgShader calls DrawTrianglesShader using the renderer's options and
 // passing the given source image as imageSrc0.
+//
+// Margins adjust both destination and source regions.
+//
+// regionMode determines whether destination and source coordinates are used
+// exactly ([RegionExact]) or extended to cover boundary pixels ([RegionExpanded]).
 //
 // Notice that the target origin matters; to align the shader to the top left
 // corner, (ox, oy) must match target.Bounds().Min.
 //
 // This is a low level method mostly used by other higher level renderer calls.
-func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, shader *ebiten.Shader) {
-	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+srcWidthF32+margins.Right), ceilF32(oy+srcHeightF32+margins.Bottom))
-	r.setSrcRectCoords(srcOX-margins.Left, srcOY-margins.Top, srcOX+srcWidthF32+margins.Right, srcOY+srcHeightF32+margins.Bottom)
+func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, regionMode ShaderRegionMode, shader *ebiten.Shader) {
+	srcOX, srcOY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
+	dstRegionOX, dstRegionOY := ox-margins.Left, oy-margins.Top
+	dstRegionFX, dstRegionFY := ox+srcWidth+margins.Right, oy+srcHeight+margins.Bottom
+	srcRegionOX, srcRegionOY := srcOX-margins.Left, srcOY-margins.Top
+	srcRegionFX, srcRegionFY := srcOX+srcWidth+margins.Right, srcOY+srcHeight+margins.Bottom
+	r.setShaderRegion(dstRegionOX, dstRegionOY, dstRegionFX, dstRegionFY, srcRegionOX, srcRegionOY, srcRegionFX, srcRegionFY, regionMode)
 
 	r.opts.Images[0] = source
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
@@ -75,14 +91,47 @@ func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, m
 
 // DrawRectShader calls target.DrawTrianglesShader using the renderer's options.
 //
+// regionMode determines whether destination and source coordinates are used
+// exactly ([RegionExact]) or extended to cover boundary pixels ([RegionExpanded]).
+//
 // Notice that the target origin matters; to align the shader to the top left
 // corner, (ox, oy) must match target.Bounds().Min.
 //
 // This is a low level method mostly used by other higher level renderer calls.
-func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, shader *ebiten.Shader) {
-	r.setDstRectCoords(floorF32(ox-margins.Left), floorF32(oy-margins.Top), ceilF32(ox+w+margins.Right), ceilF32(oy+h+margins.Bottom))
-	r.setSrcRectCoords(-margins.Left, -margins.Top, w+margins.Right, h+margins.Bottom)
+func (r *Renderer) DrawRectShader(target *ebiten.Image, ox, oy, w, h float32, margins Margins, regionMode ShaderRegionMode, shader *ebiten.Shader) {
+	dstRegionOX, dstRegionOY := ox-margins.Left, oy-margins.Top
+	dstRegionFX, dstRegionFY := ox+w+margins.Right, oy+h+margins.Bottom
+	srcRegionOX, srcRegionOY := -margins.Left, -margins.Top
+	srcRegionFX, srcRegionFY := w+margins.Right, h+margins.Bottom
+	r.setShaderRegion(dstRegionOX, dstRegionOY, dstRegionFX, dstRegionFY, srcRegionOX, srcRegionOY, srcRegionFX, srcRegionFY, regionMode)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
+}
+
+func (r *Renderer) setShaderRegion(dstOX, dstOY, dstFX, dstFY, srcOX, srcOY, srcFX, srcFY float32, regionMode ShaderRegionMode) {
+	switch regionMode {
+	case RegionExact:
+		// use the requested coordinates as-is
+	case RegionExpanded:
+		// This slightly shifts vertex-color interpolation, but recomputing the
+		// colors for a subpixel geometry adjustment is not worth the complexity.
+		dstOX, dstFX, srcOX, srcFX = expandShaderAxis(dstOX, dstFX, srcOX, srcFX)
+		dstOY, dstFY, srcOY, srcFY = expandShaderAxis(dstOY, dstFY, srcOY, srcFY)
+	default:
+		panic("invalid ShaderRegionMode value")
+	}
+	r.setDstRectCoords(dstOX, dstOY, dstFX, dstFY)
+	r.setSrcRectCoords(srcOX, srcOY, srcFX, srcFY)
+}
+
+func expandShaderAxis(dstO, dstF, srcO, srcF float32) (float32, float32, float32, float32) {
+	if dstO == dstF {
+		return dstO, dstF, srcO, srcF
+	}
+	expandedO, expandedF := floorF32(dstO), ceilF32(dstF)
+	scale := (srcF - srcO) / (dstF - dstO)
+	expandedSrcO := srcO + (expandedO-dstO)*scale
+	expandedSrcF := srcF + (expandedF-dstF)*scale
+	return expandedO, expandedF, expandedSrcO, expandedSrcF
 }
 
 // CircShaderOptions are used for [Renderer.DrawCircShader]().

@@ -3,7 +3,7 @@ package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxThickness = 16.0
-	const Edge = 1.333
+	const Edge = 1.333 // see morphExpansionEdgeMargin
 	const SafetyMargin = 1.0 // *
 	// * in theory, this should be >= Edge. In practice, 1 works well and it's cheap
 

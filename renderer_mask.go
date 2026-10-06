@@ -18,8 +18,8 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 	}
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
-	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+	regionMode := mapBool(bilinear, RegionExact, RegionExpanded)
+	r.setShaderRegion(ox, oy, ox+srcWidthF32, oy+srcHeightF32, srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32, regionMode)
 
 	maskWidthF32, maskHeightF32 := rectSizeF32(mask.Bounds())
 	r.setFlatCustomVAs01(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32)
@@ -46,8 +46,8 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	}
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
-	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+	regionMode := mapBool(bilinear, RegionExact, RegionExpanded)
+	r.setShaderRegion(ox, oy, ox+srcWidthF32, oy+srcHeightF32, srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32, regionMode)
 
 	r.setFlatCustomVAs01(ox-oxMask, oy-oyMask)
 	r.opts.Images[0] = source
@@ -76,8 +76,8 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 	}
 
 	srcOX, srcOY, srcWidthF32, srcHeightF32 := rectOriginSizeF32(source.Bounds())
-	r.setDstRectCoords(ox, oy, ox+srcWidthF32, oy+srcHeightF32)
-	r.setSrcRectCoords(srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32)
+	regionMode := mapBool(bilinear, RegionExact, RegionExpanded)
+	r.setShaderRegion(ox, oy, ox+srcWidthF32, oy+srcHeightF32, srcOX, srcOY, srcOX+srcWidthF32, srcOY+srcHeightF32, regionMode)
 
 	maskWidthF32, maskHeightF32 := rectSizeF32(mask.Bounds())
 	r.setFlatCustomVAs(maskWidthF32/srcWidthF32, maskHeightF32/srcHeightF32, reveal, 0.0)
@@ -109,7 +109,8 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 		ltr = 0.0
 	}
 	r.setFlatCustomVAs(lo-tox, hi-tox, ltr, 0.0)
-	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderMaskHorz.Load())
+	regionMode := mapBool(bilinear, RegionExact, RegionExpanded)
+	r.DrawImgShader(target, source, ox, oy, NoMargins, regionMode, shaderMaskHorz.Load())
 
 	r.opts.Images[1] = nil
 	clear(r.opts.Uniforms)
@@ -148,8 +149,12 @@ func (r *Renderer) MaskCirc(target, source *ebiten.Image, ox, oy, circCX, circCY
 		clipLeft, clipRight = max(0, circCX-maxDist-ox), max(0, (ox+srcWidthF32)-(circCX+maxDist))
 		clipTop, clipBottom = max(0, circCY-maxDist-oy), max(0, (oy+srcHeightF32)-(circCY+maxDist))
 	}
-	r.setDstRectCoords(ox+clipLeft, oy+clipTop, ox+srcWidthF32-clipRight, oy+srcHeightF32-clipBottom)
-	r.setSrcRectCoords(srcOX+clipLeft, srcOY+clipTop, srcOX+srcWidthF32-clipRight, srcOY+srcHeightF32-clipBottom)
+	dstOX, dstOY := ox+clipLeft, oy+clipTop
+	dstFX, dstFY := ox+srcWidthF32-clipRight, oy+srcHeightF32-clipBottom
+	srcRegionOX, srcRegionOY := srcOX+clipLeft, srcOY+clipTop
+	srcRegionFX, srcRegionFY := srcOX+srcWidthF32-clipRight, srcOY+srcHeightF32-clipBottom
+	regionMode := mapBool(bilinear, RegionExact, RegionExpanded)
+	r.setShaderRegion(dstOX, dstOY, dstFX, dstFY, srcRegionOX, srcRegionOY, srcRegionFX, srcRegionFY, regionMode)
 
 	r.opts.Images[0] = source
 	tox, toy := rectOriginF32(target.Bounds())
@@ -183,6 +188,6 @@ func (r *Renderer) BakeAlphaMaskRadial(target *ebiten.Image, cx, cy, dist, distR
 	r.opts.Uniforms["RngPattern"] = int(pattern)
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
 	r.setFlatCustomVAs(cx-tox, cy-toy, dist, distRand)
-	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderAlphaMaskRadial.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderAlphaMaskRadial.Load())
 	clear(r.opts.Uniforms)
 }

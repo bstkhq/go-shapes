@@ -108,32 +108,74 @@ func TestMorphErosion(t *testing.T) {
 
 // go test -run ^TestMorphOutline$ . -count 1
 func TestMorphOutline(t *testing.T) {
-	const radius, thick = 64.0, 8.0
+	const (
+		Radius        = 64.0
+		BaseThickness = 8.0
+	)
 
-	updater := func(TestAppCtx) {}
+	colorSets := newTestColorSets(tcsSingle("White", tcWhite), tcsBase4, tcsPastel4, tcsVivid4)
+	smoothMovement, modulateThickness := false, false
+	showSources := false
+	updater := func(ctx TestAppCtx) {
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+		modulateThickness = updateToggle(ctx, ebiten.KeyT, modulateThickness)
+		colorSets.Update(ebiten.KeyS)
+		showSources = ebiten.IsKeyPressed(ebiten.KeyC)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 
-		lc := ctx.LeftClickF32()
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius+thick/2+1.0)
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius-thick/2-1.0)
-
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, thick)
-
-		rc := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		if ctx.SpacePressed {
-			ctx.DrawAtF32(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius)
-		} else {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, thick)
+		thickness := float32(BaseThickness)
+		if modulateThickness {
+			thickness = float32(ctx.DistAnim(16.0, 0.5))
 		}
+
+		xShift, yShift := float32(0), float32(0)
+		if smoothMovement {
+			xShift = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
+			yShift = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Thickness: %.2f (modulation: %t [T])\nColor set: %s [S]\nSources: %t [Hold C]\nCopy blend: [Space]\nSmooth movement (unsupported): %t [M]",
+			thickness, modulateThickness, colorSets.Info(), showSources, smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		lc := ctx.LeftClickF32().AddXY(xShift, yShift)
+		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+thickness/2.0+1.0)
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-thickness/2.0-1.0)
+
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
+		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, thickness)
+
+		colorSets.Apply(ctx.Renderer)
+		rc := ctx.RightClickF32().AddXY(xShift, yShift)
+		triW, triH := rectSizeF32(ctx.Images[1].Bounds())
+		triOX, triOY := lc.X-triW/2.0, rc.Y-triH/2.0
+		if showSources {
+			ctx.DrawAtF32(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius)
+			ctx.DrawAtF32(canvas, ctx.Images[1], triOX, triOY)
+		} else {
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius, thickness)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[1], triOX, triOY, thickness)
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
 	}
 
 	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, app.Renderer.NewFilledCircle(float64(radius)))
+	circle := app.Renderer.NewFilledCircle(Radius)
+	triangle := ebiten.NewImage(160, 128)
+	triPoints := [3]PointF32{{X: 12, Y: 12}, {X: 148, Y: 30}, {X: 44, Y: 116}}
+	app.Renderer.FillTriangle(triangle, triPoints, 0)
+	app.Images = append(app.Images, circle, triangle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -198,10 +240,11 @@ func TestJFMCompute(t *testing.T) {
 	dst := ebiten.NewImageWithOptions(image.Rect(0, 0, Size, Size).Add(dstOffset), nil)
 	r.JFMapCompute(dst, seeds, 4)
 
-	out := image.NewRGBA(image.Rect(0, 0, 9, 9))
-	if err := ebiten.RunGame(&testOutputWriter{subject: dst, out: out.Pix}); err != nil {
+	readback := NewReadTestApp(dst)
+	if err := ebiten.RunGame(readback); err != nil {
 		t.Fatal(err)
 	}
+	out := readback.RGBA
 	jfmDebugPrint(t, out)
 
 	expectedOut := image.NewRGBA(image.Rect(0, 0, 9, 9))
@@ -248,10 +291,11 @@ func TestJFMCompute2(t *testing.T) {
 	src.Set(0, 258, color.White)
 	r.JFMapBoundary(dst, src, 257, 0.001, 1.0, BoundaryMode{})
 
-	out := image.NewRGBA(image.Rect(0, 0, 1, 260))
-	if err := ebiten.RunGame(&testOutputWriter{subject: dst, out: out.Pix}); err != nil {
+	readback := NewReadTestApp(dst)
+	if err := ebiten.RunGame(readback); err != nil {
 		t.Fatal(err)
 	}
+	out := readback.RGBA
 	jfmDebugPrint(t, out)
 
 	expectedOut := image.NewRGBA(image.Rect(0, 0, 1, 260))
@@ -270,27 +314,6 @@ func TestJFMCompute2(t *testing.T) {
 	if !slices.Equal(out.Pix, expectedOut.Pix) {
 		t.Fatalf("expected slices.Equal(expected, out)\nexpected:\n%v\nout:\n%v", expectedOut.Pix, out.Pix)
 	}
-}
-
-type testOutputWriter struct {
-	ticks   int
-	subject *ebiten.Image
-	out     []byte
-}
-
-func (t *testOutputWriter) Draw(*ebiten.Image) {}
-func (t *testOutputWriter) Layout(w, h int) (int, int) {
-	return w, h
-}
-func (t *testOutputWriter) Update() error {
-	t.ticks += 1
-	if t.ticks == 32 {
-		t.subject.ReadPixels(t.out)
-	}
-	if t.ticks >= 64 {
-		return ebiten.Termination
-	}
-	return nil
 }
 
 func jfmShapes(r *Renderer) []*ebiten.Image {
@@ -425,12 +448,18 @@ func TestJFMErode(t *testing.T) {
 			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
 			r = 6.0
 		}
+
 		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
-
-		// ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, true)
 		ctx.Renderer.SetTint(0)
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Top-left: source\nTop-right: MorphErosion\nBottom-left: JFMErode\nBottom-right: JFMErode smooth\nShape: %d/%d [Space]\nMovement: %t [M]",
+			imgIndex+1, len(ctx.Images), motion,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)

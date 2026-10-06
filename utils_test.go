@@ -123,6 +123,33 @@ func (*BaseTestApp) Update() error {
 }
 func (*BaseTestApp) Draw(*ebiten.Image) {}
 
+// ReadTestApp waits for queued rendering to complete and reads an image back.
+type ReadTestApp struct {
+	BaseTestApp
+	RGBA    *image.RGBA
+	subject *ebiten.Image
+	ticks   int
+}
+
+func NewReadTestApp(subject *ebiten.Image) *ReadTestApp {
+	bounds := subject.Bounds()
+	return &ReadTestApp{
+		RGBA:    image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy())),
+		subject: subject,
+	}
+}
+
+func (app *ReadTestApp) Update() error {
+	app.ticks += 1
+	if app.ticks == 32 {
+		app.subject.ReadPixels(app.RGBA.Pix)
+	}
+	if app.ticks >= 64 {
+		return ebiten.Termination
+	}
+	return nil
+}
+
 type TestAppCtx struct {
 	Renderer     *Renderer
 	Images       []*ebiten.Image

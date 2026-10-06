@@ -20,7 +20,7 @@ func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle fl
 	}
 	r.setFlatCustomVAs(intensity, seed, cycle, 0.0)
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
-	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderNoise.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderNoise.Load())
 }
 
 // NoiseGolden draws a grid geometric noise with the current renderer color over the
@@ -34,7 +34,7 @@ func (r *Renderer) Noise(target *ebiten.Image, intensity float32, seed, cycle fl
 func (r *Renderer) NoiseGolden(target *ebiten.Image, scale, intensity, t float32) {
 	r.setFlatCustomVAs(scale, intensity, t, 0)
 	tox, toy, tw, th := rectOriginSizeF32(target.Bounds())
-	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderNoiseGolden.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderNoiseGolden.Load())
 }
 
 func (r *Renderer) loadBlueNoise64RGBAt(imgIndex int) {

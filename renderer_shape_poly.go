@@ -2,7 +2,6 @@ package shapes
 
 import (
 	"image"
-	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -65,10 +64,11 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 
 	hmargin, vmargin := float32(0.0), float32(0.0)
 	if rounding > 0 {
-		hmargin = float32(math.Ceil(float64(rounding)))
+		hmargin = rounding
 		vmargin = hmargin
 	} else if rounding < 0 {
-		// NOTE: collapse values are conservative bounds found empirically,
+		// TODO: derive tighter collapse bounds from the shader math. These
+		// values are conservative bounds found by manual measurement;
 		// the actual behavior is not linear and harder to narrowly match.
 		// actual collapse is closer to [0.5, 1.707]
 		const CollapseStart, CollapseEnd = 0.76, 1.86
@@ -86,7 +86,9 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["Rounding"] = rounding
 	margins := NewMargins(hmargin, vmargin)
-	r.DrawRectShader(target, ox, oy, w, h, margins, shaderRect.Load())
+	// The shader only returns non-zero alpha at pixel centers inside its
+	// analytical bounds, so exact geometry and triangle coverage agree.
+	r.DrawRectShader(target, ox, oy, w, h, margins, RegionExact, shaderRect.Load())
 	clear(r.opts.Uniforms)
 }
 
@@ -124,10 +126,13 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 
 	margin := max(softEdge, 0)
 	var shader *ebiten.Shader
+	regionMode := RegionExact
 	if softEdge > 0 {
 		rounding -= softEdge / 1.65 // empirical adjustment
 		shader = shaderRectSoftBlur.Load()
+		regionMode = RegionExpanded
 	} else {
+		// TODO: revisit the visibility and bounds of negative soft edges.
 		softEdge = -softEdge
 		shader = shaderRectSoftIn.Load()
 	}
@@ -136,7 +141,7 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["InRounding"] = -rounding
 	r.opts.Uniforms["BlurRadius"] = softEdge
-	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), shader)
+	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), regionMode, shader)
 	clear(r.opts.Uniforms)
 }
 
@@ -382,7 +387,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 	r.opts.Uniforms["Rounding"] = rounding
 	inRounding := max(rounding-inThickness, 0)
 	if boundingMode == Hull && (w >= 2*inRounding || h >= 2*inRounding) {
-		r.setDstRectCoords(floorF32(ox), floorF32(oy), ceilF32(ox+w), ceilF32(oy+h))
+		r.setDstRectCoords(ox, oy, ox+w, oy+h)
 		iox, ioy := ox+inThickness, oy+inThickness
 		ifx, ify := ox+w-inThickness, oy+h-inThickness
 
@@ -395,8 +400,6 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 			ioy += inRounding
 			ify -= inRounding
 		}
-		iox, ioy = ceilF32(iox), ceilF32(ioy)
-		ifx, ify = floorF32(ifx), floorF32(ify)
 		r.vertices = append(r.vertices,
 			ebiten.Vertex{DstX: iox, DstY: ioy},
 			ebiten.Vertex{DstX: ifx, DstY: ioy},
@@ -416,7 +419,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		r.vertices = r.vertices[:4]
 	} else { // assume AABB
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
-		r.DrawRectShader(target, ox, oy, w, h, NoMargins, shaderStrokeRect.Load())
+		r.DrawRectShader(target, ox, oy, w, h, NoMargins, RegionExact, shaderStrokeRect.Load())
 	}
 	clear(r.opts.Uniforms)
 }

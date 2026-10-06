@@ -13,12 +13,16 @@ import (
 // go test -run ^TestDrawAt$ . -count 1
 func TestDrawAt(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) {
-		setMaskFlagsAndTitle(ctx, flags)
+	updater := func(TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
 		lc := ctx.LeftClickF32()
 		lc = CTR.Adjust(ctx.Images[0], lc)
+		lc.X += -8.0 + float32(ctx.DistAnim(16, 0.75))
 		lc.Y += -8.0 + float32(ctx.DistAnim(16, 1.0))
 		if !ebiten.IsKeyPressed(ebiten.KeySpace) {
 			ctx.Renderer.DrawAt(canvas, ctx.Images[0], lc.X, lc.Y, 1.0, flags...)
@@ -49,6 +53,12 @@ func TestDrawAt(t *testing.T) {
 		o.Y += float32(-4 + ctx.DistAnim(8.0, 1.0))
 		ctx.Renderer.DrawAt(canvas, ctx.Images[1], o.X, o.Y, alpha, flags...)
 		ctx.Renderer.SetTint(0)
+
+		info := fmt.Sprintf(
+			"Bilinear: %t [B]\nDither: %t [D]\nEbitengine comparison: [Space] (top-left image)",
+			flags.Has(Bilinear), flags.Has(Dithered),
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	const RW, RH = 96 * 2, 64 * 2
@@ -75,22 +85,25 @@ func TestDrawImgShader(t *testing.T) {
 		canvas.Fill(color.Black)
 
 		for i := range 2 {
-			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 8+float32(ctx.DistAnim(16, 0.5))
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 96+float32(ctx.DistAnim(16, 0.5))
 			if ebiten.IsKeyPressed(ebiten.KeySpace) {
-				var opts ebiten.DrawImageOptions
-				opts.GeoM.Translate(float64(ox), float64(oy))
-				canvas.DrawImage(ctx.Images[i], &opts)
-				opts.GeoM.Translate(16, 72)
-				canvas.DrawImage(ctx.Images[i], &opts)
+				var bilinearOpts ebiten.DrawImageOptions
+				bilinearOpts.Filter = ebiten.FilterLinear
+				bilinearOpts.GeoM.Translate(float64(ox), float64(oy))
+				canvas.DrawImage(ctx.Images[i], &bilinearOpts)
+
+				var nearestOpts ebiten.DrawImageOptions
+				nearestOpts.GeoM.Translate(float64(ox+16), float64(oy+72))
+				canvas.DrawImage(ctx.Images[i], &nearestOpts)
 			} else {
 				ctx.Renderer.setFlatCustomVAs01(1, 1)
-				ctx.Renderer.DrawImgShader(canvas, ctx.Images[i], ox, oy, NoMargins, shaderBilinear.Load())
+				ctx.Renderer.DrawImgShader(canvas, ctx.Images[i], ox, oy, NoMargins, RegionExact, shaderBilinear.Load())
 				ctx.Renderer.DrawAt(canvas, ctx.Images[i], ox+16, oy+72, 1.0)
 			}
 		}
 
 		for i := range 2 {
-			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 300+float32(ctx.DistAnim(16, 0.5))
+			ox, oy := float32(i)*200+8+float32(ctx.DistAnim(16, 1.0)), 340+float32(ctx.DistAnim(16, 0.5))
 			bounds := ctx.Images[i].Bounds()
 			subox, suboy := int(ox)+16, int(oy)+72
 			subRect := image.Rect(subox, suboy, subox+32, suboy+24)
@@ -102,11 +115,14 @@ func TestDrawImgShader(t *testing.T) {
 				sub.Fill(color.White)
 			} else {
 				ctx.Renderer.setFlatCustomVAs01(1, 1)
-				ctx.Renderer.DrawRectShader(canvas, ox, oy, float32(bounds.Dx()), float32(bounds.Dy()), NoMargins, shaderDefault.Load())
+				ctx.Renderer.DrawRectShader(canvas, ox, oy, float32(bounds.Dx()), float32(bounds.Dy()), NoMargins, RegionExact, shaderDefault.Load())
 				sox, soy, sw, sh := rectOriginSizeF32(subRect)
-				ctx.Renderer.DrawRectShader(sub, sox, soy, sw, sh, NoMargins, shaderDefault.Load())
+				ctx.Renderer.DrawRectShader(sub, sox, soy, sw, sh, NoMargins, RegionExact, shaderDefault.Load())
 			}
 		}
+
+		info := "Rows:\n1. DrawImgShader (exact, bilinear, transparent outside)\n2. DrawAt (nearest)\n3. DrawRectShader\n4. DrawRectShader on non-zero-origin target\nColumns: zero / non-zero source origin\nEbitengine comparisons: [Space]"
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)

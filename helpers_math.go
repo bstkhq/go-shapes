@@ -59,11 +59,19 @@ func RadsSpan[Float ~float64 | ~float32](centerDir Float, fillRate Float) (start
 }
 
 func floorF32(x float32) float32 {
-	return float32(int(x))
+	i := float32(int(x))
+	if i > x {
+		return i - 1
+	}
+	return i
 }
 
 func ceilF32(x float32) float32 {
-	return float32(math.Ceil(float64(x)))
+	i := float32(int(x))
+	if i < x {
+		return i + 1
+	}
+	return i
 }
 
 func roundF32ToInt(x float32) int {

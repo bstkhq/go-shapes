@@ -89,7 +89,7 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 	r.opts.Uniforms["Dir"] = [2]float32{float32(dirCos), float32(dirSin)}
 	r.opts.Uniforms["NumSteps"] = max(opts.Steps, 0)
 	r.opts.Uniforms["Bias"] = (opts.Bias + 1.0) / 2.0
-	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderGradient.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderGradient.Load())
 
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)
@@ -137,7 +137,7 @@ func (r *Renderer) GradientRadial(target *ebiten.Image, opts GradientOptions, cx
 	r.opts.Uniforms["Origin"] = [2]float32{cx, cy}
 	r.opts.Uniforms["NumSteps"] = opts.Steps
 	r.opts.Uniforms["Bias"] = (opts.Bias + 1.0) / 2.0
-	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, shaderGradientRadial.Load())
+	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderGradientRadial.Load())
 
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)

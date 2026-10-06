@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-func setMaskFlagsAndTitle(ctx TestAppCtx, flags flagList) {
+func setMaskFlagsAndTitle(ctx TestAppCtx, flags *flagList) {
 	ebiten.SetWindowTitle(fmt.Sprintf("%s [[B]ilinear: %t, [D]ither: %t]", ctx.Title(), flags.Has(Bilinear), flags.Has(Dithered)))
 	flags.UpdateFlag(Bilinear, ebiten.KeyB)
 	flags.UpdateFlag(Dithered, ebiten.KeyD)
@@ -19,7 +19,7 @@ func setMaskFlagsAndTitle(ctx TestAppCtx, flags flagList) {
 // go test -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
+	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
@@ -58,7 +58,7 @@ func TestMask(t *testing.T) {
 // go test -run ^TestMaskAt$ . -count 1
 func TestMaskAt(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
+	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		lc := ctx.LeftClickF32()
@@ -88,7 +88,7 @@ func TestMaskAt(t *testing.T) {
 // go test -run ^TestMaskHorz$ . -count 1
 func TestMaskHorz(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
+	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		lc := ctx.LeftClickF32()
@@ -116,7 +116,7 @@ func TestMaskHorz(t *testing.T) {
 // go test -run ^TestMaskCirc$ . -count 1
 func TestMaskCirc(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
+	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 		w, h := rectSizeF32(canvas.Bounds())
@@ -144,7 +144,7 @@ func TestMaskThreshold(t *testing.T) {
 	const Size = 256
 
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, flags) }
+	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		reveal := -0.1 + float32(ctx.ModAnim(1.2, 0.5))
 		// TODO: Text(canvas, fmt.Sprintf("Reveal: %.02f", reveal))

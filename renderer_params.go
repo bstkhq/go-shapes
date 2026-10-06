@@ -27,6 +27,51 @@ func NewMargins(horz, vert float32) Margins {
 	}
 }
 
+// ShaderRegionMode controls how rectangular shader geometry is submitted to
+// the GPU. See [RegionExact] and [RegionExpanded] for the available policies
+// and their safety implications.
+type ShaderRegionMode uint8
+
+const (
+	_ ShaderRegionMode = iota
+
+	// RegionExact uses the requested destination region without changes.
+	//
+	// At the low-level GPU triangle rasterization stage, triangles only
+	// produce fragments for pixel centers covered by their geometry.
+	// Consequently, a fractional edge (e.g. drawing at fractional positions,
+	// using fractional margins, or both) can exclude a boundary pixel even
+	// when the shader would have produced a visible contribution there. Use
+	// RegionExact when the requested region is a strict geometric boundary,
+	// drawing beyond it would be incorrect, or the shader is not prepared to
+	// evaluate coordinates past it.
+	RegionExact
+
+	// RegionExpanded grows each destination edge outward to an integer
+	// coordinate before submitting the triangles. This makes the geometry
+	// cover every boundary pixel whose center might be relevant to a shader
+	// effect, if it supports fractional draw coordinates or uses fractional
+	// margins.
+	//
+	// Source coordinates are extrapolated using the same source-to-destination
+	// scale. Unlike destination edges, they can move by more than one pixel when
+	// the source is being downscaled.
+	//
+	// Shaders used with RegionExpanded must use safe sampling, clamp
+	// coordinates to the relevant image bounds, or otherwise handle the extended
+	// area deliberately. Analytic shaders must likewise return the intended
+	// result outside their logical boundary. The active blend must also tolerate
+	// drawing the extended area: a transparent shader result can still modify
+	// the target with operations such as copy or clear.
+	//
+	// Use RegionExpanded for effects whose visible support reaches a
+	// fractional boundary, such as filtering or outward soft edges. Do not
+	// use it merely to round placement: choose RegionExact when the original
+	// region is a required clip or when evaluating the shader outside it is
+	// unsafe.
+	RegionExpanded
+)
+
 // Downscaling is a common technique used in graphics where an effect is not applied at
 // full resolution, but on a smaller offscreen. This is done to reduce the amount of pixels
 // to process, but it has some downsides:

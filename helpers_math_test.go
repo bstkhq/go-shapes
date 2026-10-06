@@ -6,6 +6,31 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+func TestFloorCeilF32(t *testing.T) {
+	tests := []struct {
+		value float32
+		floor float32
+		ceil  float32
+	}{
+		{-1.75, -2, -1},
+		{-1, -1, -1},
+		{-0.25, -1, 0},
+		{0, 0, 0},
+		{0.25, 0, 1},
+		{1, 1, 1},
+		{1.75, 1, 2},
+	}
+
+	for _, test := range tests {
+		if got := floorF32(test.value); got != test.floor {
+			t.Errorf("floorF32(%v): got %v, want %v", test.value, got, test.floor)
+		}
+		if got := ceilF32(test.value); got != test.ceil {
+			t.Errorf("ceilF32(%v): got %v, want %v", test.value, got, test.ceil)
+		}
+	}
+}
+
 func TestGaussSolver8x8(t *testing.T) {
 	const tolerance float32 = 1e-6
 

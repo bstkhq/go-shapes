@@ -185,10 +185,15 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 func TestColorMix(t *testing.T) {
 	var flags flagList
 	updater := func(ctx TestAppCtx) {
-		setMaskFlagsAndTitle(ctx, flags)
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
 		lvl := float32(ctx.DistAnim(1.0, 1.0))
 		lc := ctx.LeftClickF32()
 		lc = CTR.Adjust(ctx.Images[0], lc)
@@ -198,7 +203,16 @@ func TestColorMix(t *testing.T) {
 		rc = CTR.Adjust(ctx.Images[0], rc)
 		alpha := float32(ctx.DistAnim(1.0, 0.333))
 		offX := float32(-8.0 + ctx.DistAnim(16.0, 1.0))
-		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rc.X+offX, rc.Y, alpha, lvl, flags...)
+		offY := float32(-8.0 + ctx.DistAnim(16.0, 0.777))
+		ctx.Renderer.ColorMix(canvas, ctx.Images[1], ctx.Images[0], rc.X+offX, rc.Y+offY, alpha, lvl, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Left: zero-origin base / non-zero-origin overlay\nRight: non-zero-origin base / zero-origin overlay\nBilinear: %t [B]\nDither: %t [D]\nCopy blend: [Space]",
+			flags.Has(Bilinear), flags.Has(Dithered),
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)

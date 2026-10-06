@@ -9,6 +9,14 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// Constants for morph rendering margins. These margins extend from an image
+// edge, while the shader Edge distances extend from the first texel center,
+// half a pixel inside it. The final 0.001 is a precision cushion.
+const (
+	morphExpansionEdgeMargin = 1.333 - 0.5 + 0.001 // see shaders/morph/expansion.kage
+	morphOutlineEdgeMargin   = 0.777 - 0.5 + 0.001 // see shaders/morph/outline.kage
+)
+
 // MorphExpansion performs morphological dilation of the given mask and
 // draws it onto the given target. Notice that this is a quadratic algorithm.
 // For large expansion operations, consider [Renderer.MorphExpansionRect]() and
@@ -23,8 +31,8 @@ func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(thickness+1.0, thickness+1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphExpansion.Load())
+	margins := NewMargins(thickness+morphExpansionEdgeMargin, thickness+morphExpansionEdgeMargin)
+	r.DrawImgShader(target, mask, ox, oy, margins, RegionExact, shaderMorphExpansion.Load())
 }
 
 // MorphExpansionRect performs double pass expansion with a square kernel.
@@ -76,8 +84,7 @@ func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(1.0, 1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphErosion.Load())
+	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
 }
 
 // MorphOutline draws an outline of the mask into the given target using the renderer's colors.
@@ -94,8 +101,8 @@ func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 
 	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(thickness+1.0, thickness+1.0)
-	r.DrawImgShader(target, mask, ox, oy, margins, shaderMorphOutline.Load())
+	margin := thickness/2.0 + morphOutlineEdgeMargin
+	r.DrawImgShader(target, mask, ox, oy, NewMargins(margin, margin), RegionExact, shaderMorphOutline.Load())
 }
 
 // JFMapCompute computes a jumping flood map from the given seeds and stores it in jfmap.
@@ -300,7 +307,7 @@ func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initSha
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDistance float32) {
 	r.setFlatCustomVA0(maxDistance)
-	r.DrawImgShader(target, jfmap, ox, oy, NoMargins, shaderJFMHeat.Load())
+	r.DrawImgShader(target, jfmap, ox, oy, NoMargins, RegionExact, shaderJFMHeat.Load())
 }
 
 // JFMExpand performs morphological expansion.
@@ -348,7 +355,7 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVAs01(distance, mapBool[float32](outlineMode, 0, 1))
-	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMExpansion.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, RegionExact, shaderJFMExpansion.Load())
 	r.opts.Images[1] = nil
 
 	if smooth {
@@ -392,7 +399,7 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 
 	r.opts.Images[1] = jfmap
 	r.setFlatCustomVAs01(distance, r.tint)
-	r.DrawImgShader(target, source, ox, oy, NoMargins, shaderJFMErosion.Load())
+	r.DrawImgShader(target, source, ox, oy, NoMargins, RegionExact, shaderJFMErosion.Load())
 	r.opts.Images[1] = nil
 
 	if smooth {
