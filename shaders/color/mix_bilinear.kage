@@ -7,16 +7,14 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	alpha := customVAs[0]
 	mixLevel := customVAs[1]
 
-	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
+	minCoords, maxCoords := getMinMaxSourceCoords()
 	srcMinCoords := sourceCoords - vec2(0.5)
 	srcMaxCoords := sourceCoords + vec2(0.5)
-	clampedMin := clamp(srcMinCoords, minCoords, maxCoords)
-	clampedMax := clamp(srcMaxCoords, minCoords, maxCoords)
 
-	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, clampedMin.x)
-	inMaxX := whenLessOrEqualThan(srcMaxCoords.x, clampedMax.x)
-	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, clampedMin.y)
-	inMaxY := whenLessOrEqualThan(srcMaxCoords.y, clampedMax.y)
+	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, minCoords.x)
+	inMaxX := whenLessThan(srcMaxCoords.x, maxCoords.x)
+	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, minCoords.y)
+	inMaxY := whenLessThan(srcMaxCoords.y, maxCoords.y)
 
 	// sampling
 	tl := imageSrc0UnsafeAt(srcMinCoords) * inMinX * inMinY
@@ -27,10 +25,12 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	delta := fract(sourceCoords + vec2(0.5))
 	srcColorA := bilinearMix(tl, tr, bl, br, delta)
 
-	tl = imageSrc1UnsafeAt(srcMinCoords) * inMinX * inMinY
-	tr = imageSrc1UnsafeAt(vec2(srcMaxCoords.x, srcMinCoords.y)) * inMaxX * inMinY
-	bl = imageSrc1UnsafeAt(vec2(srcMinCoords.x, srcMaxCoords.y)) * inMinX * inMaxY
-	br = imageSrc1UnsafeAt(srcMaxCoords) * inMaxX * inMaxY
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+	sampleMin, sampleMax := floor(srcMinCoords), floor(srcMaxCoords)
+	tl = imageSrc1UnsafeAt(sampleMin) * inMinX * inMinY
+	tr = imageSrc1UnsafeAt(vec2(sampleMax.x, sampleMin.y)) * inMaxX * inMinY
+	bl = imageSrc1UnsafeAt(vec2(sampleMin.x, sampleMax.y)) * inMinX * inMaxY
+	br = imageSrc1UnsafeAt(sampleMax) * inMaxX * inMaxY
 	srcColorB := bilinearMix(tl, tr, bl, br, delta)
 
 	// mixing
@@ -52,9 +52,9 @@ func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
 	return mix(top, bottom, delta.y)
 }
 
-func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+func getMinMaxSourceCoords() (vec2, vec2) {
 	origin := imageSrc0Origin()
-	return origin, origin + imageSrc0Size() - vec2(epsilon)
+	return origin, origin + imageSrc0Size()
 }
 
 // Returns 1 if a >= b, 0 otherwise.
@@ -62,7 +62,7 @@ func whenGreaterOrEqualThan(a, b float) float {
 	return step(b, a)
 }
 
-// Returns 1 if a <= b, 0 otherwise.
-func whenLessOrEqualThan(a, b float) float {
-	return step(a, b)
+// Returns 1 if a < b, 0 otherwise.
+func whenLessThan(a, b float) float {
+	return 1.0 - step(b, a)
 }

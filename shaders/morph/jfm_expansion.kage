@@ -32,7 +32,8 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 // sourceCoords + neighborOffsets are not checked to be in bounds
 func within(sourceCoords, neighborOffset vec2, maxDist float, fromAlpha float) float {
 	sourceCoords += neighborOffset
-	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(floor(sourceCoords))))
 	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
 	correction := abs((-1.0 + fromAlpha) + seedAlpha)
 	seedDist := length(offset+neighborOffset) + correction

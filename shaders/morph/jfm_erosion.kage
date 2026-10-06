@@ -25,7 +25,8 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 // taken from jfm_expansion.kage
 func within(sourceCoords, neighborOffset vec2, maxDist float) float {
 	sourceCoords += neighborOffset
-	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(sourceCoords)))
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+	offset := vec2(jfaComputeOffsetToSeed(imageSrc1UnsafeAt(floor(sourceCoords))))
 	seedAlpha := imageSrc0UnsafeAt(sourceCoords + offset).a
 	seedDist := length(offset+neighborOffset) + seedAlpha
 	return (1.0 - clamp(seedDist-maxDist, 0, 1))

@@ -5,7 +5,8 @@ var Dither int
 
 func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	srcColorA := imageSrc0UnsafeAt(sourceCoords)
-	srcColorB := imageSrc1UnsafeAt(sourceCoords)
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+	srcColorB := imageSrc1UnsafeAt(floor(sourceCoords))
 	alpha := customVAs[0]
 	mixLevel := customVAs[1]
 	out := mix(srcColorA, srcColorB, mixLevel) * alpha

@@ -7,22 +7,23 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	tint := customVAs[0]
 	alpha := customVAs[1]
 
-	minCoords, maxCoords := getMinMaxSourceCoords(0.001)
+	minCoords, maxCoords := getMinMaxSourceCoords()
 	srcMinCoords := sourceCoords - vec2(0.5)
 	srcMaxCoords := sourceCoords + vec2(0.5)
-	clampedMin := clamp(srcMinCoords, minCoords, maxCoords)
-	clampedMax := clamp(srcMaxCoords, minCoords, maxCoords)
+	sampleMaxCoords := maxCoords - vec2(0.001)
+	clampedMin := clamp(srcMinCoords, minCoords, sampleMaxCoords)
+	clampedMax := clamp(srcMaxCoords, minCoords, sampleMaxCoords)
 
-	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, clampedMin.x)
-	inMaxX := whenLessOrEqualThan(srcMaxCoords.x, clampedMax.x)
-	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, clampedMin.y)
-	inMaxY := whenLessOrEqualThan(srcMaxCoords.y, clampedMax.y)
+	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, minCoords.x)
+	inMaxX := whenLessThan(srcMaxCoords.x, maxCoords.x)
+	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, minCoords.y)
+	inMaxY := whenLessThan(srcMaxCoords.y, maxCoords.y)
 
 	// sampling
-	tl := imageSrc0UnsafeAt(srcMinCoords) * inMinX * inMinY
-	tr := imageSrc0UnsafeAt(vec2(srcMaxCoords.x, srcMinCoords.y)) * inMaxX * inMinY
-	bl := imageSrc0UnsafeAt(vec2(srcMinCoords.x, srcMaxCoords.y)) * inMinX * inMaxY
-	br := imageSrc0UnsafeAt(srcMaxCoords) * inMaxX * inMaxY
+	tl := imageSrc0UnsafeAt(clampedMin) * inMinX * inMinY
+	tr := imageSrc0UnsafeAt(vec2(clampedMax.x, clampedMin.y)) * inMaxX * inMinY
+	bl := imageSrc0UnsafeAt(vec2(clampedMin.x, clampedMax.y)) * inMinX * inMaxY
+	br := imageSrc0UnsafeAt(clampedMax) * inMaxX * inMaxY
 
 	// color mix
 	delta := fract(sourceCoords + vec2(0.5))
@@ -41,9 +42,9 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	return out
 }
 
-func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+func getMinMaxSourceCoords() (vec2, vec2) {
 	origin := imageSrc0Origin()
-	return origin, origin + imageSrc0Size() - vec2(epsilon)
+	return origin, origin + imageSrc0Size()
 }
 
 // Returns 1 if a >= b, 0 otherwise.
@@ -51,7 +52,7 @@ func whenGreaterOrEqualThan(a, b float) float {
 	return step(b, a)
 }
 
-// Returns 1 if a <= b, 0 otherwise.
-func whenLessOrEqualThan(a, b float) float {
-	return step(a, b)
+// Returns 1 if a < b, 0 otherwise.
+func whenLessThan(a, b float) float {
+	return 1.0 - step(b, a)
 }
