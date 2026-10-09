@@ -17,7 +17,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 }
 
 func getMinMaxSourceCoords() (vec2, vec2) {
-	const epsilon = 0.001 // high epsilon for f16 compatibility
+	const epsilon = 0.001 // compatible with f32 atlas coords up to 32768
 	origin := imageSrc0Origin()
 	return origin, origin + imageSrc0Size() - vec2(epsilon)
 }
