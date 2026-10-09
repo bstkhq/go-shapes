@@ -139,7 +139,12 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 	var shader *ebiten.Shader
 	regionMode := RegionExact
 	if softEdge > 0 {
-		rounding -= softEdge / 1.65 // empirical adjustment
+		// A distance-based blur needs extra corner rounding to approximate the
+		// two-dimensional gaussian convolution. A sharp corner needs about 5/8
+		// of the soft edge; the adjustment decays as existing rounding increases.
+		inRounding := -rounding
+		denom := float32(math.Hypot(float64(softEdge), float64(inRounding*4)))
+		rounding -= 0.625 * softEdge * softEdge / denom
 		shader = shaderRectSoftBlur.Load()
 		regionMode = RegionExpanded
 	} else {
