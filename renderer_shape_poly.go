@@ -148,7 +148,6 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		shader = shaderRectSoftBlur.Load()
 		regionMode = RegionExpanded
 	} else {
-		// TODO: revisit the visibility and bounds of negative soft edges.
 		softEdge = -softEdge
 		shader = shaderRectSoftIn.Load()
 	}
