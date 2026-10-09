@@ -817,55 +817,102 @@ func TestFillQuadSoft(t *testing.T) {
 
 // go test -run ^TestFillRectSoft$ . -count 1
 func TestFillRectSoft(t *testing.T) {
-	const W, H = 128, 64
+	const (
+		W, H                   = 128, 64
+		minRounding            = -256.0
+		maxRounding            = +128.0
+		maxSoftEdge            = 16.0
+		animatedParameterRange = 16.0
+	)
 	roundingSign := 0
 	softEdgeSign := 0
 	var roundingBase, softEdgeBase float32
+	var smoothMovement bool
 
 	updater := func(ctx TestAppCtx) {
 		roundingSign = updateParam(ctx, ebiten.KeyR, roundingSign, -1, 1, 1)
 		softEdgeSign = updateParam(ctx, ebiten.KeyS, softEdgeSign, -1, 1, 1)
-		roundingBase = updateParam(ctx, ebiten.KeyC, roundingBase, -16.0, 16.0, 1)
-		softEdgeBase = updateParam(ctx, ebiten.KeyE, softEdgeBase, -16.0, 16.0, 1)
+		roundingStep := mapBool(ebiten.IsKeyPressed(ebiten.KeyControl), float32(1), float32(8))
+		roundingBase = updateParam(ctx, ebiten.KeyC, roundingBase, minRounding, maxRounding, roundingStep)
+		softEdgeBase = updateParam(ctx, ebiten.KeyE, softEdgeBase, -maxSoftEdge, maxSoftEdge, 1)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
 		cw, ch := rectSizeF32(canvas.Bounds())
 
-		rounding := float32(roundingSign) * float32(ctx.DistAnim(16.0, 1.000))
-		softEdge := float32(softEdgeSign) * float32(ctx.DistAnim(16.0, 0.666))
-		rounding += roundingBase
-		softEdge += softEdgeBase
+		roundingAnim := float32(roundingSign) * float32(ctx.DistAnim(animatedParameterRange, 1.000))
+		softEdgeAnim := float32(softEdgeSign) * float32(ctx.DistAnim(animatedParameterRange, 0.666))
+		rounding := clamp(roundingBase+roundingAnim, minRounding, maxRounding)
+		softEdge := clamp(softEdgeBase+softEdgeAnim, -maxSoftEdge, maxSoftEdge)
 
 		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
-			"Rounding: %.02f [C]\nSoftEdge: %.02f [E]\nRounding Anim: %.02f (%d) [R]\nSoftEdge Anim: %.02f (%d) [S]",
-			roundingBase, softEdgeBase, rounding, roundingSign, softEdge, softEdgeSign,
+			"Rounding: %.02f (base %.02f [C, Ctrl x8], anim %+d [R])\nSoftEdge: %.02f (base %.02f [E], anim %+d [S])\nSmooth movement: %t [M]",
+			rounding, roundingBase, roundingSign, softEdge, softEdgeBase, softEdgeSign, smoothMovement,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
-		rect := image.Rect(0, 0, W, H)
-		ol := CTR.AdjustXY(rect, cw*0.25, ch*0.25)
-		or := CTR.AdjustXY(rect, cw*0.75, ch*0.25)
-		ctx.Renderer.FillRectSoft(canvas, ol.X, ol.Y, W, H, rounding, softEdge)
-
-		if softEdge >= 0 {
-			roundCeil := max(int(math.Ceil(float64(rounding))), 0)
-			tmpRect := ctx.Renderer.UnsafeTemp(0, W+roundCeil*2, H+roundCeil*2, true)
-			ctx.Renderer.FillRect(tmpRect, float32(roundCeil), float32(roundCeil), W, H, rounding)
-			or := CTR.AdjustXY(tmpRect, cw*0.75, ch*0.25)
-			ctx.Renderer.Blur(canvas, tmpRect, or.X, or.Y, softEdge)
-
-			cmpX, cmpY := cw*0.15, ch*0.65
-			if ctx.SpacePressed {
-				ctx.Renderer.Blur(canvas, tmpRect, cmpX-float32(roundCeil), cmpY-float32(roundCeil), softEdge)
-			} else {
-				ctx.Renderer.FillRectSoft(canvas, cmpX, cmpY, W, H, rounding, softEdge)
-			}
+		shift := PointF32{}
+		if smoothMovement {
+			shift.X = float32(-4.0 + ctx.DistAnim(8.0, 0.666))
+			shift.Y = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
+		analyticBlend := ebiten.BlendSourceOver
+		if ctx.SpacePressed {
+			analyticBlend = ebiten.BlendCopy
 		}
 
-		ctx.Renderer.SetColorF32(0.25, 0, 0, 0.25)
-		ctx.Renderer.FillRect(canvas, ol.X, ol.Y, W, H, rounding)
-		ctx.Renderer.FillRect(canvas, or.X, or.Y, W, H, rounding)
+		rect := image.Rect(0, 0, W, H)
+		leftOrigin := CTR.AdjustXY(rect, cw*0.25, ch*0.25).Add(shift)
+		rightOrigin := CTR.AdjustXY(rect, cw*0.75, ch*0.25).Add(shift)
+		comparisonOrigin := CTR.AdjustXY(rect, cw*0.5, ch*0.65).Add(shift)
+		compareWithBlur := ebiten.IsKeyPressed(ebiten.KeyQ)
+		hasBlurReference := softEdge >= 0
+
+		// Prepare the FillRect + Blur reference used by the right and bottom
+		// drawings. Blur can't reproduce inward (negative) soft edges.
+		var blurMask *ebiten.Image
+		var maskPadding float32
+		if hasBlurReference {
+			padding := max(int(math.Ceil(float64(rounding))), 0) + int(math.Ceil(float64(softEdge))) + 1
+			maskPadding = float32(padding)
+			blurMask = ctx.Renderer.UnsafeTemp(0, W+padding*2, H+padding*2, true)
+			ctx.Renderer.FillRect(blurMask, maskPadding, maskPadding, W, H, rounding)
+		}
+
+		// Top row: FillRectSoft on the left, FillRect + Blur on the right.
+		ctx.Renderer.Options().Blend = analyticBlend
+		ctx.Renderer.FillRectSoft(canvas, leftOrigin.X, leftOrigin.Y, W, H, rounding, softEdge)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		if hasBlurReference {
+			ctx.Renderer.Blur(canvas, blurMask, rightOrigin.X-maskPadding, rightOrigin.Y-maskPadding, softEdge)
+		}
+
+		// Bottom-center: hold Q to replace FillRectSoft with the blur reference.
+		bottomLabel := "Blur doesn't support negative SoftEdge"
+		if !compareWithBlur {
+			ctx.Renderer.Options().Blend = analyticBlend
+			ctx.Renderer.FillRectSoft(canvas, comparisonOrigin.X, comparisonOrigin.Y, W, H, rounding, softEdge)
+			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+			bottomLabel = "FillRectSoft [hold Q]"
+		} else if hasBlurReference {
+			ctx.Renderer.Blur(canvas, blurMask, comparisonOrigin.X-maskPadding, comparisonOrigin.Y-maskPadding, softEdge)
+			bottomLabel = "FillRect + Blur [release Q]"
+		}
+
+		// Keep labels below the full outward extent and centered on each result.
+		outset := max(rounding, 0) + max(softEdge, 0)
+		labelOffsetY := H + outset + 8
+		labelOpts := TextOpts(1.0, TopCenter.Snap(CapLine))
+		ctx.Renderer.SetColorF32A(tcWhite)
+		ctx.Renderer.Text(canvas, "FillRectSoft", leftOrigin.X+W/2, leftOrigin.Y+labelOffsetY, labelOpts)
+		if hasBlurReference {
+			ctx.Renderer.Text(canvas, "FillRect + Blur", rightOrigin.X+W/2, rightOrigin.Y+labelOffsetY, labelOpts)
+		} else {
+			ctx.Renderer.Text(canvas, "Blur doesn't support negative SoftEdge", rightOrigin.X+W/2, rightOrigin.Y+labelOffsetY, labelOpts)
+		}
+		ctx.Renderer.Text(canvas, bottomLabel, comparisonOrigin.X+W/2, comparisonOrigin.Y+labelOffsetY, labelOpts)
 	}
 
 	app := NewTestApp(updater, drawer)

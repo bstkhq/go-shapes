@@ -45,6 +45,33 @@ func (r *Renderer) internalFillIntRect(target *ebiten.Image, ox, oy, w, h int) {
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderDefault.Load(), &r.opts)
 }
 
+// rectSDFMargins returns the tight symmetrical margins for a rectangular SDF
+// with inward rounding q and visible support extending beyond its boundary.
+// The margins are relative to the original rectangle bounds.
+func rectSDFMargins(w, h, q, support float32) (float32, float32, bool) {
+	halfW, halfH := w/2, h/2
+	// Solving the SDF at the furthest supported point from the center gives:
+	// q = halfW + halfH + support + sqrt(2*(halfW+support)*(halfH+support))
+	collapseQ := halfW + halfH + support + float32(math.Sqrt(float64(2*(halfW+support)*(halfH+support))))
+	if q >= collapseQ {
+		return 0, 0, false
+	}
+
+	hmargin, vmargin := support, support
+	// Once q exceeds an axis' opposing half-size, that extent follows the
+	// circular branch of the SDF. Solving it at distance -support and
+	// subtracting the original half-extent gives the corresponding margin.
+	if q > halfH {
+		radicand := 2*q*(support+halfH) + support*support - halfH*halfH
+		hmargin = -q + float32(math.Sqrt(float64(radicand)))
+	}
+	if q > halfW {
+		radicand := 2*q*(support+halfW) + support*support - halfW*halfW
+		vmargin = -q + float32(math.Sqrt(float64(radicand)))
+	}
+	return hmargin, vmargin, true
+}
+
 // FillRect draws a filled rectangle with the given properties. Rounding can be zero,
 // positive for outwards rounding, or negative for inwards rounding.
 //
@@ -59,33 +86,15 @@ func (r *Renderer) FillRect(target *ebiten.Image, ox, oy, w, h, rounding float32
 		h = -h
 		oy -= h
 	}
-	if rounding < -max(w, h)*2 {
-		return // ignore
-	}
-
 	hmargin, vmargin := float32(0.0), float32(0.0)
 	if rounding > 0 {
 		hmargin = rounding
 		vmargin = hmargin
 	} else if rounding < 0 {
-		q := -rounding
-		halfW, halfH := w/2, h/2
-		// solving the shader SDF at the center gives the collapse point:
-		// q = halfW + halfH + sqrt(2*halfW*halfH)
-		collapseQ := halfW + halfH + float32(math.Sqrt(float64(2*halfW*halfH)))
-		if q >= collapseQ {
+		var visible bool
+		hmargin, vmargin, visible = rectSDFMargins(w, h, -rounding, 0)
+		if !visible {
 			return
-		}
-
-		// once q exceeds an axis' opposing half-size, that extent follows the
-		// circular branch of the shader SDF. Its horizontal half-extent is
-		// halfW - q + sqrt(2*q*halfH - halfH*halfH), with the vertical case being
-		// symmetrical. Subtracting the original half-extent gives each margin.
-		if q > halfH {
-			hmargin = -q + float32(math.Sqrt(float64(2*q*halfH-halfH*halfH)))
-		}
-		if q > halfW {
-			vmargin = -q + float32(math.Sqrt(float64(2*q*halfW-halfW*halfW)))
 		}
 	}
 
@@ -126,12 +135,7 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		rounding = -rounding
 	}
 
-	// collapse case
-	if rounding+max(softEdge, 0) < -max(w, h)*2 {
-		return // ignore
-	}
-
-	margin := max(softEdge, 0)
+	support := max(softEdge, 0)
 	var shader *ebiten.Shader
 	regionMode := RegionExact
 	if softEdge > 0 {
@@ -143,12 +147,16 @@ func (r *Renderer) FillRectSoft(target *ebiten.Image, ox, oy, w, h, rounding, so
 		softEdge = -softEdge
 		shader = shaderRectSoftIn.Load()
 	}
+	hmargin, vmargin, visible := rectSDFMargins(w, h, -rounding, support)
+	if !visible {
+		return
+	}
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 	r.opts.Uniforms["InRounding"] = -rounding
 	r.opts.Uniforms["BlurRadius"] = softEdge
-	r.DrawRectShader(target, ox, oy, w, h, NewMargins(margin, margin), regionMode, shader)
+	r.DrawRectShader(target, ox, oy, w, h, NewMargins(hmargin, vmargin), regionMode, shader)
 	clear(r.opts.Uniforms)
 }
 
