@@ -1,0 +1,23 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	percent := customVAs.xy
+	halfPercent := percent * 0.5
+	minCoords, maxCoords := getMinMaxSourceCoords()
+	tl := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(-halfPercent.x, -halfPercent.y), minCoords, maxCoords))
+	tr := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(+halfPercent.x, -halfPercent.y), minCoords, maxCoords))
+	bl := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(-halfPercent.x, +halfPercent.y), minCoords, maxCoords))
+	br := imageSrc0UnsafeAt(clamp(sourceCoords+vec2(+halfPercent.x, +halfPercent.y), minCoords, maxCoords))
+	delta := min(fract(sourceCoords+vec2(+halfPercent.x, +halfPercent.y)), percent) / percent
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	out := mix(top, bottom, delta.y)
+	return mix(out, color*out, customVAs[2])
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	const epsilon = 0.001 // high epsilon for f16 compatibility
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

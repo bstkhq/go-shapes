@@ -1,0 +1,31 @@
+//kage:unit pixels
+package main
+
+// see expansion.kage, this is a variation of the algorithm described there
+func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const SafetyMargin = 1.0
+	const MaxThickness = 16.0
+
+	thickness := customVAs[0]
+	alpha := imageSrc0At(sourceCoords).a
+	scanOffset := vec2(thickness)
+	for y := -SafetyMargin; y < MaxThickness*2.0+SafetyMargin; y += 1.0 {
+		if y > thickness*2.0+SafetyMargin {
+			break
+		}
+		for x := -SafetyMargin; x < MaxThickness*2.0+SafetyMargin; x += 1.0 {
+			if x > thickness*2.0+SafetyMargin {
+				break
+			}
+			offset := vec2(x, y) - scanOffset
+			sample := floor(sourceCoords+offset) + vec2(0.5)
+			clr := imageSrc0At(sample)
+			dist := distance(sourceCoords, sample)
+			if dist <= thickness {
+				alpha = min(alpha, clr.a)
+			}
+		}
+	}
+
+	return color * alpha
+}

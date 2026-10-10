@@ -1,0 +1,30 @@
+//kage:unit pixels
+package main
+
+var InRounding float // can only be zero or positive (inwards rounding)
+var BlurRadius float // can be zero or positive (inwards softening)
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	origin := customVAs.xy
+	size := customVAs.zw
+
+	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
+	dist := min(distanceToRoundedRect(p, size.x, size.y, InRounding), 0)
+
+	sigma := abs(BlurRadius) / 3.0
+	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
+	alpha := 1.0 - clamp(exp(-(dist*dist)/sigma2), 0, 1)
+	return color * alpha
+}
+
+func distanceToRoundedRect(coords vec2, width, height, radius float) float {
+	return distanceToRect(coords, width-radius*2, height-radius*2) - radius
+}
+
+func distanceToRect(coords vec2, width, height float) float {
+	size := vec2(width, height)
+	distXY := abs(coords) - size/2.0
+	outDist := length(max(distXY, 0))
+	inDist := min(max(distXY.x, distXY.y), 0)
+	return outDist + inDist
+}

@@ -1,0 +1,58 @@
+//kage:unit pixels
+package main
+
+var Dither int
+
+func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	tint := customVAs[0]
+	alpha := customVAs[1]
+
+	minCoords, maxCoords := getMinMaxSourceCoords()
+	srcMinCoords := sourceCoords - vec2(0.5)
+	srcMaxCoords := sourceCoords + vec2(0.5)
+	sampleMaxCoords := maxCoords - vec2(0.001)
+	clampedMin := clamp(srcMinCoords, minCoords, sampleMaxCoords)
+	clampedMax := clamp(srcMaxCoords, minCoords, sampleMaxCoords)
+
+	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, minCoords.x)
+	inMaxX := whenLessThan(srcMaxCoords.x, maxCoords.x)
+	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, minCoords.y)
+	inMaxY := whenLessThan(srcMaxCoords.y, maxCoords.y)
+
+	// sampling
+	tl := imageSrc0UnsafeAt(clampedMin) * inMinX * inMinY
+	tr := imageSrc0UnsafeAt(vec2(clampedMax.x, clampedMin.y)) * inMaxX * inMinY
+	bl := imageSrc0UnsafeAt(vec2(clampedMin.x, clampedMax.y)) * inMinX * inMaxY
+	br := imageSrc0UnsafeAt(clampedMax) * inMaxX * inMaxY
+
+	// color mix
+	delta := fract(sourceCoords + vec2(0.5))
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	out := mix(top, bottom, delta.y)
+	out = mix(out, color*out.a, tint) * alpha
+
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc1UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, vec3(0.0), vec3(out.a))
+	}
+
+	return out
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size()
+}
+
+// Returns 1 if a >= b, 0 otherwise.
+func whenGreaterOrEqualThan(a, b float) float {
+	return step(b, a)
+}
+
+// Returns 1 if a < b, 0 otherwise.
+func whenLessThan(a, b float) float {
+	return 1.0 - step(b, a)
+}

@@ -1,0 +1,30 @@
+//kage:unit pixels
+package main
+
+var Thickness float
+var BlurRadius float
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	a, b := customVAs.xy, customVAs.zw
+	dist := distanceToSegment(targetCoords.xy-imageDstOrigin(), a, b) - Thickness/2.0
+	return color * erfApproxSDF(dist, BlurRadius)
+}
+
+func distanceToSegment(p, a, b vec2) float {
+	pa := p - a
+	ba := b - a
+	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
+	return length(pa - ba*h)
+}
+
+// see rect_soft_blur.kage for details
+func erfApproxSDF(sdf, radius float) float {
+	sigma := max(radius/3.0, 0.001)
+
+	const Sqrt2 = 1.41421356237
+	x := -sdf / (sigma * Sqrt2)
+	a := abs(x)
+	t := 1.0 / (1.0 + 0.3275911*a)
+	y := 1.0 - (((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-a*a)
+	return clamp(0.5*(1.0+(sign(x)*y)), 0, 1)
+}

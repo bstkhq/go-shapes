@@ -1,0 +1,56 @@
+//kage:unit pixels
+package main
+
+var Bilinear int
+var Dither int
+
+func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	maskOffset := customVAs.xy
+
+	var srcColor vec4
+	var maskAlpha float
+	if Bilinear == 1 {
+		srcColor = bilinearSampling0(sourceCoords)
+		maskAlpha = bilinearSampling1(sourceCoords + maskOffset).a
+	} else {
+		srcColor = imageSrc0UnsafeAt(sourceCoords)
+		// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+		maskAlpha = imageSrc1At(floor(sourceCoords + maskOffset)).a
+	}
+	out := srcColor * maskAlpha
+
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc2UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, vec3(0.0), vec3(out.a))
+	}
+
+	return out
+}
+
+func bilinearSampling0(coords vec2) vec4 {
+	tl := imageSrc0At(coords - vec2(0.5))
+	tr := imageSrc0At(coords + vec2(+0.5, -0.5))
+	bl := imageSrc0At(coords + vec2(-0.5, +0.5))
+	br := imageSrc0At(coords + vec2(0.5))
+	delta := fract(coords + vec2(0.5))
+	return bilinearMix(tl, tr, bl, br, delta)
+}
+
+func bilinearSampling1(coords vec2) vec4 {
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
+	sampleMin, sampleMax := floor(coords-vec2(0.5)), floor(coords+vec2(0.5))
+	tl := imageSrc1At(sampleMin)
+	tr := imageSrc1At(vec2(sampleMax.x, sampleMin.y))
+	bl := imageSrc1At(vec2(sampleMin.x, sampleMax.y))
+	br := imageSrc1At(sampleMax)
+	delta := fract(coords + vec2(0.5))
+	return bilinearMix(tl, tr, bl, br, delta)
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}

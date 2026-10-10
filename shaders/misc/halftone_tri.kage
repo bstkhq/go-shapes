@@ -1,0 +1,74 @@
+//kage:unit pixels
+package main
+
+const Sqrt3 = 1.73205080757
+
+var Offsets vec2
+
+func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+	const EqTriBaseToHeight = 0.86602540378 // sqrt(3)/2
+
+	offset := Offsets
+	outTriBase, minInTriBase, maxInTriBase := customVAs.x, customVAs.y, customVAs.z
+	tint := customVAs[3]
+	outTriSize := vec2(outTriBase, outTriBase*EqTriBaseToHeight)
+	relCoords := targetCoords.xy - imageDstOrigin()
+	cellSize := vec2(outTriSize.x*0.5, outTriSize.y)
+	offset = mod(offset, cellSize*2)
+	cell := floor((relCoords - offset) / cellSize)
+	triCenter := cell*cellSize + offset // adjusted later
+	posInCell := relCoords - triCenter
+
+	var flip bool
+	if mod(cell.x, 2.0) == mod(cell.y, 2.0) { // cell of type /
+		if (cellSize.x-posInCell.x)*Sqrt3 < posInCell.y { // left side of up triangle /|
+			triCenter.x += cellSize.x
+			triCenter.y += cellSize.y * (2.0 / 3.0)
+		} else { // right side of down triangle |/
+			triCenter.y += cellSize.y * (1.0 / 3.0)
+			flip = true
+		}
+	} else { // cell of type \
+		if posInCell.x*Sqrt3 < posInCell.y { // right side of up triangle |\
+			triCenter.y += cellSize.y * (2.0 / 3.0)
+		} else { // left side of down triangle \|
+			triCenter.x += cellSize.x
+			triCenter.y += cellSize.y * (1.0 / 3.0)
+			flip = true
+		}
+	}
+
+	relSrcCoords := (sourceCoords - imageSrc0Origin())
+	srcTriCenterCoord := relSrcCoords*((floor(triCenter)+vec2(0.5))/relCoords) + imageSrc0Origin()
+	minSrc, maxSrc := getMinMaxSourceCoords()
+	sample := imageSrc0UnsafeAt(clamp(srcTriCenterCoord, minSrc, maxSrc))
+	luminance := dot(sample.rgb, vec3(0.299, 0.587, 0.114)) // cheap version
+	inTriBase := minInTriBase + (maxInTriBase-minInTriBase)*luminance*sample.a
+
+	p := relCoords - triCenter
+	if flip {
+		p = -p
+	}
+	dist := distanceToEqTriangle(p, inTriBase)
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
+	alpha = pow(alpha, 1.0/2.2)
+	return mix(sample, color*sample.a, tint) * alpha
+}
+
+func distanceToEqTriangle(p vec2, sideLen float) float {
+	hs := sideLen / 2.0
+	p.x = abs(p.x) - hs
+	p.y = -p.y + hs/Sqrt3
+	if p.x+Sqrt3*p.y > 0.0 {
+		p = vec2(p.x-Sqrt3*p.y, -Sqrt3*p.x-p.y) / 2.0
+	}
+	p.x -= clamp(p.x, -2.0*hs, 0.0)
+	return -length(p) * sign(p.y)
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	const epsilon = 0.001 // high epsilon for f16 compatibility
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

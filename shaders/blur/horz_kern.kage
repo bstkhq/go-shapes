@@ -1,0 +1,21 @@
+//kage:unit pixels
+package main
+
+var Radius int
+var Kernel [16]float // 1D kernel, center and one side, since gaussian kernels are symmetrical
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const MaxRadius = 15
+
+	var accColor vec4
+	offset := MaxRadius - Radius
+	for d := -MaxRadius; d <= MaxRadius; d += 1 {
+		radius := d + offset
+		if radius > Radius {
+			break
+		}
+		accColor += imageSrc0At(sourceCoords+vec2(float(radius), 0)) * Kernel[abs(radius)]
+	}
+
+	return mix(accColor, color*accColor.a, customVAs[0])
+}

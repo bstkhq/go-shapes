@@ -1,0 +1,74 @@
+//kage:unit pixels
+package main
+
+// a variation of the circ_sector shader where the ring and the cut
+// are computed independently
+
+var Radiuses vec2 // in, out
+var InPoint vec2  // relative to right dir (rads = 0), clockwise
+var OutPoint vec2 // relative to right dir (rads = 0), clockwise
+var Rotation vec2 // (cos, sin) of dir
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	center := customVAs.xy
+	rounding := customVAs.z
+
+	relCoords := targetCoords.xy - imageDstOrigin()
+	relCenterCoords := relCoords - center
+
+	// rotate and use abs to mirror. with this, we now can operate
+	// as if we only had the lower half circle to solve
+	p := rotate(relCenterCoords, Rotation)
+	p.y = abs(p.y)
+
+	// here's the conceptually tricky part: we have three points, center, InPoint,
+	// OutPoint. If we are outside the boundary defined by these (with the out
+	// point extending infinitely in dir from center), we want to use dist to
+	// (InPoint, OutPoint), call it distCut. If we are inside, we want to use
+	// max(distToRing, -distCut).
+	//
+	// we need three lines and not only the segment sdf because outside the ring,
+	// the union of sdfs wouldn't be continuous (we need to care about "switching"
+	// sdfs at tangent points)
+
+	distToCenter := length(p)
+	distToRing := max(distToCenter-Radiuses[1], Radiuses[0]-distToCenter)
+	distCut, cutPlaneSign := sdfSegment(p, InPoint, OutPoint)
+	inPlaneSign := sign(InPoint.x*p.y - InPoint.y*p.x)
+	outPlaneSign := sign(OutPoint.x*p.y - OutPoint.y*p.x)
+
+	// determine which plane sign we have to use for the boundary
+	var boundarySign float
+	if distToRing <= 0 && abs(inPlaneSign+outPlaneSign) < 2.0 { // *
+		// * the abs sum of signs is a check for being inside the segment wedge.
+		//   this is easy to understand by drawing two +|- +|- lines from the center
+		boundarySign = cutPlaneSign
+	} else if distToCenter >= Radiuses[1] {
+		boundarySign = outPlaneSign
+	} else {
+		boundarySign = inPlaneSign
+	}
+
+	// pick distance based on boundary side
+	dist := max(distToRing, -distCut)
+	if boundarySign >= 0 {
+		dist = distCut
+	}
+	dist -= rounding // apply rounding
+
+	// return colorwave(dist)
+	alpha := 1.0 - smoothstep(-AAMargin, 0.0, dist)
+	return color * pow(alpha, 1.0/2.2)
+}
+
+func sdfSegment(p, a, b vec2) (dist float, halfPlaneSide float) {
+	pa, ba := p-a, b-a
+	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
+	return length(pa - ba*h), sign(ba.x*pa.y - ba.y*pa.x)
+}
+
+func rotate(p, dir vec2) vec2 {
+	return vec2(p.x*dir.x+p.y*dir.y, -p.x*dir.y+p.y*dir.x)
+}

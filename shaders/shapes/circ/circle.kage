@@ -1,0 +1,14 @@
+//kage:unit pixels
+package main
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	center := customVAs.xy
+	radius := customVAs.z
+
+	dist := distance(targetCoords.xy-imageDstOrigin(), center) - radius
+	alpha := 1.0 - smoothstep(-AAMargin, 0, dist)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}

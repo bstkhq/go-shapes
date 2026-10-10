@@ -1,0 +1,22 @@
+//kage:unit pixels
+package main
+
+var Thickness float
+var BlurRadius float
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	a, b := customVAs.xy, customVAs.zw
+	dist := min(distanceToSegment(targetCoords.xy-imageDstOrigin(), a, b)-Thickness/2.0, 0)
+
+	sigma := abs(BlurRadius) / 3.0
+	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
+	alpha := 1.0 - clamp(exp(-(dist*dist)/sigma2), 0, 1)
+	return color * alpha
+}
+
+func distanceToSegment(p, a, b vec2) float {
+	pa := p - a
+	ba := b - a
+	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
+	return length(pa - ba*h)
+}
