@@ -815,13 +815,13 @@ func (r *Renderer) fillSelfIntersectingQuad(target *ebiten.Image, quad [4]PointF
 	if rounding < 0 {
 		// treat as two triangles, but avoid FillTriangle directly to stay on
 		// the same shader and improve multi-vertex color interpolation
-		var shape shapeType
-		triA, shape, roundingA = preprocessTriangle([3]PointF32{inter.A[0], inter.A[1], inter.Intersection}, rounding)
-		if shape == shapePoint {
+		var shapeA, shapeB shapeType
+		triA, shapeA, roundingA = preprocessTriangle([3]PointF32{inter.A[0], inter.A[1], inter.Intersection}, rounding)
+		if shapeA == shapePoint {
 			triA[1], triA[2] = triA[0], triA[0]
 		}
-		triB, _, roundingB = preprocessTriangle([3]PointF32{inter.B[0], inter.B[1], inter.Intersection}, rounding)
-		if shape == shapePoint {
+		triB, shapeB, roundingB = preprocessTriangle([3]PointF32{inter.B[0], inter.B[1], inter.Intersection}, rounding)
+		if shapeB == shapePoint {
 			triB[1], triB[2] = triB[0], triB[0]
 		}
 

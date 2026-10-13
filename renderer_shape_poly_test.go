@@ -691,9 +691,9 @@ func TestFillQuad(t *testing.T) {
 		{PtF32(0.1, 0.1), PtF32(0.9, 0.9), PtF32(0.4, 0.6), PtF32(0.6, 0.4)}, // self-intersecting (doesn't have to render properly, but don't panic)
 		{PtF32(0.5, 0.1), PtF32(0.8, 0.8), PtF32(0.5, 0.4), PtF32(0.2, 0.8)}, // arrow quad (concave)
 		{PtF32(0.2, 0.1), PtF32(0.25, 0.2), PtF32(0.75, 0.75), PtF32(0.25, 0.9)},
-		{PtF32(0.2, 0.9), PtF32(0.7, 0.8), PtF32(0.8, 0.2), PtF32(0.1, 0.1)}, // CCW quad
-		{PtF32(0.1, 0.1), PtF32(0.9, 0.1), PtF32(0.1, 0.9), PtF32(0.9, 0.9)}, // symmetric bow-tie (self-intersecting)
-		{PtF32(0.1, 0.4), PtF32(0.8, 0.4), PtF32(0.9, 0.6), PtF32(0.2, 0.6)}, // short parallelogram
+		{PtF32(0.2, 0.9), PtF32(0.7, 0.8), PtF32(0.8, 0.2), PtF32(0.1, 0.1)},  // CCW quad
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.1), PtF32(0.1, 0.9), PtF32(0.9, 0.9)},  // symmetric bow-tie (self-intersecting)
+		{PtF32(0.1, 0.1), PtF32(0.9, 0.1), PtF32(0.1, 0.9), PtF32(0.9, 0.18)}, // asymmetric bow-tie (independent lobe collapse)
 	}
 	if len(regions) != len(quads) {
 		panic("each quad must have a region defined")
