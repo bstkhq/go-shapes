@@ -178,6 +178,11 @@ func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy fl
 // This function uses the internal offscreen (#0), and if downscaling also (#1).
 // Target and mask can be on the same internal atlas.
 func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, threshStart, threshEnd float32, opts KernelOptions) {
+	if threshStart < threshEnd {
+		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
+		return
+	}
+
 	r.applyKernel(target, mask, ox, oy, opts, func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVAs(threshStart, threshEnd, r.tint, 0)
 		downHorzTarget.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderGlowDarkHorzKern.Load(), &r.opts)
