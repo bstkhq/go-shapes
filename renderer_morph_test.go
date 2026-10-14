@@ -70,36 +70,80 @@ func TestMorphExpansionRect(t *testing.T) {
 
 // go test -run ^TestMorphErosion$ . -count 1
 func TestMorphErosion(t *testing.T) {
-	const radius, erosion = 96.0, 16.0
+	const (
+		Radius       = 96.0
+		MaxThickness = 16.0
+	)
 
-	updater := func(TestAppCtx) {}
+	thickness := float32(0)
+	softEdge := float32(0.666)
+	animateThickness := true
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
+		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness*2, 0.25)
+		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 
-		lc := ctx.LeftClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius)
+		currentThickness := thickness
+		if animateThickness {
+			currentThickness = float32(ctx.DistAnim(MaxThickness, 0.5))
+		}
+		effectiveSoftEdge := min(softEdge, currentThickness)
+		shiftX, shiftY := float32(0), float32(0)
+		if smoothMovement {
+			shiftX = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
+			shiftY = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
 
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nSmooth movement: %t [M]",
+			currentThickness, softEdge, effectiveSoftEdge, animateThickness, smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		morphBlend := ebiten.BlendSourceOver
+		if ctx.SpacePressed {
+			morphBlend = ebiten.BlendCopy
+		}
+		lc := ctx.LeftClickF32().AddXY(shiftX, shiftY)
+		rc := ctx.RightClickF32().AddXY(shiftX, shiftY)
+
+		// Standalone circle.
+		ctx.Renderer.Options().Blend = morphBlend
+		ctx.Renderer.SetColor(color.White)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], rc.X-Radius, lc.Y-Radius, currentThickness, softEdge)
+
+		// Compare the result against the source and maximum-erosion bounds.
+		comparisonY := rc.Y
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.SetColor(color.White)
+		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius)
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, radius-erosion)
-
-		r := float32(ctx.DistAnim(float64(erosion), 1.0))
+		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius-MaxThickness)
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lc.X-Radius, comparisonY-Radius, currentThickness, softEdge)
 
-		rc := ctx.RightClickF32()
+		// Non-circular source.
+		ctx.Renderer.Options().Blend = morphBlend
+		triW, triH := rectSizeF32(ctx.Images[1].Bounds())
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rc.X-128, rc.Y-82, r)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewFilledCircle(float64(radius))
+	circle := app.Renderer.NewFilledCircle(Radius)
 	triangle := ebiten.NewImage(256, 164)
 	var points [3]PointF32
 	points[0] = PointF32{X: 16, Y: 16}
 	points[1] = points[0].AddXY(224, 0)
 	points[2] = points[0].AddXY(0, 132)
-	app.Renderer.StrokeTriangle(triangle, points, erosion*2, 0)
+	app.Renderer.StrokeTriangle(triangle, points, MaxThickness*2, 0)
 	app.Images = append(app.Images, circle, triangle)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
@@ -449,7 +493,9 @@ func TestJFMErode(t *testing.T) {
 			r = 6.0
 		}
 
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r)
+		ctx.Renderer.MorphErosion(
+			canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r, 0.666,
+		)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
 		ctx.Renderer.SetTint(0)

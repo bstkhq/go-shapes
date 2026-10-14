@@ -76,14 +76,22 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // onto the given target. Notice that this is a quadratic algorithm. For large
 // erosion operations, consider [Renderer.JFMErode]().
 //
+// softEdge can soften edges inwards. It can't be negative, and values above
+// thickness are clamped to thickness. When animating thickness, consider a
+// softEdge of at least 0.666 for smoothness.
+//
+// Position animation becomes smoother with larger thickness values, but
+// animating position and thickness together can cause occasional jumps.
+//
 // thickness can't exceed 16.
-func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-	r.setFlatCustomVA0(thickness)
+	softEdge = min(warnZeroNegativeValue(r, softEdge), thickness)
+	r.setFlatCustomVAs01(thickness, softEdge)
 	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
 }
 
