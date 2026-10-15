@@ -9,12 +9,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Constants for morph rendering margins. These margins extend from an image
-// edge, while the shader Edge distances extend from the first texel center,
-// half a pixel inside it. The final 0.001 is a precision cushion.
+// Constants related to morph rendering margins. morphMarginEpsilon keeps
+// contributions on RegionExact boundaries within the draw region.
 const (
-	morphExpansionEdgeMargin = 1.333 - 0.5 + 0.001 // see shaders/morph/expansion.kage
-	morphOutlineEdgeMargin   = 0.777 - 0.5 + 0.001 // see shaders/morph/outline.kage
+	morphOutlineEdgeMargin = 0.777 - 0.5 + 0.001 // see shaders/morph/outline.kage
+	morphMarginEpsilon      = 0.001
 )
 
 // MorphExpansion performs morphological dilation of the given mask and
@@ -22,16 +21,30 @@ const (
 // For large expansion operations, consider [Renderer.MorphExpansionRect]() and
 // [Renderer.JFMExpand]().
 //
+// softEdge can soften edges inwards. It can't be negative, and values above
+// thickness are clamped to thickness. When animating thickness, consider a
+// softEdge of at least 1.333 for smoothness.
+//
+// Smooth position animation requires thickness >= softEdge >= ~1.333, but
+// animating position and thickness together can cause occasional jumps.
+//
 // thickness can't exceed 16.
-func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+	softEdge = min(warnZeroNegativeValue(r, softEdge), thickness)
 
-	r.setFlatCustomVA0(thickness)
-	margins := NewMargins(thickness+morphExpansionEdgeMargin, thickness+morphExpansionEdgeMargin)
+	r.setFlatCustomVAs01(thickness, softEdge)
+	margin := float32(0)
+	if thickness > 0 {
+		// The shader returns zero at pixel centers beyond thickness.
+		// The epsilon helps include centers exactly on the boundary.
+		margin = thickness + morphMarginEpsilon
+	}
+	margins := NewMargins(margin, margin)
 	r.DrawImgShader(target, mask, ox, oy, margins, RegionExact, shaderMorphExpansion.Load())
 }
 
