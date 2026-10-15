@@ -90,11 +90,10 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // erosion operations, consider [Renderer.JFMErode]().
 //
 // softEdge can soften edges inwards. It can't be negative, and values above
-// thickness are clamped to thickness. When animating thickness, consider a
-// softEdge of at least 0.666 for smoothness.
+// thickness are clamped to thickness.
 //
-// Position animation becomes smoother with larger thickness values, but
-// animating position and thickness together can cause occasional jumps.
+// Animating position together with thickness or softEdge can cause occasional
+// jumps.
 //
 // thickness can't exceed 16.
 func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {

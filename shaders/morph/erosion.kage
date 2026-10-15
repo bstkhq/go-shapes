@@ -3,41 +3,55 @@ package main
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxThickness = 16.0
-	const MaxSamples = MaxThickness*2.0 + 1.0
+	const TexelHalfSize = 0.5
+	const ScanEpsilon = 0.001 // compatible with f32 atlas coords up to 32768
+	const MaxSamples = MaxThickness*2.0 + 2.0
 
 	thickness := customVAs[0]
+	if thickness == 0.0 {
+		return color * imageSrc0At(sourceCoords).a
+	}
+
 	softEdge := min(customVAs[1], thickness)
 	hardRadius := thickness - softEdge
-	scanMin := sourceCoords - vec2(thickness)
-	scanMax := sourceCoords + vec2(thickness)
 
-	// snap both ends inwards to the fixed N + 0.5 texel-centered lattice.
-	// this keeps sampling and measured distances in agreement for weighting.
-	scanStart := ceil(scanMin-vec2(0.5)) + vec2(0.5)
-	scanEnd := floor(scanMax-vec2(0.5)) + vec2(0.5)
+	lowerBound := sourceCoords - vec2(thickness)
+	upperBound := sourceCoords + vec2(thickness)
 
-	// preserve original alpha when the scan radius reaches no texel center
+	// scan every texel overlapping these bounds. for bounds 1.8 through 4.2,
+	// this means texels 1 through 4: texel 1 reaches 2, and texel 4 starts at 4.
+	// ScanEpsilon avoids missing candidates near integer bounds; the distance
+	// check below still discards candidates outside the circular disk.
+	firstTexel := ceil(lowerBound-vec2(ScanEpsilon)) - vec2(1)
+	lastTexel := floor(upperBound + vec2(ScanEpsilon))
+
+	// erosion must preserve the original alpha
 	alpha := imageSrc0At(sourceCoords).a
 
-	// scan consecutive texel centers to keep the sampling grid regular.
+	// scan consecutive texel indices to keep the sampling grid regular.
 	for y := 0.0; y < MaxSamples; y += 1.0 {
-		sampleY := scanStart.y + y
-		if sampleY > scanEnd.y {
+		sampleYIndex := firstTexel.y + y
+		if sampleYIndex > lastTexel.y {
 			break
 		}
 		for x := 0.0; x < MaxSamples; x += 1.0 {
-			sampleX := scanStart.x + x
-			if sampleX > scanEnd.x {
+			sampleXIndex := firstTexel.x + x
+			if sampleXIndex > lastTexel.x {
 				break
 			}
 
-			sampleCoords := vec2(sampleX, sampleY)
+			sampleCoords := vec2(sampleXIndex, sampleYIndex) + vec2(TexelHalfSize)
 			sampleAlpha := imageSrc0At(sampleCoords).a
-			dist := distance(sourceCoords, sampleCoords)
+			// a center-only scan can only undershoot the continuous target.
+			// treat each sample as a one-pixel square so the disk can reach
+			// the texel before reaching its center.
+			toSample := abs(sourceCoords-sampleCoords) - vec2(TexelHalfSize)
+			dist := length(max(toSample, 0))
 			if dist <= hardRadius {
 				alpha = min(alpha, sampleAlpha)
 			} else if dist < thickness {
 				weight := 1.0 - smoothstep(hardRadius, thickness, dist)
+				// gamma correction looks sharper, but too expensive for this loop
 				weightedAlpha := mix(1.0, sampleAlpha, weight) // 1 is neutral for min
 				alpha = min(alpha, weightedAlpha)
 			}

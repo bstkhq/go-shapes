@@ -135,11 +135,13 @@ func TestMorphErosion(t *testing.T) {
 	softEdge := float32(0.666)
 	animateThickness := true
 	smoothMovement := false
+	strokeTriangle := false
 	updater := func(ctx TestAppCtx) {
 		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
 		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness*2, 0.25)
 		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
 		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+		strokeTriangle = updateToggle(ctx, ebiten.KeyS, strokeTriangle)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
@@ -156,9 +158,15 @@ func TestMorphErosion(t *testing.T) {
 		}
 
 		ctx.Renderer.SetColor(color.White)
+		triangleType := "Filled"
+		triangleIndex := 1
+		if strokeTriangle {
+			triangleType = "Stroked"
+			triangleIndex = 2
+		}
 		info := fmt.Sprintf(
-			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nSmooth movement: %t [M]",
-			currentThickness, softEdge, effectiveSoftEdge, animateThickness, smoothMovement,
+			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nSmooth movement: %t [M]\nTriangle: %s [S]",
+			currentThickness, softEdge, effectiveSoftEdge, animateThickness, smoothMovement, triangleType,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
@@ -186,21 +194,24 @@ func TestMorphErosion(t *testing.T) {
 
 		// Non-circular source.
 		ctx.Renderer.Options().Blend = morphBlend
-		triW, triH := rectSizeF32(ctx.Images[1].Bounds())
+		triangle := ctx.Images[triangleIndex]
+		triW, triH := rectSizeF32(triangle.Bounds())
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[1], rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
+		ctx.Renderer.MorphErosion(canvas, triangle, rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 
 	app := NewTestApp(updater, drawer)
 	circle := app.Renderer.NewFilledCircle(Radius)
-	triangle := ebiten.NewImage(256, 164)
+	filledTriangle := ebiten.NewImage(256, 164)
+	strokeTriangleImg := ebiten.NewImage(256, 164)
 	var points [3]PointF32
 	points[0] = PointF32{X: 16, Y: 16}
 	points[1] = points[0].AddXY(224, 0)
 	points[2] = points[0].AddXY(0, 132)
-	app.Renderer.StrokeTriangle(triangle, points, MaxThickness*2, 0)
-	app.Images = append(app.Images, circle, triangle)
+	app.Renderer.FillTriangle(filledTriangle, points, 0)
+	app.Renderer.StrokeTriangle(strokeTriangleImg, points, MaxThickness*2, 0)
+	app.Images = append(app.Images, circle, filledTriangle, strokeTriangleImg)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
