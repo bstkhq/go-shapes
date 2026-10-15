@@ -2,706 +2,366 @@ package shapes
 
 import (
 	_ "embed"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-//go:embed shaders/default.kage
-var shaderDefaultSrc []byte
-
-//go:embed shaders/bilinear.kage
-var shaderBilinearSrc []byte
-
-//go:embed shaders/rect.kage
-var shaderRectSrc []byte
-
-//go:embed shaders/stroke_rect.kage
-var shaderStrokeRectSrc []byte
-
-//go:embed shaders/line.kage
-var shaderLineSrc []byte
-
-//go:embed shaders/circle.kage
-var shaderCircleSrc []byte
-
-//go:embed shaders/stroke_circle.kage
-var shaderStrokeCircleSrc []byte
-
-//go:embed shaders/ring.kage
-var shaderRingSrc []byte
-
-//go:embed shaders/ring_sector.kage
-var shaderRingSectorSrc []byte
-
-//go:embed shaders/stroke_ring_sector.kage
-var shaderStrokeRingSectorSrc []byte
-
-//go:embed shaders/pie.kage
-var shaderPieSrc []byte
-
-//go:embed shaders/stroke_pie.kage
-var shaderStrokePieSrc []byte
-
-//go:embed shaders/ellipse.kage
-var shaderEllipseSrc []byte
-
-//go:embed shaders/triangle.kage
-var shaderTriangleSrc []byte
-
-//go:embed shaders/hexagon.kage
-var shaderHexagonSrc []byte
-
-//go:embed shaders/quad.kage
-var shaderQuadSrc []byte
-
-//go:embed shaders/alpha_mask_circ.kage
-var shaderAlphaMaskCircSrc []byte
-
-//go:embed shaders/mask.kage
-var shaderMaskSrc []byte
-
-//go:embed shaders/mask_at.kage
-var shaderMaskAtSrc []byte
-
-//go:embed shaders/mask_horz.kage
-var shaderMaskHorzSrc []byte
-
-//go:embed shaders/mask_circle.kage
-var shaderMaskCircleSrc []byte
-
-//go:embed shaders/mask_threshold.kage
-var shaderMaskThresholdSrc []byte
-
-//go:embed shaders/expansion.kage
-var shaderExpansionSrc []byte
-
-//go:embed shaders/expansion_vert.kage
-var shaderExpansionVertSrc []byte
-
-//go:embed shaders/expansion_horz.kage
-var shaderExpansionHorzSrc []byte
-
-//go:embed shaders/erosion.kage
-var shaderErosionSrc []byte
-
-//go:embed shaders/outline.kage
-var shaderOutlineSrc []byte
-
-//go:embed shaders/blur.kage
-var shaderBlurSrc []byte
-
-//go:embed shaders/horz_blur.kage
-var shaderHorzBlurSrc []byte
-
-//go:embed shaders/vert_blur.kage
-var shaderVertBlurSrc []byte
-
-//go:embed shaders/horz_blur_kern.kage
-var shaderHorzBlurKernSrc []byte
-
-//go:embed shaders/vert_blur_kern.kage
-var shaderVertBlurKernSrc []byte
-
-//go:embed shaders/glow_first_pass.kage
-var shaderGlowFirstPassSrc []byte
-
-//go:embed shaders/glow_horz.kage
-var shaderHorzGlowSrc []byte
-
-//go:embed shaders/glow_horz_dark.kage
-var shaderDarkHorzGlowSrc []byte
-
-//go:embed shaders/horz_glow_kern.kage
-var shaderHorzGlowKernSrc []byte
-
-//go:embed shaders/horz_color_glow.kage
-var shaderHorzColorGlowSrc []byte
-
-//go:embed shaders/shadow.kage
-var shaderShadowSrc []byte
-
-//go:embed shaders/hard_shadow.kage
-var shaderHardShadowSrc []byte
-
-//go:embed shaders/zoom_shadow.kage
-var shaderZoomShadowSrc []byte
-
-//go:embed shaders/scanlines_sharp.kage
-var shaderScanlinesSharpSrc []byte
-
-//go:embed shaders/wave_lines.kage
-var shaderWaveLinesSrc []byte
-
-//go:embed shaders/flat_paint.kage
-var shaderFlatPaintSrc []byte
-
-//go:embed shaders/gradient.kage
-var shaderGradientSrc []byte
-
-//go:embed shaders/gradient_radial.kage
-var shaderGradientRadialSrc []byte
-
-//go:embed shaders/colorize_lightness.kage
-var shaderColorizeByLightnessSrc []byte
-
-//go:embed shaders/oklab_shift.kage
-var shaderOklabShiftSrc []byte
-
-//go:embed shaders/color_mix.kage
-var shaderColorMixSrc []byte
-
-//go:embed shaders/dither_matrix4.kage
-var shaderDitherMat4Src []byte
-
-//go:embed shaders/map_projective.kage
-var shaderMapProjectiveSrc []byte
-
-//go:embed shaders/map_quad4.kage
-var shaderMapQuad4Src []byte
-
-//go:embed shaders/warp_barrel.kage
-var shaderWarpBarrelSrc []byte
-
-//go:embed shaders/warp_pincushion_quad.kage
-var shaderWarpPincushionQuadSrc []byte
-
-//go:embed shaders/warp_arc.kage
-var shaderWarpArcSrc []byte
-
-//go:embed shaders/noise.kage
-var shaderNoiseSrc []byte
-
-//go:embed shaders/noise_golden.kage
-var shaderNoiseGoldenSrc []byte
-
-//go:embed shaders/tile_rects_grid.kage
-var shaderTileRectsGridSrc []byte
-
-//go:embed shaders/tile_dots_grid.kage
-var shaderTileDotsGridSrc []byte
-
-//go:embed shaders/tile_dots_hex.kage
-var shaderTileDotsHexSrc []byte
-
-//go:embed shaders/tile_tri_up_grid.kage
-var shaderTileTriUpGridSrc []byte
-
-//go:embed shaders/tile_tri_hex.kage
-var shaderTileTriHexSrc []byte
-
-//go:embed shaders/halftone_tri.kage
-var shaderHalftoneTriSrc []byte
-
-//go:embed shaders/jfm_pass.kage
-var shaderJFMPassSrc []byte
-
-//go:embed shaders/jfm_init_fill.kage
-var shaderJFMInitFillSrc []byte
-
-//go:embed shaders/jfm_init_boundary.kage
-var shaderJFMInitBoundarySrc []byte
-
-//go:embed shaders/jfm_heat.kage
-var shaderJFMHeatSrc []byte
-
-//go:embed shaders/jfm_expansion.kage
-var shaderJFMExpansionSrc []byte
-
-//go:embed shaders/jfm_erosion.kage
-var shaderJFMErosionSrc []byte
-
-//go:embed shaders/study_wave_funcs.kage
-var shaderStudyWaveFuncsSrc []byte
-
-var shaderDefault *ebiten.Shader
-var shaderBilinear *ebiten.Shader
-var shaderRect *ebiten.Shader
-var shaderStrokeRect *ebiten.Shader
-var shaderLine *ebiten.Shader
-var shaderCircle *ebiten.Shader
-var shaderStrokeCircle *ebiten.Shader
-var shaderRing *ebiten.Shader
-var shaderRingSector *ebiten.Shader
-var shaderStrokeRingSector *ebiten.Shader
-var shaderPie *ebiten.Shader
-var shaderStrokePie *ebiten.Shader
-var shaderEllipse *ebiten.Shader
-var shaderTriangle *ebiten.Shader
-var shaderHexagon *ebiten.Shader
-var shaderQuad *ebiten.Shader
-var shaderAlphaMaskCirc *ebiten.Shader
-var shaderMask *ebiten.Shader
-var shaderMaskAt *ebiten.Shader
-var shaderMaskHorz *ebiten.Shader
-var shaderMaskCircle *ebiten.Shader
-var shaderMaskThreshold *ebiten.Shader
-var shaderExpansion *ebiten.Shader
-var shaderExpansionVert *ebiten.Shader
-var shaderExpansionHorz *ebiten.Shader
-var shaderErosion *ebiten.Shader
-var shaderOutline *ebiten.Shader
-var shaderBlur *ebiten.Shader
-var shaderHorzBlur *ebiten.Shader
-var shaderVertBlur *ebiten.Shader
-var shaderHorzBlurKern *ebiten.Shader
-var shaderVertBlurKern *ebiten.Shader
-var shaderGlowFirstPass *ebiten.Shader
-var shaderHorzGlow *ebiten.Shader
-var shaderDarkHorzGlow *ebiten.Shader
-var shaderHorzGlowKern *ebiten.Shader
-var shaderHorzColorGlow *ebiten.Shader
-var shaderShadow *ebiten.Shader
-var shaderHardShadow *ebiten.Shader
-var shaderZoomShadow *ebiten.Shader
-var shaderScanlinesSharp *ebiten.Shader
-var shaderWaveLines *ebiten.Shader
-var shaderFlatPaint *ebiten.Shader
-var shaderGradient *ebiten.Shader
-var shaderGradientRadial *ebiten.Shader
-var shaderColorizeByLightness *ebiten.Shader
-var shaderOklabShift *ebiten.Shader
-var shaderColorMix *ebiten.Shader
-var shaderDitherMat4 *ebiten.Shader
-var shaderMapQuad4 *ebiten.Shader
-var shaderMapProjective *ebiten.Shader
-var shaderWarpBarrel *ebiten.Shader
-var shaderWarpPincushionQuad *ebiten.Shader
-var shaderWarpArc *ebiten.Shader
-var shaderNoise *ebiten.Shader
-var shaderNoiseGolden *ebiten.Shader
-var shaderTileRectsGrid *ebiten.Shader
-var shaderTileDotsGrid *ebiten.Shader
-var shaderTileDotsHex *ebiten.Shader
-var shaderTileTriUpGrid *ebiten.Shader
-var shaderTileTriHex *ebiten.Shader
-var shaderHalftoneTri *ebiten.Shader
-var shaderJFMPass *ebiten.Shader
-var shaderJFMInitFill *ebiten.Shader
-var shaderJFMInitBoundary *ebiten.Shader
-var shaderJFMHeat *ebiten.Shader
-var shaderJFMExpansion *ebiten.Shader
-var shaderJFMErosion *ebiten.Shader
-
-var shaderStudyWaveFuncs *ebiten.Shader
-
-func mustCompile(src []byte) *ebiten.Shader {
-	shader, err := ebiten.NewShader(src)
+type shaderRef struct {
+	shader *ebiten.Shader
+	once   sync.Once
+	src    []byte
+}
+
+func (s *shaderRef) Load() *ebiten.Shader {
+	s.once.Do(s.loadOnce)
+	return s.shader
+}
+
+func (s *shaderRef) loadOnce() {
+	var err error
+	s.shader, err = ebiten.NewShader(s.src)
 	if err != nil {
 		panic(err)
 	}
-	return shader
 }
 
-func ensureShaderDefaultLoaded() {
-	if shaderDefault == nil {
-		shaderDefault = mustCompile(shaderDefaultSrc)
-	}
-}
-
-func ensureShaderBilinearLoaded() {
-	if shaderBilinear == nil {
-		shaderBilinear = mustCompile(shaderBilinearSrc)
-	}
-}
-
-func ensureShaderRectLoaded() {
-	if shaderRect == nil {
-		shaderRect = mustCompile(shaderRectSrc)
-	}
-}
-
-func ensureShaderStrokeRectLoaded() {
-	if shaderStrokeRect == nil {
-		shaderStrokeRect = mustCompile(shaderStrokeRectSrc)
-	}
-}
-
-func ensureShaderLineLoaded() {
-	if shaderLine == nil {
-		shaderLine = mustCompile(shaderLineSrc)
-	}
-}
-
-func ensureShaderCircleLoaded() {
-	if shaderCircle == nil {
-		shaderCircle = mustCompile(shaderCircleSrc)
-	}
-}
-
-func ensureShaderStrokeCircleLoaded() {
-	if shaderStrokeCircle == nil {
-		shaderStrokeCircle = mustCompile(shaderStrokeCircleSrc)
-	}
-}
-
-func ensureShaderRingLoaded() {
-	if shaderRing == nil {
-		shaderRing = mustCompile(shaderRingSrc)
-	}
-}
-
-func ensureShaderRingSectorLoaded() {
-	if shaderRingSector == nil {
-		shaderRingSector = mustCompile(shaderRingSectorSrc)
-	}
-}
-
-func ensureShaderStrokeRingSectorLoaded() {
-	if shaderStrokeRingSector == nil {
-		shaderStrokeRingSector = mustCompile(shaderStrokeRingSectorSrc)
-	}
-}
-
-func ensureShaderPieLoaded() {
-	if shaderPie == nil {
-		shaderPie = mustCompile(shaderPieSrc)
-	}
-}
-
-func ensureShaderStrokePieLoaded() {
-	if shaderStrokePie == nil {
-		shaderStrokePie = mustCompile(shaderStrokePieSrc)
-	}
-}
-
-func ensureShaderEllipseLoaded() {
-	if shaderEllipse == nil {
-		shaderEllipse = mustCompile(shaderEllipseSrc)
-	}
-}
-
-func ensureShaderTriangleLoaded() {
-	if shaderTriangle == nil {
-		shaderTriangle = mustCompile(shaderTriangleSrc)
-	}
-}
-
-func ensureShaderHexagonLoaded() {
-	if shaderHexagon == nil {
-		shaderHexagon = mustCompile(shaderHexagonSrc)
-	}
-}
-
-func ensureShaderQuadLoaded() {
-	if shaderQuad == nil {
-		shaderQuad = mustCompile(shaderQuadSrc)
-	}
-}
-
-func ensureShaderAlphaMaskCircLoaded() {
-	if shaderAlphaMaskCirc == nil {
-		shaderAlphaMaskCirc = mustCompile(shaderAlphaMaskCircSrc)
-	}
-}
-
-func ensureShaderMaskLoaded() {
-	if shaderMask == nil {
-		shaderMask = mustCompile(shaderMaskSrc)
-	}
-}
-
-func ensureShaderMaskAtLoaded() {
-	if shaderMaskAt == nil {
-		shaderMaskAt = mustCompile(shaderMaskAtSrc)
-	}
-}
-
-func ensureShaderMaskHorzLoaded() {
-	if shaderMaskHorz == nil {
-		shaderMaskHorz = mustCompile(shaderMaskHorzSrc)
-	}
-}
-
-func ensureShaderMaskCircleLoaded() {
-	if shaderMaskCircle == nil {
-		shaderMaskCircle = mustCompile(shaderMaskCircleSrc)
-	}
-}
-
-func ensureShaderMaskThresholdLoaded() {
-	if shaderMaskThreshold == nil {
-		shaderMaskThreshold = mustCompile(shaderMaskThresholdSrc)
-	}
-}
-
-func ensureShaderExpansionLoaded() {
-	if shaderExpansion == nil {
-		shaderExpansion = mustCompile(shaderExpansionSrc)
-	}
-}
-
-func ensureShaderExpansionVertLoaded() {
-	if shaderExpansionVert == nil {
-		shaderExpansionVert = mustCompile(shaderExpansionVertSrc)
-	}
-}
-
-func ensureShaderExpansionHorzLoaded() {
-	if shaderExpansionHorz == nil {
-		shaderExpansionHorz = mustCompile(shaderExpansionHorzSrc)
-	}
-}
-
-func ensureShaderErosionLoaded() {
-	if shaderErosion == nil {
-		shaderErosion = mustCompile(shaderErosionSrc)
-	}
-}
-
-func ensureShaderOutlineLoaded() {
-	if shaderOutline == nil {
-		shaderOutline = mustCompile(shaderOutlineSrc)
-	}
-}
-
-func ensureShaderBlurLoaded() {
-	if shaderBlur == nil {
-		shaderBlur = mustCompile(shaderBlurSrc)
-	}
-}
-
-func ensureShaderHorzBlurLoaded() {
-	if shaderHorzBlur == nil {
-		shaderHorzBlur = mustCompile(shaderHorzBlurSrc)
-	}
-}
-
-func ensureShaderVertBlurLoaded() {
-	if shaderVertBlur == nil {
-		shaderVertBlur = mustCompile(shaderVertBlurSrc)
-	}
-}
-
-func ensureShaderHorzBlurKernLoaded() {
-	if shaderHorzBlurKern == nil {
-		shaderHorzBlurKern = mustCompile(shaderHorzBlurKernSrc)
-	}
-}
-
-func ensureShaderVertBlurKernLoaded() {
-	if shaderVertBlurKern == nil {
-		shaderVertBlurKern = mustCompile(shaderVertBlurKernSrc)
-	}
-}
-
-func ensureShaderGlowFirstPassLoaded() {
-	if shaderGlowFirstPass == nil {
-		shaderGlowFirstPass = mustCompile(shaderGlowFirstPassSrc)
-	}
-}
-
-func ensureShaderHorzGlowLoaded() {
-	if shaderHorzGlow == nil {
-		shaderHorzGlow = mustCompile(shaderHorzGlowSrc)
-	}
-}
-
-func ensureShaderDarkHorzGlowLoaded() {
-	if shaderDarkHorzGlow == nil {
-		shaderDarkHorzGlow = mustCompile(shaderDarkHorzGlowSrc)
-	}
-}
-
-func ensureShaderHorzGlowKernLoaded() {
-	if shaderHorzGlowKern == nil {
-		shaderHorzGlowKern = mustCompile(shaderHorzGlowKernSrc)
-	}
-}
-
-func ensureShaderHorzColorGlowLoaded() {
-	if shaderHorzColorGlow == nil {
-		shaderHorzColorGlow = mustCompile(shaderHorzColorGlowSrc)
-	}
-}
-
-func ensureShaderShadowLoaded() {
-	if shaderShadow == nil {
-		shaderShadow = mustCompile(shaderShadowSrc)
-	}
-}
-
-func ensureShaderHardShadowLoaded() {
-	if shaderHardShadow == nil {
-		shaderHardShadow = mustCompile(shaderHardShadowSrc)
-	}
-}
-
-func ensureShaderZoomShadowLoaded() {
-	if shaderZoomShadow == nil {
-		shaderZoomShadow = mustCompile(shaderZoomShadowSrc)
-	}
-}
-
-func ensureShaderScanlinesSharpLoaded() {
-	if shaderScanlinesSharp == nil {
-		shaderScanlinesSharp = mustCompile(shaderScanlinesSharpSrc)
-	}
-}
-
-func ensureShaderWaveLinesLoaded() {
-	if shaderWaveLines == nil {
-		shaderWaveLines = mustCompile(shaderWaveLinesSrc)
-	}
-}
-
-func ensureShaderFlatPaintLoaded() {
-	if shaderFlatPaint == nil {
-		shaderFlatPaint = mustCompile(shaderFlatPaintSrc)
-	}
-}
-
-func ensureShaderGradientLoaded() {
-	if shaderGradient == nil {
-		shaderGradient = mustCompile(shaderGradientSrc)
-	}
-}
+//go:embed shaders/default.kage
+var shaderDefaultSrc []byte
+var shaderDefault = shaderRef{src: shaderDefaultSrc}
 
-func ensureShaderGradientRadialLoaded() {
-	if shaderGradientRadial == nil {
-		shaderGradientRadial = mustCompile(shaderGradientRadialSrc)
-	}
-}
-
-func ensureShaderColorizeByLightnessLoaded() {
-	if shaderColorizeByLightness == nil {
-		shaderColorizeByLightness = mustCompile(shaderColorizeByLightnessSrc)
-	}
-}
+//go:embed shaders/bilinear.kage
+var shaderBilinearSrc []byte
+var shaderBilinear = shaderRef{src: shaderBilinearSrc}
 
-func ensureShaderOklabShiftLoaded() {
-	if shaderOklabShift == nil {
-		shaderOklabShift = mustCompile(shaderOklabShiftSrc)
-	}
-}
+//go:embed shaders/bicubic.kage
+var shaderBicubicSrc []byte
+var shaderBicubic = shaderRef{src: shaderBicubicSrc}
 
-func ensureShaderColorMixLoaded() {
-	if shaderColorMix == nil {
-		shaderColorMix = mustCompile(shaderColorMixSrc)
-	}
-}
+//go:embed shaders/kern_vert_finish.kage
+var shaderKernVertFinishSrc []byte
+var shaderKernVertFinish = shaderRef{src: shaderKernVertFinishSrc}
 
-func ensureShaderDitherMat4Loaded() {
-	if shaderDitherMat4 == nil {
-		shaderDitherMat4 = mustCompile(shaderDitherMat4Src)
-	}
-}
+//go:embed shaders/draw_tint_nearest.kage
+var shaderDrawTintNearestSrc []byte
+var shaderDrawTintNearest = shaderRef{src: shaderDrawTintNearestSrc}
 
-func ensureShaderMapQuad4Loaded() {
-	if shaderMapQuad4 == nil {
-		shaderMapQuad4 = mustCompile(shaderMapQuad4Src)
-	}
-}
+//go:embed shaders/draw_tint_bilinear.kage
+var shaderDrawTintBilinearSrc []byte
+var shaderDrawTintBilinear = shaderRef{src: shaderDrawTintBilinearSrc}
 
-func ensureShaderMapProjectiveLoaded() {
-	if shaderMapProjective == nil {
-		shaderMapProjective = mustCompile(shaderMapProjectiveSrc)
-	}
-}
+//go:embed shaders/shapes/poly/rect.kage
+var shaderRectSrc []byte
+var shaderRect = shaderRef{src: shaderRectSrc}
 
-func ensureShaderWarpBarrelLoaded() {
-	if shaderWarpBarrel == nil {
-		shaderWarpBarrel = mustCompile(shaderWarpBarrelSrc)
-	}
-}
+//go:embed shaders/shapes/poly/rect_soft_in.kage
+var shaderRectSoftInSrc []byte
+var shaderRectSoftIn = shaderRef{src: shaderRectSoftInSrc}
 
-func ensureShaderWarpPincushionQuadLoaded() {
-	if shaderWarpPincushionQuad == nil {
-		shaderWarpPincushionQuad = mustCompile(shaderWarpPincushionQuadSrc)
-	}
-}
+//go:embed shaders/shapes/poly/rect_soft_blur.kage
+var shaderRectSoftBlurSrc []byte
+var shaderRectSoftBlur = shaderRef{src: shaderRectSoftBlurSrc}
 
-func ensureShaderWarpArcLoaded() {
-	if shaderWarpArc == nil {
-		shaderWarpArc = mustCompile(shaderWarpArcSrc)
-	}
-}
+//go:embed shaders/shapes/poly/stroke_rect.kage
+var shaderStrokeRectSrc []byte
+var shaderStrokeRect = shaderRef{src: shaderStrokeRectSrc}
 
-func ensureShaderNoiseLoaded() {
-	if shaderNoise == nil {
-		shaderNoise = mustCompile(shaderNoiseSrc)
-	}
-}
+//go:embed shaders/shapes/poly/line.kage
+var shaderLineSrc []byte
+var shaderLine = shaderRef{src: shaderLineSrc}
 
-func ensureShaderNoiseGoldenLoaded() {
-	if shaderNoiseGolden == nil {
-		shaderNoiseGolden = mustCompile(shaderNoiseGoldenSrc)
-	}
-}
+//go:embed shaders/shapes/poly/line_soft_in.kage
+var shaderLineSoftInSrc []byte
+var shaderLineSoftIn = shaderRef{src: shaderLineSoftInSrc}
 
-func ensureShaderTileRectsGridLoaded() {
-	if shaderTileRectsGrid == nil {
-		shaderTileRectsGrid = mustCompile(shaderTileRectsGridSrc)
-	}
-}
+//go:embed shaders/shapes/poly/line_soft_blur.kage
+var shaderLineSoftBlurSrc []byte
+var shaderLineSoftBlur = shaderRef{src: shaderLineSoftBlurSrc}
 
-func ensureShaderTileDotsGridLoaded() {
-	if shaderTileDotsGrid == nil {
-		shaderTileDotsGrid = mustCompile(shaderTileDotsGridSrc)
-	}
-}
+//go:embed shaders/shapes/poly/triangle.kage
+var shaderTriangleSrc []byte
+var shaderTriangle = shaderRef{src: shaderTriangleSrc}
 
-func ensureShaderTileDotsHexLoaded() {
-	if shaderTileDotsHex == nil {
-		shaderTileDotsHex = mustCompile(shaderTileDotsHexSrc)
-	}
-}
+//go:embed shaders/shapes/poly/triangle_stroke.kage
+var shaderTriangleStrokeSrc []byte
+var shaderTriangleStroke = shaderRef{src: shaderTriangleStrokeSrc}
 
-func ensureShaderTileTriUpGridLoaded() {
-	if shaderTileTriUpGrid == nil {
-		shaderTileTriUpGrid = mustCompile(shaderTileTriUpGridSrc)
-	}
-}
+//go:embed shaders/shapes/poly/hexagon.kage
+var shaderHexagonSrc []byte
+var shaderHexagon = shaderRef{src: shaderHexagonSrc}
 
-func ensureShaderTileTriHexLoaded() {
-	if shaderTileTriHex == nil {
-		shaderTileTriHex = mustCompile(shaderTileTriHexSrc)
-	}
-}
+//go:embed shaders/shapes/poly/quad.kage
+var shaderQuadSrc []byte
+var shaderQuad = shaderRef{src: shaderQuadSrc}
 
-func ensureShaderHalftoneTriLoaded() {
-	if shaderHalftoneTri == nil {
-		shaderHalftoneTri = mustCompile(shaderHalftoneTriSrc)
-	}
-}
+//go:embed shaders/shapes/poly/quad_self_intersect.kage
+var shaderQuadSelfIntersectSrc []byte
+var shaderQuadSelfIntersect = shaderRef{src: shaderQuadSelfIntersectSrc}
 
-func ensureShaderJFMPassLoaded() {
-	if shaderJFMPass == nil {
-		shaderJFMPass = mustCompile(shaderJFMPassSrc)
-	}
-}
+//go:embed shaders/shapes/poly/quad_soft_in.kage
+var shaderQuadSoftInSrc []byte
+var shaderQuadSoftIn = shaderRef{src: shaderQuadSoftInSrc}
 
-func ensureShaderJFMInitFillLoaded() {
-	if shaderJFMInitFill == nil {
-		shaderJFMInitFill = mustCompile(shaderJFMInitFillSrc)
-	}
-}
+//go:embed shaders/shapes/poly/quad_soft_blur.kage
+var shaderQuadSoftBlurSrc []byte
+var shaderQuadSoftBlur = shaderRef{src: shaderQuadSoftBlurSrc}
 
-func ensureShaderJFMInitBoundaryLoaded() {
-	if shaderJFMInitBoundary == nil {
-		shaderJFMInitBoundary = mustCompile(shaderJFMInitBoundarySrc)
-	}
-}
+//go:embed shaders/shapes/circ/arc.kage
+var shaderArcSrc []byte
+var shaderArc = shaderRef{src: shaderArcSrc}
 
-func ensureShaderJFMHeatLoaded() {
-	if shaderJFMHeat == nil {
-		shaderJFMHeat = mustCompile(shaderJFMHeatSrc)
-	}
-}
+//go:embed shaders/shapes/circ/circle.kage
+var shaderCircleSrc []byte
+var shaderCircle = shaderRef{src: shaderCircleSrc}
 
-func ensureShaderJFMExpansionLoaded() {
-	if shaderJFMExpansion == nil {
-		shaderJFMExpansion = mustCompile(shaderJFMExpansionSrc)
-	}
-}
+//go:embed shaders/shapes/circ/circle_soft_in.kage
+var shaderCircleSoftInSrc []byte
+var shaderCircleSoftIn = shaderRef{src: shaderCircleSoftInSrc}
 
-func ensureShaderJFMErosionLoaded() {
-	if shaderJFMErosion == nil {
-		shaderJFMErosion = mustCompile(shaderJFMErosionSrc)
-	}
-}
+//go:embed shaders/shapes/circ/circle_soft_blur.kage
+var shaderCircleSoftBlurSrc []byte
+var shaderCircleSoftBlur = shaderRef{src: shaderCircleSoftBlurSrc}
 
-func ensureShaderStudyWaveFuncsLoaded() {
-	if shaderStudyWaveFuncs == nil {
-		shaderStudyWaveFuncs = mustCompile(shaderStudyWaveFuncsSrc)
-	}
-}
+//go:embed shaders/shapes/circ/circle_stroke.kage
+var shaderCircleStrokeSrc []byte
+var shaderCircleStroke = shaderRef{src: shaderCircleStrokeSrc}
+
+//go:embed shaders/shapes/circ/radial_sector.kage
+var shaderRadialSectorSrc []byte
+var shaderRadialSector = shaderRef{src: shaderRadialSectorSrc}
+
+//go:embed shaders/shapes/circ/radial_sector_segment.kage
+var shaderRadialSectorSegmentSrc []byte
+var shaderRadialSectorSegment = shaderRef{src: shaderRadialSectorSegmentSrc}
+
+//go:embed shaders/shapes/circ/circular_sector_inner.kage
+var shaderCircularSectorInnerSrc []byte
+var shaderCircularSectorInner = shaderRef{src: shaderCircularSectorInnerSrc}
+
+//go:embed shaders/shapes/circ/ellipse.kage
+var shaderEllipseSrc []byte
+var shaderEllipse = shaderRef{src: shaderEllipseSrc}
+
+//go:embed shaders/mask/alpha_mask_radial.kage
+var shaderAlphaMaskRadialSrc []byte
+var shaderAlphaMaskRadial = shaderRef{src: shaderAlphaMaskRadialSrc}
+
+//go:embed shaders/mask/mask.kage
+var shaderMaskSrc []byte
+var shaderMask = shaderRef{src: shaderMaskSrc}
+
+//go:embed shaders/mask/mask_at.kage
+var shaderMaskAtSrc []byte
+var shaderMaskAt = shaderRef{src: shaderMaskAtSrc}
+
+//go:embed shaders/mask/mask_threshold.kage
+var shaderMaskThresholdSrc []byte
+var shaderMaskThreshold = shaderRef{src: shaderMaskThresholdSrc}
+
+//go:embed shaders/mask/mask_horz.kage
+var shaderMaskHorzSrc []byte
+var shaderMaskHorz = shaderRef{src: shaderMaskHorzSrc}
+
+//go:embed shaders/mask/mask_circ.kage
+var shaderMaskCircSrc []byte
+var shaderMaskCirc = shaderRef{src: shaderMaskCircSrc}
+
+//go:embed shaders/morph/expansion.kage
+var shaderMorphExpansionSrc []byte
+var shaderMorphExpansion = shaderRef{src: shaderMorphExpansionSrc}
+
+//go:embed shaders/morph/expansion_rect_vert.kage
+var shaderMorphExpansionRectVertSrc []byte
+var shaderMorphExpansionRectVert = shaderRef{src: shaderMorphExpansionRectVertSrc}
+
+//go:embed shaders/morph/expansion_rect_horz.kage
+var shaderMorphExpansionRectHorzSrc []byte
+var shaderMorphExpansionRectHorz = shaderRef{src: shaderMorphExpansionRectHorzSrc}
+
+//go:embed shaders/morph/erosion.kage
+var shaderMorphErosionSrc []byte
+var shaderMorphErosion = shaderRef{src: shaderMorphErosionSrc}
+
+//go:embed shaders/morph/outline.kage
+var shaderMorphOutlineSrc []byte
+var shaderMorphOutline = shaderRef{src: shaderMorphOutlineSrc}
+
+//go:embed shaders/blur/naive.kage
+var shaderBlurNaiveSrc []byte
+var shaderBlurNaive = shaderRef{src: shaderBlurNaiveSrc}
+
+//go:embed shaders/blur/horz.kage
+var shaderBlurHorzSrc []byte
+var shaderBlurHorz = shaderRef{src: shaderBlurHorzSrc}
+
+//go:embed shaders/blur/vert.kage
+var shaderBlurVertSrc []byte
+var shaderBlurVert = shaderRef{src: shaderBlurVertSrc}
+
+//go:embed shaders/blur/horz_kern.kage
+var shaderBlurHorzKernSrc []byte
+var shaderBlurHorzKern = shaderRef{src: shaderBlurHorzKernSrc}
+
+//go:embed shaders/blur/vogel.kage
+var shaderBlurVogelSrc []byte
+var shaderBlurVogel = shaderRef{src: shaderBlurVogelSrc}
+
+//go:embed shaders/glow/horz.kage
+var shaderGlowHorzSrc []byte
+var shaderGlowHorz = shaderRef{src: shaderGlowHorzSrc}
+
+//go:embed shaders/glow/vert.kage
+var shaderGlowVertSrc []byte
+var shaderGlowVert = shaderRef{src: shaderGlowVertSrc}
+
+//go:embed shaders/glow/horz_kern.kage
+var shaderGlowHorzKernSrc []byte
+var shaderGlowHorzKern = shaderRef{src: shaderGlowHorzKernSrc}
+
+//go:embed shaders/glow/dark_vert.kage
+var shaderGlowDarkVertSrc []byte
+var shaderGlowDarkVert = shaderRef{src: shaderGlowDarkVertSrc}
+
+//go:embed shaders/glow/dark_horz.kage
+var shaderGlowDarkHorzSrc []byte
+var shaderGlowDarkHorz = shaderRef{src: shaderGlowDarkHorzSrc}
+
+//go:embed shaders/glow/dark_horz_kern.kage
+var shaderGlowDarkHorzKernSrc []byte
+var shaderGlowDarkHorzKern = shaderRef{src: shaderGlowDarkHorzKernSrc}
+
+//go:embed shaders/glow/color_horz.kage
+var shaderGlowColorHorzSrc []byte
+var shaderGlowColorHorz = shaderRef{src: shaderGlowColorHorzSrc}
+
+//go:embed shaders/glow/color_vert.kage
+var shaderGlowColorVertSrc []byte
+var shaderGlowColorVert = shaderRef{src: shaderGlowColorVertSrc}
+
+//go:embed shaders/glow/color_horz_kern.kage
+var shaderGlowColorHorzKernSrc []byte
+var shaderGlowColorHorzKern = shaderRef{src: shaderGlowColorHorzKernSrc}
+
+//go:embed shaders/color/gradient.kage
+var shaderGradientSrc []byte
+var shaderGradient = shaderRef{src: shaderGradientSrc}
+
+//go:embed shaders/color/gradient_radial.kage
+var shaderGradientRadialSrc []byte
+var shaderGradientRadial = shaderRef{src: shaderGradientRadialSrc}
+
+//go:embed shaders/color/colorize_lightness.kage
+var shaderColorizeByLightnessSrc []byte
+var shaderColorizeByLightness = shaderRef{src: shaderColorizeByLightnessSrc}
+
+//go:embed shaders/color/oklab_shift.kage
+var shaderOklabShiftSrc []byte
+var shaderOklabShift = shaderRef{src: shaderOklabShiftSrc}
+
+//go:embed shaders/color/mix.kage
+var shaderColorMixSrc []byte
+var shaderColorMix = shaderRef{src: shaderColorMixSrc}
+
+//go:embed shaders/color/mix_bilinear.kage
+var shaderColorMixBilinearSrc []byte
+var shaderColorMixBilinear = shaderRef{src: shaderColorMixBilinearSrc}
+
+//go:embed shaders/project/quad_bilinear.kage
+var shaderMapQuadBilinearSrc []byte
+var shaderMapQuadBilinear = shaderRef{src: shaderMapQuadBilinearSrc}
+
+//go:embed shaders/project/quad_anisotropic.kage
+var shaderMapQuadAnisotropicSrc []byte
+var shaderMapQuadAnisotropic = shaderRef{src: shaderMapQuadAnisotropicSrc}
+
+//go:embed shaders/project/bilinear.kage
+var shaderMapBilinearSrc []byte
+var shaderMapBilinear = shaderRef{src: shaderMapBilinearSrc}
+
+//go:embed shaders/project/warp_barrel.kage
+var shaderWarpBarrelSrc []byte
+var shaderWarpBarrel = shaderRef{src: shaderWarpBarrelSrc}
+
+//go:embed shaders/project/warp_pincushion_quad.kage
+var shaderWarpPincushionQuadSrc []byte
+var shaderWarpPincushionQuad = shaderRef{src: shaderWarpPincushionQuadSrc}
+
+//go:embed shaders/project/warp_arc.kage
+var shaderWarpArcSrc []byte
+var shaderWarpArc = shaderRef{src: shaderWarpArcSrc}
+
+//go:embed shaders/noise/white.kage
+var shaderNoiseSrc []byte
+var shaderNoise = shaderRef{src: shaderNoiseSrc}
+
+//go:embed shaders/noise/golden.kage
+var shaderNoiseGoldenSrc []byte
+var shaderNoiseGolden = shaderRef{src: shaderNoiseGoldenSrc}
+
+//go:embed shaders/tile/rects_grid.kage
+var shaderTileRectsGridSrc []byte
+var shaderTileRectsGrid = shaderRef{src: shaderTileRectsGridSrc}
+
+//go:embed shaders/tile/dots_grid.kage
+var shaderTileDotsGridSrc []byte
+var shaderTileDotsGrid = shaderRef{src: shaderTileDotsGridSrc}
+
+//go:embed shaders/tile/dots_hex.kage
+var shaderTileDotsHexSrc []byte
+var shaderTileDotsHex = shaderRef{src: shaderTileDotsHexSrc}
+
+//go:embed shaders/tile/tri_up_grid.kage
+var shaderTileTriUpGridSrc []byte
+var shaderTileTriUpGrid = shaderRef{src: shaderTileTriUpGridSrc}
+
+//go:embed shaders/tile/tri_hex.kage
+var shaderTileTriHexSrc []byte
+var shaderTileTriHex = shaderRef{src: shaderTileTriHexSrc}
+
+//go:embed shaders/morph/jfm_pass.kage
+var shaderJFMPassSrc []byte
+var shaderJFMPass = shaderRef{src: shaderJFMPassSrc}
+
+//go:embed shaders/morph/jfm_init_fill.kage
+var shaderJFMInitFillSrc []byte
+var shaderJFMInitFill = shaderRef{src: shaderJFMInitFillSrc}
+
+//go:embed shaders/morph/jfm_init_boundary.kage
+var shaderJFMInitBoundarySrc []byte
+var shaderJFMInitBoundary = shaderRef{src: shaderJFMInitBoundarySrc}
+
+//go:embed shaders/morph/jfm_heat.kage
+var shaderJFMHeatSrc []byte
+var shaderJFMHeat = shaderRef{src: shaderJFMHeatSrc}
+
+//go:embed shaders/morph/jfm_expansion.kage
+var shaderJFMExpansionSrc []byte
+var shaderJFMExpansion = shaderRef{src: shaderJFMExpansionSrc}
+
+//go:embed shaders/morph/jfm_erosion.kage
+var shaderJFMErosionSrc []byte
+var shaderJFMErosion = shaderRef{src: shaderJFMErosionSrc}
+
+//go:embed shaders/misc/halftone_tri.kage
+var shaderHalftoneTriSrc []byte
+var shaderHalftoneTri = shaderRef{src: shaderHalftoneTriSrc}
+
+//go:embed shaders/misc/dither_matrix4.kage
+var shaderDitherMat4Src []byte
+var shaderDitherMat4 = shaderRef{src: shaderDitherMat4Src}
+
+//go:embed shaders/misc/scanlines_sharp.kage
+var shaderScanlinesSharpSrc []byte
+var shaderScanlinesSharp = shaderRef{src: shaderScanlinesSharpSrc}
+
+//go:embed shaders/misc/wave_lines.kage
+var shaderWaveLinesSrc []byte
+var shaderWaveLines = shaderRef{src: shaderWaveLinesSrc}
+
+//go:embed shaders/misc/text_bilinear.kage
+var shaderTextBilinearSrc []byte
+var shaderTextBilinear = shaderRef{src: shaderTextBilinearSrc}
+
+//go:embed shaders/misc/study_wave_funcs.kage
+var shaderStudyWaveFuncsSrc []byte
+var shaderStudyWaveFuncs = shaderRef{src: shaderStudyWaveFuncsSrc}

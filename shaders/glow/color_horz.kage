@@ -1,0 +1,43 @@
+//kage:unit pixels
+package main
+
+var RGB vec3
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const MaxRadius = 32.0
+
+	radius := customVAs[0]
+	startThreshold := customVAs[1]
+	endThreshold := customVAs[2]
+	tint := customVAs[3]
+
+	sigma := radius / 3.0
+	sigma2 := 2.0 * sigma * sigma
+	if sigma2 <= 0.001 {
+		accColor := multBySim(imageSrc0At(sourceCoords), RGB, startThreshold, endThreshold)
+		return mix(accColor*color.a, color*accColor.a, tint)
+	}
+
+	var accColor vec4
+	var accWeight float
+	offset := MaxRadius - floor(radius)
+	for rd := -MaxRadius; rd <= MaxRadius; rd += 1.0 {
+		d := rd + offset
+		if d > radius {
+			break
+		}
+
+		factor := exp(-(d * d) / sigma2)
+		clr := imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y))
+		accColor += multBySim(clr, RGB, startThreshold, endThreshold) * factor
+		accWeight += factor
+	}
+
+	accColor /= accWeight
+	return mix(accColor*color.a, color*accColor.a, tint)
+}
+
+func multBySim(clr vec4, rgb vec3, startThreshold, endThreshold float) vec4 {
+	similarity := 1.0 - (distance(clr.rgb, rgb) / 1.73205)
+	return clr * smoothstep(startThreshold, endThreshold, similarity)
+}

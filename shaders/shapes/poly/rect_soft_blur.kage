@@ -1,0 +1,44 @@
+//kage:unit pixels
+package main
+
+var InRounding float // can only be zero or positive (inwards rounding)
+var BlurRadius float // can only be zero or positive (true blur approximation)
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	origin := customVAs.xy
+	size := customVAs.zw
+
+	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
+	dist := distanceToRoundedRect(p, size.x, size.y, InRounding)
+	return color * erfApproxSDF(dist, BlurRadius)
+}
+
+func distanceToRoundedRect(coords vec2, width, height, radius float) float {
+	return distanceToRect(coords, width-radius*2, height-radius*2) - radius
+}
+
+func distanceToRect(coords vec2, width, height float) float {
+	size := vec2(width, height)
+	distXY := abs(coords) - size/2.0
+	outDist := length(max(distXY, 0))
+	inDist := min(max(distXY.x, distXY.y), 0)
+	return outDist + inDist
+}
+
+// When computing blurs, we often use exp(-(dist * dist) / sigma2) to compute the
+// gaussian contribution at a specific point. Here though, what we need to approximate
+// is the integral of the gaussian for a given sdf. See:
+//   - https://www.johndcook.com/blog/2009/01/19/stand-alone-error-function-erf/
+//   - https://www.johndcook.com/erf_and_normal_cdf.pdf
+//
+// The function is tuned for σ = radius/3 and can handle radius = 0
+func erfApproxSDF(sdf, radius float) float {
+	sigma := max(radius/3.0, 0.001)
+
+	const Sqrt2 = 1.41421356237
+	x := -sdf / (sigma * Sqrt2)
+	a := abs(x)
+	t := 1.0 / (1.0 + 0.3275911*a)
+	y := 1.0 - (((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-a*a)
+	return clamp(0.5*(1.0+(sign(x)*y)), 0, 1)
+}

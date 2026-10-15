@@ -1,0 +1,50 @@
+//kage:unit pixels
+package main
+
+var Quad [4]vec2
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	relCoords := targetCoords.xy - imageDstOrigin()
+	rounding := customVAs[0]   // can't be negative (outwards rounding)
+	blurRadius := customVAs[1] // can be zero or positive (inwards softening)
+	dist := min(distanceToQuad(relCoords, Quad)-rounding, 0)
+
+	sigma := abs(blurRadius) / 3.0
+	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
+	alpha := 1.0 - clamp(exp(-(dist*dist)/sigma2), 0, 1)
+	return color * alpha
+}
+
+func distanceToQuad(p vec2, quad [4]vec2) float {
+	dist := udistanceToQuad(p, quad)
+	if insideTriangle(p, quad[0], quad[1], quad[2]) || insideTriangle(p, quad[0], quad[2], quad[3]) {
+		dist = -dist // inside quad
+	}
+	return dist
+}
+
+func insideTriangle(p, a, b, c vec2) bool {
+	s1, s2, s3 := cross2(b-a, p-a), cross2(c-b, p-b), cross2(a-c, p-c)
+	return s1 >= 0 && s2 >= 0 && s3 >= 0 && s1+s2+s3 > 0.001
+}
+
+func cross2(a, b vec2) float {
+	return a.x*b.y - a.y*b.x
+}
+
+// given a point and a convex quad, returns the unsigned
+// distance to the nearest edge
+func udistanceToQuad(p vec2, quad [4]vec2) float {
+	d01 := distSqSegment(p, quad[0], quad[1])
+	d12 := distSqSegment(p, quad[1], quad[2])
+	d23 := distSqSegment(p, quad[2], quad[3])
+	d30 := distSqSegment(p, quad[3], quad[0])
+	return sqrt(min(min(d01, d12), min(d23, d30)))
+}
+
+func distSqSegment(p, a, b vec2) float {
+	pa, ba := p-a, b-a
+	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
+	s := pa - h*ba
+	return dot(s, s) // squared distance
+}

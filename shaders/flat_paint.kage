@@ -1,7 +1,0 @@
-//kage:unit pixels
-package main
-
-func Fragment(_ vec4, sourceCoords vec2, color vec4) vec4 {
-	srcColor := imageSrc0UnsafeAt(sourceCoords)
-	return color * srcColor.a
-}

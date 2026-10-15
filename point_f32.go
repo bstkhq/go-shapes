@@ -17,7 +17,7 @@ func PtF32[T ~float32 | ~float64 | ~int | ~int32 | ~int64](x, y T) PointF32 {
 
 // RoundInt rounds a PointF32 into an image.Point.
 func (p PointF32) RoundInt() image.Point {
-	return image.Pt(int(p.X+0.5), int(p.Y+0.5))
+	return image.Pt(roundF32ToInt(p.X), roundF32ToInt(p.Y))
 }
 
 // Sub returns p - o.
