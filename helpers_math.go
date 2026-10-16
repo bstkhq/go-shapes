@@ -575,20 +575,18 @@ func appendArcVertices(vertices []ebiten.Vertex, radius, thickness, startRads, r
 				DstY: float32(radiusOut * sin),
 			},
 		)
-		if sidePad > 0 {
+		if sidePad > 0 && (i == 0 || i == iters-1) {
+			pad := float32(sidePad)
 			if i == 0 {
-				shiftX, shiftY := float32(-sin), float32(cos)
-				vertices[0].DstX += shiftX
-				vertices[0].DstY += shiftY
-				vertices[1].DstX += shiftX
-				vertices[1].DstY += shiftY
-			} else if i == iters-1 {
-				shiftX, shiftY := float32(sin), float32(-cos)
-				vertices[i].DstX += shiftX
-				vertices[i].DstY += shiftY
-				vertices[i-1].DstX += shiftX
-				vertices[i-1].DstY += shiftY
+				pad = -pad
 			}
+			shiftX, shiftY := pad*float32(sin), -pad*float32(cos)
+
+			pairStart := len(vertices) - 2
+			vertices[pairStart].DstX += shiftX
+			vertices[pairStart].DstY += shiftY
+			vertices[pairStart+1].DstX += shiftX
+			vertices[pairStart+1].DstY += shiftY
 		}
 	}
 	if fullCircle { // perfect wrap
