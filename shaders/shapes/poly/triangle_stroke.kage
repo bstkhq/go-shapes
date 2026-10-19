@@ -1,0 +1,38 @@
+//kage:unit pixels
+package main
+
+var P0 vec2
+var P1 vec2
+var P2 vec2
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	const AAMargin = 1.333
+
+	rounding := customVAs[0]  // can only be positive for outwards rounding
+	thickness := customVAs[1] // can only be zero or positive
+	thickOffset := customVAs[2]
+
+	dist := distanceToTriangle(targetCoords.xy-imageDstOrigin(), P0, P1, P2)
+	inAlpha := smoothstep(thickOffset, thickOffset+AAMargin, dist-rounding)
+	thickEnd := thickOffset + thickness
+	outAlpha := 1.0 - smoothstep(thickEnd-AAMargin, thickEnd, dist-rounding)
+
+	alpha := pow(inAlpha*outAlpha, 1.0/2.2)
+	return color * alpha
+}
+
+func distanceToTriangle(p, p0, p1, p2 vec2) float {
+	e0, e1, e2 := p1-p0, p2-p1, p0-p2
+	v0, v1, v2 := p-p0, p-p1, p-p2
+	pq0 := v0 - e0*clamp(dot(v0, e0)/dot(e0, e0), 0.0, 1.0)
+	pq1 := v1 - e1*clamp(dot(v1, e1)/dot(e1, e1), 0.0, 1.0)
+	pq2 := v2 - e2*clamp(dot(v2, e2)/dot(e2, e2), 0.0, 1.0)
+	minSqDist := min(dot(pq0, pq0), min(dot(pq1, pq1), dot(pq2, pq2)))
+	inside := min(cross2(e0, v0), min(cross2(e1, v1), cross2(e2, v2)))
+	inside -= step(inside, 0) // if inside <= 0, decrease by one (make zero negative)
+	return -sqrt(minSqDist) * sign(inside)
+}
+
+func cross2(a, b vec2) float {
+	return a.x*b.y - a.y*b.x
+}

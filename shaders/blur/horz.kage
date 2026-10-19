@@ -1,0 +1,33 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const MaxRadius = 32.0
+
+	radius := customVAs[0]
+	tint := customVAs[1]
+
+	sigma := radius / 3.0
+	sigma2 := 2.0 * sigma * sigma
+	if sigma2 <= 0.001 {
+		accColor := imageSrc0At(sourceCoords)
+		return mix(accColor, color*accColor.a, tint)
+	}
+
+	var accColor vec4
+	var accWeight float
+	offset := MaxRadius - floor(radius)
+	for rd := -MaxRadius; rd <= MaxRadius; rd += 1.0 {
+		d := rd + offset
+		if d > radius {
+			break
+		}
+
+		factor := exp(-(d * d) / sigma2)
+		accColor += imageSrc0At(vec2(sourceCoords.x+d, sourceCoords.y)) * factor
+		accWeight += factor
+	}
+
+	accColor /= accWeight
+	return mix(accColor, color*accColor.a, tint)
+}

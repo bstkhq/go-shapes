@@ -1,0 +1,50 @@
+//kage:unit pixels
+package main
+
+// see jfm_pass.kage for further context on JFA
+
+// this shader initializes a jfa mask based on boundary detection
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	minAlpha, maxAlpha := customVAs[0], customVAs[1]
+	outer, applyClamp := customVAs[2], customVAs[3]
+	pix := imageSrc0At(sourceCoords)
+	if whenWithin(pix.a, minAlpha, maxAlpha) == outer {
+		return vec4(1) // mark as max offset / uninitialized
+	}
+
+	coords := [4]vec2{
+		sourceCoords + vec2(+0, -1),
+		sourceCoords + vec2(-1, +0),
+		sourceCoords + vec2(+1, +0),
+		sourceCoords + vec2(+0, +1),
+	}
+	if applyClamp == 1.0 {
+		min, max := getMinMaxSourceCoords()
+		for i := 0; i < 4; i++ {
+			coords[i] = clamp(coords[i], min, max)
+		}
+	}
+
+	var inThresh float
+	for i := 0; i < 4; i++ {
+		inThresh += whenWithin(imageSrc0At(coords[i]).a, minAlpha, maxAlpha)
+	}
+
+	if (outer == 0.0 && inThresh < 4) || (outer == 1.0 && inThresh > 0) {
+		return vec4(0) // this pixel is a boundary, mark as seed (offset = 0)
+	} else {
+		return vec4(1) // max offset / uninitialized
+	}
+}
+
+// Returns 1 if min <= a <= max, 0 otherwise.
+func whenWithin(a, min, max float) float {
+	return step(min, a) * step(a, max)
+}
+
+func getMinMaxSourceCoords() (vec2, vec2) {
+	const epsilon = 0.001
+	origin := imageSrc0Origin()
+	return origin, origin + imageSrc0Size() - vec2(epsilon)
+}

@@ -1,0 +1,57 @@
+//kage:unit pixels
+package main
+
+const Pi = 3.14159265359
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	waveWidthFactor := customVAs[0]
+	waveHalfAmplitude := customVAs[1]
+
+	relTargetCoords := sourceCoords - imageSrc0Origin()
+	blockHeight := imageDstSize().y / 5.0
+	block := floor(relTargetCoords.y / blockHeight)
+	blockY := mod(relTargetCoords, blockHeight)
+
+	var waveY float = blockHeight / 2.0
+	x := relTargetCoords.x * 0.1 * waveWidthFactor
+	if block == 0 {
+		waveY += cos(x) * waveHalfAmplitude
+	} else if block == 1 {
+		waveY += tri(x) * waveHalfAmplitude
+	} else if block == 2 {
+		waveY += wave(x) * waveHalfAmplitude
+	} else if block == 3 {
+		waveY += dent(x) * waveHalfAmplitude
+	} else {
+		waveY += cloud(relTargetCoords.x*0.1*waveWidthFactor) * waveHalfAmplitude
+	}
+
+	a := 1.0 - smoothstep(-0.666, 0.666, waveY-blockY.y)
+	return vec4(0, 0, 0, 1) + vec4(a)
+}
+
+func tri(x float) float {
+	//x += Pi / 2.0 // aligned to sin
+	x += Pi // aligned to cos
+	return 1.0 - 4.0*abs(fract(x/(2.0*Pi))-0.5)
+}
+
+func cloud(x float) float {
+	//x -= Pi / 2.0 // to align to sin instead of cos
+	t := fract(x/(2.0*Pi)) - 0.5
+	return 8.0*(t*t) - 2.0
+}
+
+func dent(x float) float {
+	return -sign(fract(x/(2.0*Pi)) - 0.5)
+}
+
+func wave(x float) float {
+	x += Pi // comment to align to sin instead of cos
+	t := fract(x / (2.0 * Pi))
+	return 8.0*t*(1.0-t) - 2.0
+}
+
+// func hackSine(x float) float {
+// 	return x * (x ^ 0x55555555)) & 0x7fffffff
+// }

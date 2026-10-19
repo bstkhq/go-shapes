@@ -2,6 +2,7 @@ package shapes
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"testing"
 
@@ -12,30 +13,37 @@ import (
 // go test -run ^TestNoise$ . -count 1
 func TestNoise(t *testing.T) {
 	move := true
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
+	updater := func(TestAppCtx) {
 		if inpututil.IsKeyJustPressed(ebiten.KeyControl) {
 			move = !move
 		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 
 		sub := canvas
 		if move {
 			const PosShift = 96
-			bounds := canvas.Bounds()
+			_, _, w, h := rectOriginSize(canvas.Bounds())
 			xShift, yShift := ctx.DistAnim(PosShift, 1.0)-PosShift/2.0, ctx.DistAnim(PosShift, 0.75)-PosShift/2.0
 			ixShift, iyShift := int(xShift), int(yShift)
-			bounds.Min.X = bounds.Min.X + PosShift + ixShift
-			bounds.Min.Y = bounds.Min.Y + PosShift + iyShift
-			bounds.Max.X = bounds.Max.X - PosShift + ixShift
-			bounds.Max.Y = bounds.Max.Y - PosShift + iyShift
+			var bounds image.Rectangle
+			bounds.Min.X = PosShift + ixShift
+			bounds.Min.Y = PosShift + iyShift
+			bounds.Max.X = bounds.Min.X + w - PosShift*2
+			bounds.Max.Y = bounds.Min.Y + h - PosShift*2
 			sub = canvas.SubImage(bounds).(*ebiten.Image)
 		}
 
 		anim := float32(ctx.ModAnim(1.0, 0.5))
-		ctx.Renderer.Noise(sub, 0.8, 0.26, anim)
-	})
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			sub.Fill(color.White)
+		} else {
+			ctx.Renderer.Noise(sub, 0.8, 0.26, anim)
+		}
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +53,9 @@ func TestNoise(t *testing.T) {
 func TestNoiseAspectRatio(t *testing.T) {
 	const SubWidth, SubHeight = 96 * 3, 96
 	sub := ebiten.NewImage(SubWidth, SubHeight)
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
 
 		anim := float32(ctx.ModAnim(1.0, 0.5))
@@ -60,8 +70,9 @@ func TestNoiseAspectRatio(t *testing.T) {
 		opts.GeoM.Scale(scale, scale)
 		opts.GeoM.Translate(wF64/2, hF64/2)
 		canvas.DrawImage(sub, &opts)
-	})
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -69,13 +80,10 @@ func TestNoiseAspectRatio(t *testing.T) {
 
 // go test -run ^TestNoiseGolden$ . -count 1
 func TestNoiseGolden(t *testing.T) {
-	anim := float32(0.0)
 	scale := float32(1.0)
 	move := true
-
-	app := NewTestApp(func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - scale: %.02f", scale))
 		shift := ebiten.IsKeyPressed(ebiten.KeyShift)
 		up := inpututil.IsKeyJustPressed(ebiten.KeyArrowUp)
 		down := inpututil.IsKeyJustPressed(ebiten.KeyArrowDown)
@@ -91,25 +99,29 @@ func TestNoiseGolden(t *testing.T) {
 		case down:
 			scale /= 2.0
 		}
-		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - scale: %.02f", scale))
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
 
 		sub := canvas
 		if move {
 			const PosShift = 96
-			bounds := canvas.Bounds()
+			_, _, w, h := rectOriginSize(canvas.Bounds())
 			xShift, yShift := ctx.DistAnim(PosShift, 1.0)-PosShift/2.0, ctx.DistAnim(PosShift, 0.75)-PosShift/2.0
 			ixShift, iyShift := int(xShift), int(yShift)
-			bounds.Min.X = bounds.Min.X + PosShift + ixShift
-			bounds.Min.Y = bounds.Min.Y + PosShift + iyShift
-			bounds.Max.X = bounds.Max.X - PosShift + ixShift
-			bounds.Max.Y = bounds.Max.Y - PosShift + iyShift
+			var bounds image.Rectangle
+			bounds.Min.X = PosShift + ixShift
+			bounds.Min.Y = PosShift + iyShift
+			bounds.Max.X = bounds.Min.X + w - PosShift*2
+			bounds.Max.Y = bounds.Min.Y + h - PosShift*2
 			sub = canvas.SubImage(bounds).(*ebiten.Image)
 		}
 
-		anim += 1.0 / 60.0
-		ctx.Renderer.NoiseGolden(sub, scale, 1.0, anim)
-	})
+		anim := float64(ctx.Ticks) / 60.0
+		ctx.Renderer.NoiseGolden(sub, scale, 1.0, float32(anim))
+	}
 
+	app := NewTestApp(updater, drawer)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
