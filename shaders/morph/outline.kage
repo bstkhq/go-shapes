@@ -1,9 +1,9 @@
 //kage:unit pixels
 package main
 
-// along an axis, a source texel and destination pixel first touch when their
-// centers are one pixel apart (0.5 + 0.5). the shader changes the texel's
-// contribution gradually over that distance instead of switching it abruptly.
+// SampleTransition extends the fading of sample influence one pixel beyond
+// morphDistance, so samples enter gradually even when softEdge is zero.
+// For more context, see outlineSampleWeight
 const SampleTransition = 1.0
 
 // full pixel-coverage reconstruction was also tested. it projected the source
@@ -14,15 +14,27 @@ const SampleTransition = 1.0
 // here underestimates diagonal coverage but is generally sharper.
 
 func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
-	const MaxThickness = 16.0
+	const MaxMorphDistance = 8.0
 	const ScanEpsilon = 0.001 // compatible with f32 atlas coords up to 32768
-	const MaxSamples = MaxThickness + 4.0
+	const MaxSamples = MaxMorphDistance*2.0 + 4.0
 
-	halfThick := customVAs[0] / 2.0
-	softEdge := min(customVAs[1], halfThick)
-	hardRadius := halfThick - softEdge
-	// candidate centers beyond this distance have zero weight.
-	scanReach := halfThick + SampleTransition
+	thickness := customVAs[0]
+
+	var morphDistance float
+	if thickness >= 0 {
+		// balanced outline, morphDistance = outline radius, outline = expansion - erosion
+		morphDistance = thickness / 2.0
+	} else {
+		// inner outline, morphDistance = outline thickness, outline = actual - erosion
+		morphDistance = -thickness
+	}
+
+	// softEdge is how far before morphDistance the sample influence starts to decrease
+	softEdge := min(customVAs[1], morphDistance)
+
+	// scanReach is the maximum sample distance, including the extra transition.
+	// distances are measured from sourceCoords to source texel centers.
+	scanReach := morphDistance + SampleTransition
 
 	firstTexel := ceil(sourceCoords-vec2(scanReach)-vec2(ScanEpsilon)) - vec2(1)
 	lastTexel := floor(sourceCoords + vec2(scanReach+ScanEpsilon))
@@ -43,26 +55,52 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 
 			sampleCoords := vec2(sampleXIndex, sampleYIndex) + vec2(0.5)
 			dist := distance(sourceCoords, sampleCoords)
-			weight := outlineSampleWeight(dist, hardRadius, halfThick)
+			weight := outlineSampleWeight(dist, morphDistance, softEdge)
 			if weight > 0.0 {
 				sampleAlpha := imageSrc0At(sampleCoords).a
-				expansionAlpha = max(expansionAlpha, mix(sourceAlpha, sampleAlpha, weight))
+				expansionAlpha = max(expansionAlpha, mix(sourceAlpha, sampleAlpha, weight)) // not used for inner outlines
 				erosionAlpha = min(erosionAlpha, mix(sourceAlpha, sampleAlpha, weight))
 			}
 		}
 	}
 
+	if thickness < 0.0 {
+		return color * (sourceAlpha - erosionAlpha)
+	}
 	return color * (expansionAlpha - erosionAlpha)
 }
 
-// outlineSampleWeight returns how strongly one source texel affects the current
-// destination pixel. its zero-radius value is removed so the gradual transition
-// between pixels doesn't create an outline of its own.
-func outlineSampleWeight(distance, hardRadius, radius float) float {
-	zeroRadiusWeight := 1.0 - smoothstep(0.0, SampleTransition, distance)
-	if zeroRadiusWeight >= 1.0 {
+// outlineSampleWeight returns how strongly one source texel affects the
+// current destination pixel. This is best explained with a diagram:
+//
+// Example: morphDistance = 4, softEdge = 1, SampleTransition = 1.
+//
+//	              full influence  |   <- gradual fade ->  |  zero
+//	distance:  0 ---------------- 3 --------- 4 --------- 5 ----->
+//	                              |           |           |
+//	                         fadeStart  morphDistance scanReach
+//	                               <softEdge> <SampleTransition>
+//
+// Since sampling is nearest, cutting abruptly at the true morphDistance would
+// cause unstability and undershooting the target thickness. SampleTransition
+// is required to compensate for this and produce, unintuitively, more accurate
+// results (on average).
+func outlineSampleWeight(distance, morphDistance, softEdge float) float {
+	// base weight calculation
+	fadeStart := morphDistance - softEdge
+	rawWeight := 1.0 - smoothstep(fadeStart, morphDistance+SampleTransition, distance)
+
+	// if we were to return rawWeight here, we would see that thin outlines
+	// don't properly disappear: the SampleTransition corrections add some
+	// "unwanted weight" for them. To correct this, we:
+
+	// 1. compute the "minimum unwanted weight" (same maths as rawWeight but
+	// for morphDistance = 0)
+	remapLoWeight := 1.0 - smoothstep(0.0, SampleTransition, distance)
+	if remapLoWeight >= 1.0 {
 		return 0.0
 	}
-	weight := 1.0 - smoothstep(hardRadius, radius+SampleTransition, distance)
-	return clamp((weight-zeroRadiusWeight)/(1.0-zeroRadiusWeight), 0.0, 1.0)
+
+	// 2. remap from [remapLoWeight, 1] to [0, 1], for proper rescaling
+	return clamp((rawWeight-remapLoWeight)/(1.0-remapLoWeight), 0.0, 1.0)
 }

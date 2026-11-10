@@ -221,6 +221,7 @@ func TestMorphErosion(t *testing.T) {
 func TestMorphOutline(t *testing.T) {
 	const (
 		Radius       = 64.0
+		MinThickness = -8.0
 		MaxThickness = 16.0
 	)
 
@@ -231,7 +232,7 @@ func TestMorphOutline(t *testing.T) {
 	smoothMovement := false
 	showSources := false
 	updater := func(ctx TestAppCtx) {
-		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
+		thickness = updateParam(ctx, ebiten.KeyR, thickness, MinThickness, MaxThickness, 0.25)
 		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness, 0.25)
 		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
 		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
@@ -243,9 +244,13 @@ func TestMorphOutline(t *testing.T) {
 
 		currentThickness := thickness
 		if animateThickness {
-			currentThickness = float32(ctx.DistAnim(MaxThickness, 0.5))
+			currentThickness = MinThickness + float32(ctx.DistAnim(MaxThickness-MinThickness, 0.5))
 		}
-		effectiveSoftEdge := min(softEdge, currentThickness/2.0)
+		inThickness, outThickness := currentThickness/2.0, currentThickness/2.0
+		if currentThickness < 0 {
+			inThickness, outThickness = -currentThickness, 0
+		}
+		effectiveSoftEdge := min(softEdge, inThickness)
 
 		xShift, yShift := float32(0), float32(0)
 		if smoothMovement {
@@ -255,16 +260,16 @@ func TestMorphOutline(t *testing.T) {
 
 		ctx.Renderer.SetColor(color.White)
 		info := fmt.Sprintf(
-			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nColor set: %s [S]\nSources: %t [Hold C]\nSmooth movement: %t [M]",
+			"Thickness: %.2f [R/Shift+R] (-8 inner to +16 balanced)\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nColor set: %s [S]\nSources: %t [Hold C]\nSmooth movement: %t [M]",
 			currentThickness, softEdge, effectiveSoftEdge, animateThickness, colorSets.Info(), showSources, smoothMovement,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		lc := ctx.LeftClickF32().AddXY(xShift, yShift)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+currentThickness/2.0+1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+outThickness+1.0)
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-currentThickness/2.0-1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-inThickness-1.0)
 
 		if ctx.SpacePressed {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy

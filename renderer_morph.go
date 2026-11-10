@@ -112,26 +112,37 @@ func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 // morphological dilation and erosion. Notice that this is a quadratic algorithm.
 // For large outlines, consider [Renderer.JFMExpand]() with a boundary jfmap.
 //
-// softEdge softens both edges of the outline inwards. It can't be negative,
-// and values above thickness/2 are clamped to thickness/2. A zero value gives
-// the sharpest result; neighboring pixels still enter the outline gradually to
-// reduce flicker during subpixel motion.
+// If thickness > 0, the outline is centered on the mask boundary. If
+// thickness < 0, the outline extends inwards by -thickness.
+// Thickness is clamped to [-8, 16].
 //
-// thickness can't exceed 16.
+// softEdge softens the edge(s) of the outline inwards. This value is clamped
+// to [0, thickness/2] for balanced outlines, and [0, thickness] for inner
+// outlines. A zero value gives the sharpest result; neighboring pixels still
+// enter the outline gradually to reduce flicker during subpixel motion.
 func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
-	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
-	halfThickness := thickness / 2.0
-	softEdge = min(warnZeroNegativeValue(r, softEdge), halfThickness)
+	if thickness < -8 || thickness > 16 {
+		r.Warnings.report(WarnThicknessClamped, thickness)
+		thickness = clamp(thickness, -8, 16)
+	}
+	morphDistance := thickness / 2.0
+	if thickness < 0 {
+		morphDistance = -thickness
+	}
+	softEdge = min(warnZeroNegativeValue(r, softEdge), morphDistance)
 	if thickness == 0 {
 		return
 	}
 
 	r.setFlatCustomVAs01(thickness, softEdge)
-	margin := halfThickness + morphOutlineExtraReach + morphMarginEpsilon
+	margin := float32(0)
+	if thickness > 0 {
+		margin = morphDistance + morphOutlineExtraReach + morphMarginEpsilon
+	}
 	r.DrawImgShader(target, mask, ox, oy, NewMargins(margin, margin), RegionExact, shaderMorphOutline.Load())
 }
 
