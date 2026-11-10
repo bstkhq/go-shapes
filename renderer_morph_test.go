@@ -220,26 +220,32 @@ func TestMorphErosion(t *testing.T) {
 // go test -run ^TestMorphOutline$ . -count 1
 func TestMorphOutline(t *testing.T) {
 	const (
-		Radius        = 64.0
-		BaseThickness = 8.0
+		Radius       = 64.0
+		MaxThickness = 16.0
 	)
 
 	colorSets := newTestColorSets(tcsSingle("White", tcWhite), tcsBase4, tcsPastel4, tcsVivid4)
-	smoothMovement, modulateThickness := false, false
+	thickness := float32(8)
+	softEdge := float32(0)
+	animateThickness := false
+	smoothMovement := false
 	showSources := false
 	updater := func(ctx TestAppCtx) {
+		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
+		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness, 0.25)
+		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
 		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
-		modulateThickness = updateToggle(ctx, ebiten.KeyT, modulateThickness)
 		colorSets.Update(ebiten.KeyS)
 		showSources = ebiten.IsKeyPressed(ebiten.KeyC)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(backTestColor)
 
-		thickness := float32(BaseThickness)
-		if modulateThickness {
-			thickness = float32(ctx.DistAnim(16.0, 0.5))
+		currentThickness := thickness
+		if animateThickness {
+			currentThickness = float32(ctx.DistAnim(MaxThickness, 0.5))
 		}
+		effectiveSoftEdge := min(softEdge, currentThickness/2.0)
 
 		xShift, yShift := float32(0), float32(0)
 		if smoothMovement {
@@ -249,33 +255,34 @@ func TestMorphOutline(t *testing.T) {
 
 		ctx.Renderer.SetColor(color.White)
 		info := fmt.Sprintf(
-			"Thickness: %.2f (modulation: %t [T])\nColor set: %s [S]\nSources: %t [Hold C]\nCopy blend: [Space]\nSmooth movement (unsupported): %t [M]",
-			thickness, modulateThickness, colorSets.Info(), showSources, smoothMovement,
+			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nColor set: %s [S]\nSources: %t [Hold C]\nSmooth movement: %t [M]",
+			currentThickness, softEdge, effectiveSoftEdge, animateThickness, colorSets.Info(), showSources, smoothMovement,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
 		lc := ctx.LeftClickF32().AddXY(xShift, yShift)
 		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+thickness/2.0+1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+currentThickness/2.0+1.0)
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-thickness/2.0-1.0)
+		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-currentThickness/2.0-1.0)
 
 		if ctx.SpacePressed {
 			ctx.Renderer.Options().Blend = ebiten.BlendCopy
 		}
 		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, thickness)
+		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, currentThickness, softEdge)
 
 		colorSets.Apply(ctx.Renderer)
 		rc := ctx.RightClickF32().AddXY(xShift, yShift)
-		triW, triH := rectSizeF32(ctx.Images[1].Bounds())
-		triOX, triOY := lc.X-triW/2.0, rc.Y-triH/2.0
+		shape := ctx.Images[1]
+		shapeW, shapeH := rectSizeF32(shape.Bounds())
+		shapeOX, shapeOY := lc.X-shapeW/2.0, rc.Y-shapeH/2.0
 		if showSources {
 			ctx.DrawAtF32(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius)
-			ctx.DrawAtF32(canvas, ctx.Images[1], triOX, triOY)
+			ctx.DrawAtF32(canvas, shape, shapeOX, shapeOY)
 		} else {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius, thickness)
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[1], triOX, triOY, thickness)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius, currentThickness, softEdge)
+			ctx.Renderer.MorphOutline(canvas, shape, shapeOX, shapeOY, currentThickness, softEdge)
 		}
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 
@@ -482,7 +489,7 @@ func TestJFMExpand(t *testing.T) {
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 
 		if outline {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r, 0.666)
 		} else {
 			ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r, 1.333)
 		}

@@ -9,11 +9,12 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Constants related to morph rendering margins. morphMarginEpsilon keeps
-// contributions on RegionExact boundaries within the draw region.
 const (
-	morphOutlineEdgeMargin = 0.777 - 0.5 + 0.001 // see shaders/morph/outline.kage
-	morphMarginEpsilon      = 0.001
+	// Precision cushion for morph contributions that reach RegionExact boundaries.
+	morphMarginEpsilon = 0.001
+	// Maximum output reach beyond the morphological radius. The shader's
+	// one-pixel sample transition starts at source centers, half a pixel inwards.
+	morphOutlineExtraReach = 0.5
 )
 
 // MorphExpansion performs morphological dilation of the given mask and
@@ -22,11 +23,10 @@ const (
 // [Renderer.JFMExpand]().
 //
 // softEdge can soften edges inwards. It can't be negative, and values above
-// thickness are clamped to thickness. When animating thickness, consider a
-// softEdge of at least 1.333 for smoothness.
+// thickness are clamped to thickness.
 //
-// Smooth position animation requires thickness >= softEdge >= ~1.333, but
-// animating position and thickness together can cause occasional jumps.
+// Smooth position animation requires sufficiently large thickness and softEdge.
+// Animating either value alongside position can still cause stuttering.
 //
 // thickness can't exceed 16.
 func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
@@ -92,8 +92,8 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // softEdge can soften edges inwards. It can't be negative, and values above
 // thickness are clamped to thickness.
 //
-// Animating position together with thickness or softEdge can cause occasional
-// jumps.
+// Smooth position animation requires sufficiently large thickness and softEdge.
+// Animating either value alongside position can still cause stuttering.
 //
 // thickness can't exceed 16.
 func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
@@ -107,21 +107,31 @@ func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
 }
 
-// MorphOutline draws an outline of the mask into the given target using the renderer's colors.
-// This operation is implemented as the difference between morphological dilation and erosion.
-// Notice that this is a quadratic algorithm. For large outlines, consider [Renderer.JFMExpand]()
-// with a boundary jfmap.
+// MorphOutline draws an outline of the mask into the given target using the
+// renderer's colors. This operation is implemented as the difference between
+// morphological dilation and erosion. Notice that this is a quadratic algorithm.
+// For large outlines, consider [Renderer.JFMExpand]() with a boundary jfmap.
+//
+// softEdge softens both edges of the outline inwards. It can't be negative,
+// and values above thickness/2 are clamped to thickness/2. A zero value gives
+// the sharpest result; neighboring pixels still enter the outline gradually to
+// reduce flicker during subpixel motion.
 //
 // thickness can't exceed 16.
-func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
+func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
+	halfThickness := thickness / 2.0
+	softEdge = min(warnZeroNegativeValue(r, softEdge), halfThickness)
+	if thickness == 0 {
+		return
+	}
 
-	r.setFlatCustomVA0(thickness)
-	margin := thickness/2.0 + morphOutlineEdgeMargin
+	r.setFlatCustomVAs01(thickness, softEdge)
+	margin := halfThickness + morphOutlineExtraReach + morphMarginEpsilon
 	r.DrawImgShader(target, mask, ox, oy, NewMargins(margin, margin), RegionExact, shaderMorphOutline.Load())
 }
 
