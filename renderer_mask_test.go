@@ -58,23 +58,44 @@ func TestMask(t *testing.T) {
 // go test -run ^TestMaskAt$ . -count 1
 func TestMaskAt(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
+	verticalMotion := false
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
+		verticalMotion = updateToggle(ctx, ebiten.KeyM, verticalMotion)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
 		lc := ctx.LeftClickF32()
-		dist := float32(ctx.DistAnim(256.0, 1.0))
-		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lc.X+dist, lc.Y, lc.X, lc.Y, flags...)
+		xShift := float32(ctx.DistAnim(256.0, 1.0))
+		yShift := float32(0)
+		if verticalMotion {
+			yShift = float32(-8.0 + ctx.DistAnim(16.0, 1.3))
+		}
+		ctx.Renderer.MaskAt(canvas, ctx.Images[0], ctx.Images[1], lc.X+xShift, lc.Y+yShift, lc.X, lc.Y-16, flags...)
 
 		_, ch := rectSizeF32(canvas.Bounds())
 		x, y := float32(16.0), ch-16-float32(ctx.Images[3].Bounds().Dy())
 		maskSlide := float32(ctx.DistAnim(32.0, 1.0))
 		ctx.Renderer.MaskAt(canvas, ctx.Images[2], ctx.Images[3], x+32, y, x+maskSlide, y, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Bilinear: %t [B]\nDither: %t [D]\nSoft vert motion: %t [M]",
+			flags.Has(Bilinear), flags.Has(Dithered), verticalMotion,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
 	circ := app.Renderer.NewFilledCircle(32.0)
 	setColorsLR(app.Renderer, tcWhite, tcClear)
-	trans := app.Renderer.NewFilledRect(256, 64)
+	trans := app.Renderer.NewFilledRect(256, 96)
 	longRect := app.Renderer.NewFilledRect(640, 128)
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
 	longImg := app.Renderer.NewFilledRect(640-64, 128)
@@ -88,18 +109,39 @@ func TestMaskAt(t *testing.T) {
 // go test -run ^TestMaskHorz$ . -count 1
 func TestMaskHorz(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+
 		lc := ctx.LeftClickF32()
 		x, _ := ebiten.CursorPosition()
-		yShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lc.X, lc.Y+yShift, lc.X+256/2.0, float32(x), flags...)
+		xShift, yShift := float32(0), float32(0)
+		if smoothMovement {
+			xShift = float32(-4.0 + ctx.DistAnim(8.0, 1.3))
+			yShift = float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		}
+		ctx.Renderer.MaskHorz(canvas, ctx.Images[0], lc.X+xShift, lc.Y+yShift, lc.X+256/2.0, float32(x), flags...)
 
 		cw, ch := rectSizeF32(canvas.Bounds())
 		om := CTR.AdjustXY(ctx.Images[1], cw/2, ch*2/3)
 		i1w := float32(ctx.Images[1].Bounds().Dx())
 		ctx.Renderer.MaskHorz(canvas, ctx.Images[1], om.X, om.Y, om.X, om.X+i1w, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Bilinear: %t [B]\nDither: %t [D]\nSmooth movement: %t [M]",
+			flags.Has(Bilinear), flags.Has(Dithered), smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
