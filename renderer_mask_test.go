@@ -19,37 +19,61 @@ func setMaskFlagsAndTitle(ctx TestAppCtx, flags *flagList) {
 // go test -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		circleSource := ctx.Images[0]
+		hiResGradientMask, loResGradientMask := ctx.Images[1], ctx.Images[2]
+		hiResLongGradientMask, stripSource := ctx.Images[3], ctx.Images[4]
+
+		canvas.Fill(backTestColor)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		xShift, yShift := float32(0), float32(0)
+		if smoothMovement {
+			xShift = float32(-4.0 + ctx.DistAnim(8.0, 1.3))
+			yShift = float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		}
 
 		// dither check strip
 		_, ch := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.Mask(canvas, ctx.Images[4], ctx.Images[3], 16, ch-16-float32(ctx.Images[3].Bounds().Dy()), flags...)
+		ctx.Renderer.Mask(canvas, stripSource, hiResLongGradientMask, 16, ch-16-float32(hiResLongGradientMask.Bounds().Dy()), flags...)
 
-		// circle with slightly movement for bilinear testing
 		lc := ctx.LeftClickF32()
-		lc.Y += float32(-4 + ctx.DistAnim(8, 1.0))
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[1], lc.X, lc.Y, flags...)
+		lc = lc.AddXY(xShift, yShift)
+		ctx.Renderer.Mask(canvas, circleSource, hiResGradientMask, lc.X, lc.Y, flags...)
 
-		// small rect mask scaling and dst space bilinear test
 		rc := ctx.RightClickF32()
-		ctx.Renderer.Mask(canvas, ctx.Images[0], ctx.Images[2], rc.X, rc.Y, flags...)
+		rc = rc.AddXY(xShift, yShift)
+		ctx.Renderer.Mask(canvas, circleSource, loResGradientMask, rc.X, rc.Y, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Bilinear: %t [B]\nDither: %t [D]\nSmooth movement: %t [M]",
+			flags.Has(Bilinear), flags.Has(Dithered), smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
 	app.Renderer.SetColorF32(0.5, 0.5, 0.5, 1.0)
-	circ := app.Renderer.NewFilledCircle(72.0)
+	circleSource := app.Renderer.NewFilledCircle(72.0)
 	setColorsLR(app.Renderer, tcWhite, tcClear)
-	bigRect := app.Renderer.NewFilledRect(256, 128)
-	smallRect := app.Renderer.NewFilledRect(16, 8) // being small creates an step effect automatically
+	hiResGradientMask := app.Renderer.NewFilledRect(256, 128)
+	loResGradientMask := app.Renderer.NewFilledRect(16, 8)
 
-	longRect := app.Renderer.NewFilledRect(640, 128)
+	hiResLongGradientMask := app.Renderer.NewFilledRect(640, 128)
 	app.Renderer.SetColorF32(0.0, 0.2, 0.2, 1)
-	longImg := app.Renderer.NewFilledRect(640, 128)
+	stripSource := app.Renderer.NewFilledRect(640, 128)
 
 	app.Renderer.SetColorF32A(tcWhite)
-	app.Images = append(app.Images, circ, bigRect, smallRect, longRect, longImg)
+	app.Images = append(app.Images, circleSource, hiResGradientMask, loResGradientMask, hiResLongGradientMask, stripSource)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -158,24 +182,52 @@ func TestMaskHorz(t *testing.T) {
 // go test -run ^TestMaskCirc$ . -count 1
 func TestMaskCirc(t *testing.T) {
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		flags.UpdateFlag(Dithered, ebiten.KeyD)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-		w, h := rectSizeF32(canvas.Bounds())
+		largeSquareSource, smallSquareSource := ctx.Images[0], ctx.Images[1]
+
+		canvas.Fill(backTestColor)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		xShift, yShift := float32(0), float32(0)
+		if smoothMovement {
+			xShift = float32(-4.0 + ctx.DistAnim(8.0, 1.3))
+			yShift = float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		}
+		lc := ctx.LeftClickF32().AddXY(xShift, yShift)
+		rc := ctx.RightClickF32().AddXY(xShift, yShift)
 		hardRadius := 48.0 + float32(ctx.DistAnim(16.0, 0.25))
 		softEdge := float32(ctx.DistAnim(16.0, 1.0))
-		o := CTR.AdjustXY(ctx.Images[0], w/2, h/2)
-		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], o.X, o.Y, w/2, h/2, hardRadius, softEdge, flags...)
+		o := CTR.AdjustXY(largeSquareSource, lc.X, lc.Y)
+		ctx.Renderer.MaskCirc(canvas, largeSquareSource, o.X, o.Y, lc.X, lc.Y, hardRadius, softEdge, flags...)
 
-		lc := ctx.LeftClickF32()
-		o = CTR.AdjustXY(ctx.Images[0], lc.X, lc.Y)
-		circleYShift := float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskCirc(canvas, ctx.Images[0], o.X, o.Y, lc.X, lc.Y+circleYShift, 32, 16, flags...)
+		// the circular fade only cuts the square's corners, leaving straight
+		// source edges visible to check bilinear filtering during movement.
+		o = CTR.AdjustXY(smallSquareSource, rc.X, rc.Y)
+		ctx.Renderer.MaskCirc(canvas, smallSquareSource, o.X, o.Y, rc.X, rc.Y, 32, 16, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		labelOpts := TextOpts(1.0, TopCenter.Snap(CapLine))
+		ctx.Renderer.Text(canvas, "Circular fade", lc.X, lc.Y+hardRadius+softEdge+8, labelOpts)
+		ctx.Renderer.Text(canvas, "Source edges", rc.X, rc.Y+32+8, labelOpts)
+		info := fmt.Sprintf(
+			"Bilinear: %t [B]\nDither: %t [D]\nSmooth movement: %t [M]",
+			flags.Has(Bilinear), flags.Has(Dithered), smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
-	rect := app.Renderer.NewFilledRect(360, 360)
-	app.Images = append(app.Images, rect)
+	largeSquareSource := app.Renderer.NewFilledRect(360, 360)
+	smallSquareSource := app.Renderer.NewFilledRect(64, 64)
+	app.Images = append(app.Images, largeSquareSource, smallSquareSource)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -186,18 +238,36 @@ func TestMaskThreshold(t *testing.T) {
 	const Size = 256
 
 	var flags flagList
-	updater := func(ctx TestAppCtx) { setMaskFlagsAndTitle(ctx, &flags) }
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		flags.UpdateFlag(Bilinear, ebiten.KeyB)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		reveal := -0.1 + float32(ctx.ModAnim(1.2, 0.5))
-		// TODO: Text(canvas, fmt.Sprintf("Reveal: %.02f", reveal))
+		source, mask, reference := ctx.Images[0], ctx.Images[1], ctx.Images[2]
 
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 		w, h := rectSizeF32(canvas.Bounds())
 		ox, oy := w/2-Size/2, h/2-Size/2
-		oxi, oyi := int(ox), int(oy)
-		Paint(canvas, image.Rect(oxi, oyi, oxi+Size, oyi+Size), [4]float32{0.5, 0, 0, 0.5}, ebiten.BlendSourceOver)
-		oy += float32(-4.0 + ctx.DistAnim(8.0, 1.0))
-		ctx.Renderer.MaskThreshold(canvas, ctx.Images[0], ctx.Images[1], reveal, ox, oy)
+		if smoothMovement {
+			ox += float32(-4.0 + ctx.DistAnim(8.0, 1.3))
+			oy += float32(-4.0 + ctx.DistAnim(8.0, 1.0))
+		}
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+		ctx.Renderer.DrawAt(canvas, reference, ox, oy, 1.0, flags...)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.MaskThreshold(canvas, source, mask, reveal, ox, oy, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Reveal: %.02f\nBilinear: %t [B]\nSmooth movement: %t [M]",
+			reveal, flags.Has(Bilinear), smoothMovement,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -205,7 +275,9 @@ func TestMaskThreshold(t *testing.T) {
 	gradientOpts := StepGradientOpts(color.RGBA{0, 0, 0, 0}, color.RGBA{255, 255, 255, 255}, 16)
 	app.Renderer.Gradient(maskTarget, gradientOpts, DirRadsLTR)
 	whiteRect := app.Renderer.NewFilledRect(Size, Size)
-	app.Images = append(app.Images, whiteRect, maskTarget)
+	reference := ebiten.NewImage(Size, Size)
+	reference.Fill(color.RGBA{128, 0, 0, 128})
+	app.Images = append(app.Images, whiteRect, maskTarget, reference)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
