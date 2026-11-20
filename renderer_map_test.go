@@ -35,15 +35,15 @@ func TestMap(t *testing.T) {
 		c4x, c4y := float32(ox+3*w/4), float32(oy+3*h/4)
 
 		ctx.Renderer.mapQuad2(canvas, ctx.Images[0], card.Quad(c1x, c1y))
-		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y))
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y), MapOptions{})
 		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.SetTint(0)
 		if (ctx.Ticks/180)&1 == 1 {
 			setColorsTB(ctx.Renderer, tcWhite, tcClear)
 			ctx.Renderer.SetTint(1)
 		}
-		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), anisotropic)
-		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))
+		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), MapOptions{Anisotropic: anisotropic})
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y), MapOptions{})
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -66,17 +66,34 @@ func TestMap(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMapQuadTilt$ . -count 1
-func TestMapQuadTilt(t *testing.T) {
+// go test -run ^TestMapQuad$ . -count 1
+func TestMapQuad(t *testing.T) {
+	testMapQuad(t, (*Renderer).MapQuad)
+}
+
+// go test -run ^TestMapQuad4$ . -count 1
+func TestMapQuad4(t *testing.T) {
+	testMapQuad(t, (*Renderer).MapQuad4)
+}
+
+func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.Image, [4]PointF32, MapOptions)) {
+	t.Helper()
 	const CardWidth, CardHeight = 256, 328
 
-	tilt := 0.0
-	anisotropic := false
+	tilt, shear := 0.0, 0.0
+	zoomPercent := 100
+	widthPercent, heightPercent := 100, 100
+	smoothMovement := false
+	var options MapOptions
 	updater := func(ctx TestAppCtx) {
-		ebiten.SetWindowTitle(fmt.Sprintf("%s [tilt: %.05f, anisotropic: %t]", ctx.Title(), tilt, anisotropic))
+		options.Anisotropic = updateToggle(ctx, ebiten.KeyA, options.Anisotropic)
+		options.DstSampling = updateToggle(ctx, ebiten.KeyD, options.DstSampling)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+		zoomPercent = updateParam(ctx, ebiten.KeyZ, zoomPercent, 25, 400, 25)
+		widthPercent = updateParam(ctx, ebiten.KeyX, widthPercent, 10, 200, 5)
+		heightPercent = updateParam(ctx, ebiten.KeyY, heightPercent, 10, 200, 5)
 
-		const CoarseTilt = 0.1
-		shift := CoarseTilt
+		shift := 0.1
 		if ebiten.IsKeyPressed(ebiten.KeyShift) {
 			shift /= 10.0
 		}
@@ -86,29 +103,49 @@ func TestMapQuadTilt(t *testing.T) {
 
 		switch {
 		case inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft):
-			tilt = max(tilt-shift, -1.0)
+			tilt = max(tilt-shift, -0.99)
 		case inpututil.IsKeyJustPressed(ebiten.KeyArrowRight):
-			tilt = min(tilt+shift, 1.0)
-		case inpututil.IsKeyJustPressed(ebiten.KeyA):
-			anisotropic = !anisotropic
+			tilt = min(tilt+shift, 0.99)
+		}
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):
+			shear = max(shear-shift, -1.0)
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
+			shear = min(shear+shift, 1.0)
 		}
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-		cox, coy, cw, ch := rectOriginSizeF32(canvas.Bounds())
-		cx, cy := cox+cw/2, coy+ch/2
-		xOff := float32(-CardWidth/2 + math.Abs(tilt)*CardWidth/2)
+		canvas.Fill(backTestColor)
+		bounds := canvas.Bounds()
+		cx, cy := float32(bounds.Dx()/2), float32(bounds.Dy()/2)
+		if smoothMovement {
+			cx += float32(ctx.DistAnim(4, 0.7)) - 2
+			cy += float32(ctx.DistAnim(4, 1.0)) - 2
+		}
+		zoom := float32(zoomPercent) / 100
+		xScale := zoom * float32(widthPercent) / 100
+		yScale := zoom * float32(heightPercent) / 100
+		xOff := float32(-CardWidth/2+math.Abs(tilt)*CardWidth/2) * xScale
 		lcx, rcx := cx+xOff, cx-xOff
-		ty, by := cy-CardHeight/2, cy+CardHeight/2
+		ty, by := cy-CardHeight/2*yScale, cy+CardHeight/2*yScale
 		pts := [4]PointF32{{lcx, ty}, {rcx, ty}, {rcx, by}, {lcx, by}}
 
-		yOff := float32(tilt) * 15.00
+		yOff := float32(tilt) * 15.0 * yScale
 		pts[0].Y -= yOff
 		pts[3].Y += yOff
 		pts[1].Y += yOff
 		pts[2].Y -= yOff
+		for i := range pts {
+			pts[i].X -= float32(shear) * (pts[i].Y - cy)
+		}
 
-		ctx.Renderer.MapQuad(canvas, ctx.Images[0], pts, anisotropic)
+		drawQuad(ctx.Renderer, canvas, ctx.Images[0], pts, options)
+
+		// controls
+		ctx.Renderer.SetColorF32A(tcWhite)
+		info := fmt.Sprintf("Anisotropic x2: %t [A]  DstSampling: %t [D]\nTilt: %+.04f [Left / Right]  Shear: %+.04f [Up / Down]\nShift: fine, Ctrl: fine+ for tilt and shear\nWidth: %d%% [X / Shift+X]  Height: %d%% [Y / Shift+Y]\nZoom: %d%% [Z / Shift+Z]  Smooth movement: %t [M]",
+			options.Anisotropic, options.DstSampling, tilt, shear, widthPercent, heightPercent, zoomPercent, smoothMovement)
+		ctx.Renderer.Text(canvas, info, float32(bounds.Min.X+8), float32(bounds.Min.Y+8), TextOpts(1, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -121,13 +158,17 @@ func TestMapQuadTilt(t *testing.T) {
 	app.Renderer.SetColorF32A(tcBlue)
 	sr, er := RadsSpan(DirRadsTTB, 0.15)
 	app.Renderer.FillRadialSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
-	app.Renderer.SetColorF32(0, 0, 0, 0.1)
-	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
+	const PatternPitch, ShapeRadius = 12, 4
+	topHalf := img.SubImage(image.Rect(0, 0, CardWidth, CardHeight/2)).(*ebiten.Image)
+	bottomHalf := img.SubImage(image.Rect(0, CardHeight/2, CardWidth, CardHeight)).(*ebiten.Image)
+	app.Renderer.SetColorF32(0, 0, 0, 0.65)
+	app.Renderer.TileDotsGrid(topHalf, ShapeRadius, PatternPitch, 2, 4)
+	app.Renderer.TileRectsGrid(bottomHalf, 2*ShapeRadius, 2*ShapeRadius, PatternPitch, PatternPitch, 2, 4)
 
 	app.Renderer.opts.Blend = ebiten.BlendSourceOver
 	app.Renderer.SetColorF32A(tcWhite)
-
 	app.Images = append(app.Images, img)
+	ebiten.SetWindowSize(700, 500)
 	if err := ebiten.RunGame(app); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +202,7 @@ func TestMapProjectiveStress(t *testing.T) {
 		for range NumRows {
 			cx := float32(ox) + dx
 			for range NumCols {
-				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), false)
+				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), MapOptions{})
 				cx += dx
 				waverIdx += 1
 			}

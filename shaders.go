@@ -266,17 +266,21 @@ var shaderColorMix = shaderRef{src: shaderColorMixSrc}
 var shaderColorMixBilinearSrc []byte
 var shaderColorMixBilinear = shaderRef{src: shaderColorMixBilinearSrc}
 
-//go:embed shaders/project/quad_bilinear.kage
+//go:embed shaders/project/quad_projective_bilinear.kage
 var shaderMapQuadBilinearSrc []byte
 var shaderMapQuadBilinear = shaderRef{src: shaderMapQuadBilinearSrc}
 
-//go:embed shaders/project/quad_anisotropic.kage
+//go:embed shaders/project/quad_projective_anisotropic.kage
 var shaderMapQuadAnisotropicSrc []byte
 var shaderMapQuadAnisotropic = shaderRef{src: shaderMapQuadAnisotropicSrc}
 
-//go:embed shaders/project/bilinear.kage
+//go:embed shaders/project/quad_affine_bilinear.kage
 var shaderMapBilinearSrc []byte
 var shaderMapBilinear = shaderRef{src: shaderMapBilinearSrc}
+
+//go:embed shaders/project/quad_affine_anisotropic.kage
+var shaderMapAffineAnisotropicSrc []byte
+var shaderMapAffineAnisotropic = shaderRef{src: shaderMapAffineAnisotropicSrc}
 
 //go:embed shaders/project/warp_barrel.kage
 var shaderWarpBarrelSrc []byte
