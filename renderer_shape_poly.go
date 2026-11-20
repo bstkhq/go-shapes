@@ -347,7 +347,7 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 		origin, size := PtF32(oox, ooy), PtF32(w, h)
 		indexOffset := 0
 		if colorMode == ColorIntrinsic {
-			indexOffset = 3 // "twist" colors following triangle directions. this is just a fancy effect
+			indexOffset = 3 // "twist" colors following triangle directions
 		}
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
@@ -360,13 +360,17 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 	r.vertices = r.vertices[:4]
 }
 
-// StrokeRect draws an outline on the given area's boundary, with explicit controls for in/out
-// border thickness. Rounding controls the outer edge rounding radius (inner radius if negative).
+// StrokeRect draws an outline on the given area's boundary, with explicit
+// controls for in/out border thickness. Rounding controls the outer edge
+// rounding radius (inner radius if negative).
 //
-// If you have an [image.Rectangle] for the rect, consider [Renderer.StrokeIntRect]() instead,
-// or if you need rounding convert with [RectPointsF32]().
+// If you have an [image.Rectangle] for the rect, consider
+// [Renderer.StrokeIntRect]() instead, or if you need rounding convert with
+// [RectPointsF32]().
 //
-// Supported flags: [AABB].
+// Supported flags: [AABB], [ColorIntrinsic]. ColorIntrinsic is incompatible
+// with AABB, and makes colors "twist" around the border along the direction
+// of the underlying triangles.
 func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, outThickness, rounding float32, flags ...Flag) {
 	if w < 0 {
 		w = -w
@@ -377,7 +381,7 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, o
 		oy -= h
 	}
 
-	boundingMode := r.readOptInFlag(AABB, flags...)
+	boundingMode, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorIntrinsic, flags...)
 	if boundingMode == noFlag {
 		boundingMode = Hull
 	}
@@ -394,10 +398,10 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, o
 		h += outThickness * 2
 		inThickness += outThickness
 	}
-	r.strokeInnerRect(target, ox, oy, w, h, inThickness, rounding, boundingMode)
+	r.strokeInnerRect(target, ox, oy, w, h, inThickness, rounding, boundingMode, colorMode)
 }
 
-func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32, boundingMode Flag) {
+func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickness, rounding float32, boundingMode, colorMode Flag) {
 	if rounding < 0 {
 		// adjust for inner boundary
 		rounding = -(rounding - inThickness)
@@ -434,17 +438,24 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 			ebiten.Vertex{DstX: iox, DstY: ify},
 		)
 
+		indexOffset := 0
+		if colorMode == ColorIntrinsic {
+			indexOffset = 3 // "twist" colors following triangle directions
+		}
 		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
 		origin, size := PtF32(ox, oy), PtF32(w, h)
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
-			setVertexColor(&r.vertices[4+i], clr)
+			setVertexColor(&r.vertices[4+(i+indexOffset)%4], clr)
 		}
 
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 		target.DrawTrianglesShader32(r.vertices[:], rectStrokeIndices[:], shaderStrokeRect.Load(), &r.opts)
 		r.vertices = r.vertices[:4]
 	} else { // assume AABB
+		if colorMode == ColorIntrinsic {
+			r.Warnings.report(WarnIncompatibleFlag, colorMode)
+		}
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 		// No ceil needed: the analytical shader reaches zero at the boundary, so
 		// every pixel center with non-zero output is inside it.

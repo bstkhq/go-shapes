@@ -593,6 +593,67 @@ func TestStrokeIntRect(t *testing.T) {
 // go test -run ^TestStrokeRect$ . -count 1
 func TestStrokeRect(t *testing.T) {
 	var flags flagList
+	colorSets := newTestColorSets(tcsVivid4, tcsBase4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure))
+	var w, h, inThick, outThick, rounding float32 = 240, 160, 12, 0, 60
+	var showHole, animate bool
+
+	updater := func(ctx TestAppCtx) {
+		w = updateParam(ctx, ebiten.KeyW, w, 40, 600, 20)
+		h = updateParam(ctx, ebiten.KeyH, h, 40, 400, 20)
+		inThick = updateParam(ctx, ebiten.KeyI, inThick, 0, 80, 2)
+		outThick = updateParam(ctx, ebiten.KeyO, outThick, 0, 80, 2)
+		rounding = updateParam(ctx, ebiten.KeyR, rounding, -40, 300, 4)
+		flags.UpdateFlag(AABB, ebiten.KeyA)
+		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC) // only allowed while Hull is in use! (for testing)
+		colorSets.Update(ebiten.KeyS)
+		showHole = updateToggle(ctx, ebiten.KeyV, showHole)
+		animate = updateToggle(ctx, ebiten.KeyM, animate)
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+
+		r := rounding
+		if animate {
+			r = float32(ctx.DistAnim(float64(min(w, h)), 0.5))
+		}
+		info := fmt.Sprintf(
+			"Size: %.0fx%.0f [W/H]\nThickness: %.0f (%.0f/%.0f) [I/O]\nRounding: %.1f [R]\nAnimate rounding: %t [M]\n"+
+				"AABB: %t [A]\nColorIntrinsic: %t [C]\nColorSet: %s [S]\nShow skipped center: %t [V]",
+			w, h, inThick+outThick, inThick, outThick, r, animate, flags.Has(AABB), flags.Has(ColorIntrinsic), colorSets.Info(), showHole,
+		)
+		ctx.Renderer.SetColorF32A(tcWhite)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		cw, ch := rectSizeF32(canvas.Bounds())
+		ox, oy := (cw-w)/2, (ch-h)/2
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		colorSets.Apply(ctx.Renderer)
+		ctx.Renderer.StrokeRect(canvas, ox, oy, w, h, inThick, outThick, r, flags...)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		if showHole && !flags.Has(AABB) && inThick+outThick > 0 {
+			// same adjustments as StrokeRect and strokeInnerRect
+			fullW, fullH, fullThick := w+2*outThick, h+2*outThick, inThick+outThick
+			if r < 0 {
+				r = fullThick - r
+			}
+			halfW, halfH := strokeRectHoleHalfSize(fullW, fullH, fullThick, r)
+			ctx.Renderer.SetColorF32A(tcWhite)
+			ctx.Renderer.StrokeRect(canvas, cw/2-halfW, ch/2-halfH, halfW*2, halfH*2, 1, 0, 0)
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -run ^TestStrokeRectAnim$ . -count 1
+func TestStrokeRectAnim(t *testing.T) {
+	var flags flagList
 	updater := func(ctx TestAppCtx) {
 		flags.UpdateFlag(AABB, ebiten.KeyA)
 	}
