@@ -23,9 +23,9 @@ func (r *Renderer) NewFilledCircle(radius float64) *ebiten.Image {
 // [Renderer.StrokeCircle](), [Renderer.FillCircSector]().
 //
 // Supported flags: [Hull], [ColorIntrinsic]. Using a hull reduces the
-// ineffective pixels from ~20% to ~5%. Intrinsic color will set color 0 at
-// the center of the circle, 1 at the outer cardinal points and 2 at the outer
-// diagonals.
+// ineffective pixels from ~20% to ~5%. ColorIntrinsic can only be used
+// alongside Hull mode, setting color 0 at the center of the circle and 1 and
+// 2 alternating at the outer cardinal and diagonal points, respectively.
 func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flags ...Flag) {
 	if radius == 0 {
 		return
