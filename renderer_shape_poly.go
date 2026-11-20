@@ -407,10 +407,13 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		rounding = -(rounding - inThickness)
 	}
 
-	const SafeMargin = 2.0
-	if rounding >= min(w, h)*2.0+SafeMargin {
-		return // ignore
+	// rounding is unlimited, so big roundings shrink the shape until it
+	// disappears. like FillRect, we draw and map colors to the visible area
+	hmargin, vmargin, visible := rectSDFMargins(w, h, rounding, 0)
+	if !visible {
+		return
 	}
+	vx, vy, vw, vh := ox-hmargin, oy-vmargin, w+2*hmargin, h+2*vmargin
 
 	tox, toy := rectOriginF32(target.Bounds())
 	r.opts.Uniforms["InnerThickness"] = inThickness
@@ -426,7 +429,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 	//    was also tested. It processes 10-33% fewer pixels, but the extra
 	//    vertices made it slower except for many big, very rounded rects.
 	if boundingMode == Hull {
-		r.setDstRectCoords(ox, oy, ox+w, oy+h)
+		r.setDstRectCoords(vx, vy, vx+vw, vy+vh)
 		// skip drawing the central part of the rect, which the stroke leaves empty
 		holeHalfW, holeHalfH := strokeRectHoleHalfSize(w, h, inThickness, rounding)
 		cx, cy := ox+w/2, oy+h/2
@@ -443,7 +446,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 			indexOffset = 3 // "twist" colors following triangle directions
 		}
 		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
-		origin, size := PtF32(ox, oy), PtF32(w, h)
+		origin, size := PtF32(vx, vy), PtF32(vw, vh)
 		for i := range 4 {
 			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
 			setVertexColor(&r.vertices[4+(i+indexOffset)%4], clr)
@@ -459,7 +462,7 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
 		// No ceil needed: the analytical shader reaches zero at the boundary, so
 		// every pixel center with non-zero output is inside it.
-		r.DrawRectShader(target, ox, oy, w, h, NoMargins, RegionExact, shaderStrokeRect.Load())
+		r.DrawRectShader(target, ox, oy, w, h, NewMargins(hmargin, vmargin), RegionExact, shaderStrokeRect.Load())
 	}
 	clear(r.opts.Uniforms)
 }
