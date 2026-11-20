@@ -26,18 +26,18 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 }
 
 func bilinearSampling0(coords vec2) vec4 {
-	// compute sampling points together to avoid precision issues
-	lower := coords - vec2(0.5)
-	sampleMin := floor(lower)
-	sampleMax := sampleMin + vec2(1)
-	delta := lower - sampleMin
+	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+	tl := imageSrc0At(loPixIndex)
+	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc0At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
 
-	// bilinear sampling
-	tl := imageSrc0At(sampleMin)
-	tr := imageSrc0At(vec2(sampleMax.x, sampleMin.y))
-	bl := imageSrc0At(vec2(sampleMin.x, sampleMax.y))
-	br := imageSrc0At(sampleMax)
-	return bilinearMix(tl, tr, bl, br, delta)
+func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)
+	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
 }
 
 func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
