@@ -7,31 +7,9 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	alpha := customVAs[0]
 	mixLevel := customVAs[1]
 
-	minCoords, maxCoords := getMinMaxSourceCoords()
-	srcMinCoords := sourceCoords - vec2(0.5)
-	srcMaxCoords := sourceCoords + vec2(0.5)
-
-	inMinX := whenGreaterOrEqualThan(srcMinCoords.x, minCoords.x)
-	inMaxX := whenLessThan(srcMaxCoords.x, maxCoords.x)
-	inMinY := whenGreaterOrEqualThan(srcMinCoords.y, minCoords.y)
-	inMaxY := whenLessThan(srcMaxCoords.y, maxCoords.y)
-
-	// sampling
-	tl := imageSrc0UnsafeAt(srcMinCoords) * inMinX * inMinY
-	tr := imageSrc0UnsafeAt(vec2(srcMaxCoords.x, srcMinCoords.y)) * inMaxX * inMinY
-	bl := imageSrc0UnsafeAt(vec2(srcMinCoords.x, srcMaxCoords.y)) * inMinX * inMaxY
-	br := imageSrc0UnsafeAt(srcMaxCoords) * inMaxX * inMaxY
-
-	delta := fract(sourceCoords + vec2(0.5))
-	srcColorA := bilinearMix(tl, tr, bl, br, delta)
-
-	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
-	sampleMin, sampleMax := floor(srcMinCoords), floor(srcMaxCoords)
-	tl = imageSrc1UnsafeAt(sampleMin) * inMinX * inMinY
-	tr = imageSrc1UnsafeAt(vec2(sampleMax.x, sampleMin.y)) * inMaxX * inMinY
-	bl = imageSrc1UnsafeAt(vec2(sampleMin.x, sampleMax.y)) * inMinX * inMaxY
-	br = imageSrc1UnsafeAt(sampleMax) * inMaxX * inMaxY
-	srcColorB := bilinearMix(tl, tr, bl, br, delta)
+	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(sourceCoords)
+	srcColorA := bilinearSampling0(loPixIndex, hiPixIndex, blend)
+	srcColorB := bilinearSampling1(loPixIndex, hiPixIndex, blend)
 
 	// mixing
 	out := mix(srcColorA, srcColorB, mixLevel) * alpha
@@ -46,23 +24,30 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	return out
 }
 
+func bilinearSampling0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+	tl := imageSrc0At(loPixIndex)
+	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc0At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func bilinearSampling1(loPixIndex, hiPixIndex, blend vec2) vec4 {
+	tl := imageSrc1At(loPixIndex)
+	tr := imageSrc1At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc1At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc1At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)
+	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
+}
+
 func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
 	top := mix(tl, tr, delta.x)
 	bottom := mix(bl, br, delta.x)
 	return mix(top, bottom, delta.y)
-}
-
-func getMinMaxSourceCoords() (vec2, vec2) {
-	origin := imageSrc0Origin()
-	return origin, origin + imageSrc0Size()
-}
-
-// Returns 1 if a >= b, 0 otherwise.
-func whenGreaterOrEqualThan(a, b float) float {
-	return step(b, a)
-}
-
-// Returns 1 if a < b, 0 otherwise.
-func whenLessThan(a, b float) float {
-	return 1.0 - step(b, a)
 }
