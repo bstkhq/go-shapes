@@ -625,7 +625,6 @@ func TestJFMHeat(t *testing.T) {
 			ebiten.SetWindowTitle(fmt.Sprintf("%s [[M]ode: %s]", ctx.Title(), "fill"))
 			ctx.Renderer.JFMapFill(jfmap, canvas, MaxDist, 0.001, 1.0)
 		case 1:
-			// TODO: apparently clamp = false can fail in some contexts
 			ebiten.SetWindowTitle(fmt.Sprintf("%s [[M]ode: %s, oute[R]: %t, [C]lamp: %t]", ctx.Title(), "boundary", outer, clamp))
 			ctx.Renderer.JFMapBoundary(jfmap, canvas, MaxDist, 0.001, 1.0, BoundaryMode{Outer: outer, Clamp: clamp})
 		}

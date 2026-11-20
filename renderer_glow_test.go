@@ -239,9 +239,9 @@ func TestGlowCompare(t *testing.T) {
 		}
 
 		ctx.DrawAtF32(canvas, ctx.Images[0], o0.X, o0.Y)
-		ctx.DrawAtF32(canvas, ctx.Images[1], o0.X, o0.Y)
-		ctx.DrawAtF32(canvas, ctx.Images[2], o0.X, o0.Y)
-		ctx.DrawAtF32(canvas, ctx.Images[3], o0.X, o0.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[1], o1.X, o1.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[2], o2.X, o2.Y)
+		ctx.DrawAtF32(canvas, ctx.Images[3], o3.X, o3.Y)
 		ctx.Renderer.SetColor(rendererColors[rendererClrIdx])
 		if intensityAnim {
 			ctx.Renderer.ScaleAlphaBy(float32(ctx.DistAnim(1.0, 1.0)))
@@ -272,6 +272,12 @@ func TestGlowCompare(t *testing.T) {
 	darkCirc := app.Renderer.NewFilledCircle(96.0)
 	paintShape(app.Renderer, darkCirc, color.RGBA{255, 128, 64, 255}, color.RGBA{0, 0, 0, 255}, DirRadsTLBR)
 
+	swapDiagColors := func(r *Renderer) {
+		clr1, clr3 := r.vertexColors(1), r.vertexColors(3)
+		setVertexColor(&r.vertices[1], clr3)
+		setVertexColor(&r.vertices[3], clr1)
+	}
+
 	cross := ebiten.NewImage(128, 128)
 	darkCross := ebiten.NewImage(128, 128)
 	app.Renderer.SetColorF32(1.0, 0.75, 0.5, 1.0, 0, 1)
@@ -300,13 +306,6 @@ func newCross(r *Renderer, size int) *ebiten.Image {
 	r.StrokeLine(cross, PtF32(s/2.0, th*1.25), PtF32(s/2.0, s-th*1.25), th)
 	r.restoreColors(memo)
 	return cross
-}
-
-func swapDiagColors(r *Renderer) {
-	r1, g1, b1, a1 := r.vertices[1].ColorR, r.vertices[1].ColorG, r.vertices[1].ColorB, r.vertices[1].ColorA
-	r3, g3, b3, a3 := r.vertices[3].ColorR, r.vertices[3].ColorG, r.vertices[3].ColorB, r.vertices[3].ColorA
-	r.vertices[1].ColorR, r.vertices[1].ColorG, r.vertices[1].ColorB, r.vertices[1].ColorA = r3, g3, b3, a3
-	r.vertices[3].ColorR, r.vertices[3].ColorG, r.vertices[3].ColorB, r.vertices[3].ColorA = r1, g1, b1, a1
 }
 
 // go test -run ^TestGlowKCompare$ . -count 1
