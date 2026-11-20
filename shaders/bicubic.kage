@@ -1,61 +1,70 @@
 //kage:unit pixels
 package main
 
-// NOTE: this could be done in 4 texture taps instead of 16 if linear sampling was available.
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
-	percent := customVAs.xy
-	halfPercentY := percent.y / 2.0
-	oneHalfPercY := percent.y + halfPercentY
-	clamping := customVAs[2]
-	minCoords, maxCoords := getMinMaxSourceCoords(0.001 * clamping)
-	a := cubicRow(sourceCoords-vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x, clamping)
-	b := cubicRow(sourceCoords-vec2(0, halfPercentY), minCoords, maxCoords, percent.x, clamping)
-	c := cubicRow(sourceCoords+vec2(0, halfPercentY), minCoords, maxCoords, percent.x, clamping)
-	d := cubicRow(sourceCoords+vec2(0, oneHalfPercY), minCoords, maxCoords, percent.x, clamping)
-	delta := min(fract(sourceCoords.y+halfPercentY), percent.y) / percent.y
-	return clamp(cubicInterp(delta, a, b, c, d), vec4(0, 0, 0, 0), vec4(1, 1, 1, 1))
+	dstPixSize := customVAs.xy
+	clamping := customVAs.z == 1.0
+	xIndices, yIndices, blend := dstBicubicIndicesAndBlend(sourceCoords, min(dstPixSize, vec2(1)))
+	return bicubicSampling0(xIndices, yIndices, blend, clamping)
 }
 
-func cubicRow(coords vec2, minCoords, maxCoords vec2, percentX float, clamping float) vec4 {
-	halfPercentX := percentX / 2.0
-	oneHalfPercX := percentX + halfPercentX
-
-	aCoords := coords - vec2(oneHalfPercX, 0)
-	bCoords := coords - vec2(halfPercentX, 0)
-	cCoords := coords + vec2(halfPercentX, 0)
-	dCoords := coords + vec2(oneHalfPercX, 0)
-
-	var aIn, bIn, cIn, dIn float = 1.0, 1.0, 1.0, 1.0
-	if clamping == 1.0 {
-		aCoords = clamp(aCoords, minCoords, maxCoords)
-		bCoords = clamp(bCoords, minCoords, maxCoords)
-		cCoords = clamp(cCoords, minCoords, maxCoords)
-		dCoords = clamp(dCoords, minCoords, maxCoords)
-	} else {
-		aIn = whenWithin(aCoords, minCoords, maxCoords)
-		bIn = whenWithin(bCoords, minCoords, maxCoords)
-		cIn = whenWithin(cCoords, minCoords, maxCoords)
-		dIn = whenWithin(dCoords, minCoords, maxCoords)
-	}
-
-	a := imageSrc0UnsafeAt(aCoords) * aIn
-	b := imageSrc0UnsafeAt(bCoords) * bIn
-	c := imageSrc0UnsafeAt(cCoords) * cIn
-	d := imageSrc0UnsafeAt(dCoords) * dIn
-	delta := min(fract(coords.x+halfPercentX), percentX) / percentX
-	return cubicInterp(delta, a, b, c, d)
+// precondition: 0 < filterWidth <= 1 on each axis, in source pixels
+func dstBicubicIndicesAndBlend(coords, filterWidth vec2) (vec4, vec4, vec2) {
+	pixel := floor(coords)
+	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
+	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // blend toward the pixel past nearestEdge
+	taps := vec4(-2, -1, 0, 1)
+	return vec4(nearestEdge.x) + taps, vec4(nearestEdge.y) + taps, blend
 }
 
-func cubicInterp(x float, a, b, c, d vec4) vec4 {
-	return (-0.5*a+1.5*b-1.5*c+0.5*d)*(x*x*x) + (a-2.5*b+2.0*c-0.5*d)*(x*x) + (-0.5*a+0.5*c)*x + b
-}
-
-func getMinMaxSourceCoords(epsilon float) (vec2, vec2) {
+func bicubicSampling0(xIndices, yIndices vec4, blend vec2, clamping bool) vec4 {
 	origin := imageSrc0Origin()
-	return origin, origin + imageSrc0Size() - vec2(epsilon)
+	end := origin + imageSrc0Size()
+	x, xWeights := cubicAxisIndicesAndWeights(xIndices, blend.x, origin.x, end.x, clamping)
+	y, yWeights := cubicAxisIndicesAndWeights(yIndices, blend.y, origin.y, end.y, clamping)
+
+	row0 := cubicRow0(x, y.x, xWeights)
+	row1 := cubicRow0(x, y.y, xWeights)
+	row2 := cubicRow0(x, y.z, xWeights)
+	row3 := cubicRow0(x, y.w, xWeights)
+	return clampPremultiplied(cubicMix(row0, row1, row2, row3, yWeights))
 }
 
-func whenWithin(xy, minInc, maxExc vec2) float {
-	in := step(minInc, xy) - step(maxExc, xy)
-	return in.x * in.y
+// Returns the four column indices for X or the four row indices for Y,
+// followed by the weight of each index in the same order.
+// Valid source coordinates are in [origin, end).
+func cubicAxisIndicesAndWeights(indices vec4, blend, origin, end float, clamping bool) (vec4, vec4) {
+	weights := cubicWeights(blend)
+	if !clamping { // erase contribution of outside pixels
+		weights *= step(vec4(origin), indices) - step(vec4(end), indices)
+	}
+	// always clamp indices, weights already control contribution
+	return clamp(indices, vec4(origin), vec4(end-1.0)), weights
+}
+
+func cubicRow0(xIndices vec4, yIndex float, weights vec4) vec4 {
+	a := imageSrc0UnsafeAt(vec2(xIndices.x, yIndex))
+	b := imageSrc0UnsafeAt(vec2(xIndices.y, yIndex))
+	c := imageSrc0UnsafeAt(vec2(xIndices.z, yIndex))
+	d := imageSrc0UnsafeAt(vec2(xIndices.w, yIndex))
+	return cubicMix(a, b, c, d, weights)
+}
+
+func cubicWeights(t float) vec4 {
+	t2 := t * t
+	t3 := t2 * t
+	return vec4(-0.5, 1.5, -1.5, 0.5)*t3 + vec4(1, -2.5, 2, -0.5)*t2 + vec4(-0.5, 0, 0.5, 0)*t + vec4(0, 1, 0, 0)
+}
+
+// weights come from cubicWeights in a, b, c, d order. Outside samples
+// may have their weights zeroed.
+func cubicMix(a, b, c, d, weights vec4) vec4 {
+	return a*weights.x + b*weights.y + c*weights.z + d*weights.w
+}
+
+// cubic interpolation can overshoot
+func clampPremultiplied(out vec4) vec4 {
+	alpha := clamp(out.a, 0, 1)
+	return vec4(clamp(out.rgb, vec3(0), vec3(alpha)), alpha)
 }

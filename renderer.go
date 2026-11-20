@@ -214,10 +214,11 @@ type ScaleOptions struct {
 	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
 	Clamp bool
 
-	// When true, sampling is done in destination space (1.0/scale px offsets).
-	// When false, sampling is done in source space (1.0px offsets).
+	// When true, sampling is done in destination space (1.0/scale px spacing,
+	// capped at 1.0 for minification).
+	// When false, sampling is done in source space (1.0 px spacing).
 	//
-	// DstSampling = true is equivalent to Ebitengine's v2.9.0 FilterPixelated.
+	// DstSampling = true is similar to Ebitengine's v2.9.0 FilterPixelated.
 	DstSampling bool
 
 	// When true, bicubic algorithm will be used instead of bilinear.
