@@ -640,6 +640,13 @@ func TestStrokeRect(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		ctx.Renderer.FillCircle(canvas, 16+32, h-16-32, 32)
 
+		// translucent square with rounding animated past half its side, where the
+		// corners merge. it should look the same with and without AABB [A]; if
+		// the skipped center is computed wrong, parts of the stroke get brighter
+		sweep := 56.0 + float32(ctx.DistAnim(16.0, 0.5))
+		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.5))
+		ctx.Renderer.StrokeRect(canvas, 16, 32, 120, 120, 8, 0, sweep, flags...)
+
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}
 

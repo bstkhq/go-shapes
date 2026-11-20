@@ -411,21 +411,22 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 	tox, toy := rectOriginF32(target.Bounds())
 	r.opts.Uniforms["InnerThickness"] = inThickness
 	r.opts.Uniforms["Rounding"] = rounding
-	inRounding := max(rounding-inThickness, 0)
-	if boundingMode == Hull && (w >= 2*inRounding || h >= 2*inRounding) {
-		r.setDstRectCoords(ox, oy, ox+w, oy+h)
-		iox, ioy := ox+inThickness, oy+inThickness
-		ifx, ify := ox+w-inThickness, oy+h-inThickness
 
-		// note: the point at the center of the inner curve is often more
-		// optimal for square-ish rects, but this is simple and reasonable
-		if w >= h {
-			iox += inRounding
-			ifx -= inRounding
-		} else {
-			ioy += inRounding
-			ify -= inRounding
-		}
+	// Notes on bounding, measured on a desktop GPU (RTX 4060 Ti):
+	//  - The hull skips the empty center, but needs more vertices than AABB.
+	//    For small and medium rects, that extra cost outweighs the skipped
+	//    pixels: AABB was faster up to around 300x250 (~75k pixels per rect).
+	//    Above that the hull wins by a lot (up to 6x for large rects), which
+	//    is why it's the default. Weaker GPUs should move that point down.
+	//  - Cutting the corners of the hole (an octagon instead of a rectangle)
+	//    was also tested. It processes 10-33% fewer pixels, but the extra
+	//    vertices made it slower except for many big, very rounded rects.
+	if boundingMode == Hull {
+		r.setDstRectCoords(ox, oy, ox+w, oy+h)
+		// skip drawing the central part of the rect, which the stroke leaves empty
+		holeHalfW, holeHalfH := strokeRectHoleHalfSize(w, h, inThickness, rounding)
+		cx, cy := ox+w/2, oy+h/2
+		iox, ioy, ifx, ify := cx-holeHalfW, cy-holeHalfH, cx+holeHalfW, cy+holeHalfH
 		r.vertices = append(r.vertices,
 			ebiten.Vertex{DstX: iox, DstY: ioy},
 			ebiten.Vertex{DstX: ifx, DstY: ioy},
@@ -450,6 +451,33 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 		r.DrawRectShader(target, ox, oy, w, h, NoMargins, RegionExact, shaderStrokeRect.Load())
 	}
 	clear(r.opts.Uniforms)
+}
+
+// strokeRectHoleHalfSize returns the half width and half height of the
+// rectangle at the center of a stroked rect that can be skipped when drawing,
+// as the stroke leaves it empty. It returns zero if there's nothing to skip.
+//
+// Finding the biggest hole is expensive, so we use a cheap approximation that
+// can be slightly smaller (see TestStrokeRectHoleHalfSize for the error). It
+// changes smoothly with the inputs, which avoids color jumps on animations.
+func strokeRectHoleHalfSize(w, h, inThickness, rounding float32) (halfW, halfH float32) {
+	if 2*inThickness >= min(w, h) {
+		return 0, 0 // the stroke fills the whole rect
+	}
+
+	// radius and center of the corner curves, relative to the rect center.
+	// rounding is unlimited, so the curves can overlap and collapse the shape
+	radius := max(rounding-inThickness, 0)
+	curveX := w/2.0 - inThickness - radius
+	curveY := h/2.0 - inThickness - radius
+	if radius == 0 {
+		return curveX, curveY // sharp corners, the empty area is a rectangle
+	}
+
+	// direction from the curve center to the point the hole will touch
+	dirX, dirY := curveY+math.Sqrt2*radius, curveX+math.Sqrt2*radius
+	scale := radius / float32(math.Sqrt(float64(dirX*dirX+dirY*dirY)))
+	return max(curveX+dirX*scale, 0), max(curveY+dirY*scale, 0)
 }
 
 // FillTriangle draws a smooth filled triangle using the given vertices and an
