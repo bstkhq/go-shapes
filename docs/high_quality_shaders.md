@@ -17,6 +17,23 @@ Bilinear interpolation has severe performance implications in Ebitengine, though
 
 Even in the cases where `Bilinear` is not supported, if float coordinates are supported, the shader should be checked for artifacts and behavior under smooth coordinate changes. A good example of this are blurs. Blurs are too expensive to perform bilinear lookups during the effect itself, but at least they should not break under float coordinates.
 
+## Precision of related sample coordinates
+
+Related sample indices and weights should be derived from the same position. If you calculate `coords - offset` and `coords + offset` independently, floating-point rounding near a pixel boundary can make you sample the wrong pixel.
+
+The [Vulkan specification's linear filtering rules](https://docs.vulkan.org/spec/latest/chapters/textures.html#textures-unnormalized-to-integer) derive the neighboring indices and blend weights from the same position. Here's the same approach in Kage:
+
+```go
+func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)         // floor to obtain low sampling index
+	hiPixIndex := loPixIndex + vec2(1) // derive high index directly from low index
+	return loPixIndex, hiPixIndex, lower - loPixIndex
+}
+```
+
+The same idea applies to blur taps, finite differences, and morphology scans. If the operation expects samples at fixed offsets on the pixel grid, start from a shared integer index and add those offsets. Base bounds checks on the resulting indices, but keep any fractional position the effect itself needs for its weights or distances.
+
 ## Gamma correction
 
 Gamma correction is also part of smooth movement and rendering. For detailed context, see [ebiten issue#3313](https://github.com/hajimehoshi/ebiten/issues/3313). The quick practical advice is that any shader where boundaries must be well defined should consider applying manual gamma correction, e.g.:
