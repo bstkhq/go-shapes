@@ -54,15 +54,23 @@ func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float
 	r.DrawImgShader(target, source, ox, oy, NoMargins, RegionExact, shaderWarpPincushionQuad.Load())
 }
 
-// WarpArc projects the given source image onto a curved arc on target.
-// The arc is characterized by (cx, cy) and outRadius. The content is
-// horizontally centered at 'rads'. If the source's width > circumference,
-// the content is automatically clamped.
+// WarpArc projects the given source image onto a curved arc on target. The
+// arc is characterized by (cx, cy) and outRadius. The content is horizontally
+// centered at 'rads'. If the source's width > circumference, the content is
+// automatically clamped.
+//
+// taps sets how many bilinear lookups are performed per pixel, and must be in
+// [1, 4]. Fewer taps are cheaper and sharper, but more likely to suffer from
+// shimmering and artifacts at tight curvatures.
 //
 // See [RadsRight] constants for angle conventions and docs.
-func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float32, rads float64) {
+func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float32, rads float64, taps int) {
 	if outRadius < 0 {
 		return // nothing to draw
+	}
+	if taps < 1 || taps > 4 {
+		r.Warnings.report(WarnInvalidTapsClamped, taps)
+		taps = clamp(taps, 1, 4)
 	}
 
 	srcBounds := source.Bounds()
@@ -89,6 +97,9 @@ func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float
 	r.setFlatCustomVAs(outRadius, sw, float32(startRads), float32(radsHalfDelta*2.0))
 	r.opts.Images[0] = source
 	r.opts.Uniforms["Center"] = [2]float32{cx - tox, cy - toy}
+	if taps > 1 {
+		r.opts.Uniforms["ExtraTaps"] = taps - 1
+	}
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderWarpArc.Load(), &r.opts)
 	r.opts.Images[0] = nil
 	clear(r.opts.Uniforms)

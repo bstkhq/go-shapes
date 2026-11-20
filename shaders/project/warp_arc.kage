@@ -2,6 +2,7 @@
 package main
 
 var Center vec2
+var ExtraTaps int // 0 (plain bilinear) to 3 more bilinear taps along the arc
 
 func Fragment(targetCoords vec4, _ vec2, _ vec4, customVAs vec4) vec4 {
 	const Pi = 3.14159265359
@@ -34,18 +35,49 @@ func Fragment(targetCoords vec4, _ vec2, _ vec4, customVAs vec4) vec4 {
 	uv := vec2(deltaRads/radsSpan, 1.0-((r-inRadius)/srcSize.y))
 	coords := imageSrc0Origin() + uv*vec2(samplingWidth, srcSize.y)
 	coords.x += (srcSize.x - samplingWidth) / 2.0
-	return bilinearSampling(coords, vec2(1))
+
+	if ExtraTaps == 0 {
+		return bilinearSampling0(coords)
+	}
+
+	// One pixel along the arc covers more of the source strip near the inner
+	// edge. Equally weighted bilinear taps spread along X approximate a tent
+	// filter spanning one destination pixel to each side, which keeps thin
+	// details from turning into moiré.
+	taps := ExtraTaps + 1
+	srcPixelsPerDst := samplingWidth / (radsSpan * max(r, 1.0))
+	// Spacing for 2, 3, and 4 taps, in destination pixels. These values
+	// approximate evenly weighted portions of the tent filter.
+	spacingInDst := [3]float{0.66, 0.423, 0.34}
+	spacing := srcPixelsPerDst * spacingInDst[taps-2]
+	offset := vec2(-0.5*float(taps-1)*spacing, 0)
+	var sum vec4
+	for i := 0; i < 4; i++ {
+		if i >= taps {
+			break
+		}
+		sum += bilinearSampling0(coords + offset)
+		offset.x += spacing
+	}
+	return sum / float(taps)
 }
 
-// technically, homogeneously weighted bilinear sampling is not accurate
-// in this scenario, but doing it properly is too expensive for most
-// use-cases of the shader
-func bilinearSampling(coords, unit vec2) vec4 {
-	tl := imageSrc0At(coords - unit/2.0)
-	tr := imageSrc0At(coords + vec2(+unit.x/2.0, -unit.y/2.0))
-	bl := imageSrc0At(coords + vec2(-unit.x/2.0, +unit.y/2.0))
-	br := imageSrc0At(coords + unit/2.0)
-	delta := min(fract(coords+unit/2.0), unit) / unit
+func bilinearSampling0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+	tl := imageSrc0At(loPixIndex)
+	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc0At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)
+	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
 	top := mix(tl, tr, delta.x)
 	bottom := mix(bl, br, delta.x)
 	return mix(top, bottom, delta.y)

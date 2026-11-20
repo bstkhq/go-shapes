@@ -46,6 +46,7 @@ const (
 	WarnTooManyColorsClamped
 	WarnInvalidApertureClamped
 	WarnSelfIntersectingQuad
+	WarnInvalidTapsClamped
 
 	warnSentinel
 )
@@ -105,6 +106,8 @@ func (w Warning) Message() string {
 		return "aperture out of [0, 2*Pi], clamped"
 	case WarnSelfIntersectingQuad:
 		return "self-intersecting quads not supported"
+	case WarnInvalidTapsClamped:
+		return "taps out of [1, 4] range, clamped"
 	default:
 		return fmt.Sprintf("%s 0x%08x", unknownWarningPrefix, w)
 	}
