@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"slices"
 	"testing"
 
@@ -342,8 +343,8 @@ func jfmDebugPrint(t *testing.T, out *image.RGBA) {
 	}
 }
 
-// go test -run ^TestJFMCompute$ . -count 1
-func TestJFMCompute(t *testing.T) {
+// go test -run ^TestJFMapCompute$ . -count 1
+func TestJFMapCompute(t *testing.T) {
 	r := NewRenderer()
 	const Size = 9
 	seedOffset := image.Pt(8, 8)
@@ -406,8 +407,8 @@ func TestJFMCompute(t *testing.T) {
 	}
 }
 
-// go test -run ^TestJFMCompute2$ . -count 1
-func TestJFMCompute2(t *testing.T) {
+// go test -run ^TestJFMapCompute2$ . -count 1
+func TestJFMapCompute2(t *testing.T) {
 	r := NewRenderer()
 	src := ebiten.NewImage(1, 260)
 	dst := ebiten.NewImage(1, 260)
@@ -471,7 +472,22 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 	for x := float32(16); x < 256-16; x += 48 {
 		r.FillRect(stripes, x, -8, 24, 192+16, 0)
 	}
-	return []*ebiten.Image{circle, xSign, circ2, rhombus, stripes}
+	// magic circle: rings of different thicknesses plus a hexagram, with some
+	// strokes thinner than 2 pixels
+	magic := ebiten.NewImage(256, 256)
+	r.SetColorF32(1.0, 0.85, 0.4, 1.0)
+	for _, ring := range [][2]float32{{120, 6}, {109, 1.5}, {101, 3}, {40, 2}, {24, 8}, {8, 1}} {
+		r.StrokeCircle(magic, 128, 128, ring[0], ring[1])
+	}
+	for i, thickness := range []float32{3, 1.5} {
+		var tri [3]PointF32
+		for j := range tri {
+			sin, cos := math.Sincos(math.Pi * (float64(i) - 0.5 + float64(j)*2.0/3.0))
+			tri[j] = PtF32(128+101*cos, 128+101*sin)
+		}
+		r.StrokeTriangle(magic, tri, thickness, 0)
+	}
+	return []*ebiten.Image{circle, xSign, circ2, rhombus, stripes, magic}
 }
 
 // go test -run ^TestJFMExpand$ . -count 1

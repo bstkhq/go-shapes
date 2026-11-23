@@ -338,6 +338,14 @@ var shaderJFMInitBoundary = shaderRef{src: shaderJFMInitBoundarySrc}
 var shaderJFMHeatSrc []byte
 var shaderJFMHeat = shaderRef{src: shaderJFMHeatSrc}
 
+//go:embed shaders/morph/alpha_normals.kage
+var shaderAlphaNormalsSrc []byte
+var shaderAlphaNormals = shaderRef{src: shaderAlphaNormalsSrc}
+
+//go:embed shaders/morph/alpha_normals_viz.kage
+var shaderAlphaNormalsVizSrc []byte
+var shaderAlphaNormalsViz = shaderRef{src: shaderAlphaNormalsVizSrc}
+
 //go:embed shaders/morph/jfm_expansion.kage
 var shaderJFMExpansionSrc []byte
 var shaderJFMExpansion = shaderRef{src: shaderJFMExpansionSrc}

@@ -1,0 +1,86 @@
+//kage:unit pixels
+package main
+
+// Computes, for each pixel, the alpha descent direction (where alpha decreases
+// fastest) and the boundary offset (signed distance from the pixel center to
+// the estimated boundary, positive on the low side). Encoded as:
+//   - R, G: descent direction, mapped from [-1, 1] to [0, 1].
+//   - B: boundary offset, mapped from [-0.75, 0.75] to [0, 1].
+//   - A: 1 if the pixel has data, 0 if alpha doesn't change around it.
+//
+// The boundary is estimated as a straight line crossing the pixel, assuming
+// alpha forms a sharp step softened by antialiasing. See 'coverage' comments.
+//
+// Precision trap: R and G are stored with 8 bits each, so the decoded direction
+// must be normalized again before use, or distances measured along it drift by
+// up to ~0.5% of their length.
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
+	alpha := imageSrc0At(sourceCoords).a
+
+	// isotropic sobel gradient, pointing towards higher alpha.
+	// this computes the alpha ascent direction
+	tl := imageSrc0At(sourceCoords + vec2(-1, -1)).a
+	tc := imageSrc0At(sourceCoords + vec2(0, -1)).a
+	tr := imageSrc0At(sourceCoords + vec2(1, -1)).a
+	cl := imageSrc0At(sourceCoords + vec2(-1, 0)).a
+	cr := imageSrc0At(sourceCoords + vec2(1, 0)).a
+	bl := imageSrc0At(sourceCoords + vec2(-1, 1)).a
+	bc := imageSrc0At(sourceCoords + vec2(0, 1)).a
+	br := imageSrc0At(sourceCoords + vec2(1, 1)).a
+	const Sqrt2 = 1.41421356
+	gradient := vec2((tr+Sqrt2*cr+br)-(tl+Sqrt2*cl+bl), (bl+Sqrt2*bc+br)-(tl+Sqrt2*tc+tr))
+	if length(gradient) < 0.0001 {
+		return vec4(0)
+	}
+
+	// if the shape was solid, here we would compute pixel coverage = alpha.
+	// instead, we compute pixel coverage based on the min and max alpha values
+	// in the local 3x3 window we sampled. this can lose precision for very
+	// thin features (up to ~0.3 px for features thinner than ~2 px), but it
+	// generally supports translucent shapes and backgrounds better, and
+	// degrades more gracefully for gradients
+	lo := min(min(min(tl, tc), min(tr, cl)), min(min(cr, bl), min(min(bc, br), alpha)))
+	hi := max(max(max(tl, tc), max(tr, cl)), max(max(cr, bl), max(max(bc, br), alpha)))
+	coverage := (alpha - lo) / (hi - lo)
+
+	// convert the alpha ascent gradient to a normalized alpha descent, and
+	// compute the edge offset from the estimated coverage
+	descent := -normalize(gradient)
+	offset := clamp(edgeOffset(gradient, coverage), -0.75, 0.75)
+
+	// encode the descent into RG, offset into B, and signal the presence with A = 1
+	return vec4(descent*0.5+0.5, offset/1.5+0.5, 1)
+}
+
+// edgeOffset returns the signed distance from the center of a pixel, treated
+// as a unit square, to a straight boundary crossing it, given the boundary's
+// gradient and the fraction of the pixel's area on the high side. Positive
+// when the center is on the low side.
+//
+// By symmetry, the unit gradient g is folded so that gx >= gy >= 0. For a line
+// at distance t from the center along g, the high side is:
+//   - A corner triangle with area (tmax-t)^2 / (2*gx*gy), tmax = (gx+gy)/2,
+//     while the area is below a1 = gy/(2*gx).
+//   - A trapezoid with area 0.5 - t/gx in between.
+//   - The mirrored triangle above 1-a1.
+//
+// Solving each case for t gives the three branches. This matches edgedf() in
+// Gustavson & Strand (2011), "Anti-aliased Euclidean distance transform".
+func edgeOffset(gradient vec2, coverage float) float {
+	if gradient.x == 0 || gradient.y == 0 {
+		return 0.5 - coverage
+	}
+	g := abs(normalize(gradient))
+	if g.x < g.y {
+		g = g.yx
+	}
+	a1 := 0.5 * g.y / g.x
+	if coverage < a1 {
+		return 0.5*(g.x+g.y) - sqrt(2.0*g.x*g.y*coverage)
+	}
+	if coverage < 1.0-a1 {
+		return (0.5 - coverage) * g.x
+	}
+	return -0.5*(g.x+g.y) + sqrt(2.0*g.x*g.y*(1.0-coverage))
+}
