@@ -593,9 +593,12 @@ func TestStrokeIntRect(t *testing.T) {
 // go test -run ^TestStrokeRect$ . -count 1
 func TestStrokeRect(t *testing.T) {
 	var flags flagList
-	colorSets := newTestColorSets(tcsVivid4, tcsBase4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure))
+	colorSets := newTestColorSets(
+		tcsVivid4, tcsBase4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure),
+		tcsSingle("HalfWhite", ScaleAlphaF32A(tcWhite, 0.5)), // overlapping triangles would show brighter
+	)
 	var w, h, inThick, outThick, rounding float32 = 240, 160, 12, 0, 60
-	var showHole, animate bool
+	var animate bool
 
 	updater := func(ctx TestAppCtx) {
 		w = updateParam(ctx, ebiten.KeyW, w, 40, 600, 20)
@@ -606,7 +609,6 @@ func TestStrokeRect(t *testing.T) {
 		flags.UpdateFlag(AABB, ebiten.KeyA)
 		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC) // only allowed while Hull is in use! (for testing)
 		colorSets.Update(ebiten.KeyS)
-		showHole = updateToggle(ctx, ebiten.KeyV, showHole)
 		animate = updateToggle(ctx, ebiten.KeyM, animate)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -618,8 +620,8 @@ func TestStrokeRect(t *testing.T) {
 		}
 		info := fmt.Sprintf(
 			"Size: %.0fx%.0f [W/H]\nThickness: %.0f (%.0f/%.0f) [I/O]\nRounding: %.1f [R]\nAnimate rounding: %t [M]\n"+
-				"AABB: %t [A]\nColorIntrinsic: %t [C]\nColorSet: %s [S]\nShow skipped center: %t [V]",
-			w, h, inThick+outThick, inThick, outThick, r, animate, flags.Has(AABB), flags.Has(ColorIntrinsic), colorSets.Info(), showHole,
+				"AABB: %t [A]\nColorIntrinsic: %t [C]\nColorSet: %s [S]",
+			w, h, inThick+outThick, inThick, outThick, r, animate, flags.Has(AABB), flags.Has(ColorIntrinsic), colorSets.Info(),
 		)
 		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
@@ -632,17 +634,6 @@ func TestStrokeRect(t *testing.T) {
 		colorSets.Apply(ctx.Renderer)
 		ctx.Renderer.StrokeRect(canvas, ox, oy, w, h, inThick, outThick, r, flags...)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-
-		if showHole && !flags.Has(AABB) && inThick+outThick > 0 {
-			// same adjustments as StrokeRect and strokeInnerRect
-			fullW, fullH, fullThick := w+2*outThick, h+2*outThick, inThick+outThick
-			if r < 0 {
-				r = fullThick - r
-			}
-			halfW, halfH := strokeRectHoleHalfSize(fullW, fullH, fullThick, r)
-			ctx.Renderer.SetColorF32A(tcWhite)
-			ctx.Renderer.StrokeRect(canvas, cw/2-halfW, ch/2-halfH, halfW*2, halfH*2, 1, 0, 0)
-		}
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -700,13 +691,6 @@ func TestStrokeRectAnim(t *testing.T) {
 		ctx.Renderer.StrokeRect(canvas, 16, h-16, 96, -64, 0, 8, -32.0, flags...)
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 0, 128})
 		ctx.Renderer.FillCircle(canvas, 16+32, h-16-32, 32)
-
-		// translucent square with rounding animated past half its side, where the
-		// corners merge. it should look the same with and without AABB [A]; if
-		// the skipped center is computed wrong, parts of the stroke get brighter
-		sweep := 56.0 + float32(ctx.DistAnim(16.0, 0.5))
-		ctx.Renderer.SetColorF32A(ScaleAlphaF32A(tcWhite, 0.5))
-		ctx.Renderer.StrokeRect(canvas, 16, 32, 120, 120, 8, 0, sweep, flags...)
 
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 	}

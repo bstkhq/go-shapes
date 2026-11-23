@@ -441,15 +441,19 @@ func (r *Renderer) strokeInnerRect(target *ebiten.Image, ox, oy, w, h, inThickne
 			ebiten.Vertex{DstX: iox, DstY: ify},
 		)
 
-		indexOffset := 0
-		if colorMode == ColorIntrinsic {
-			indexOffset = 3 // "twist" colors following triangle directions
-		}
-		tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
-		origin, size := PtF32(vx, vy), PtF32(vw, vh)
-		for i := range 4 {
-			clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
-			setVertexColor(&r.vertices[4+(i+indexOffset)%4], clr)
+		if r.singleClr || r.opts.Blend == ebiten.BlendClear {
+			r.applySingleColor(r.vertexColors(0))
+		} else {
+			indexOffset := 0
+			if colorMode == ColorIntrinsic {
+				indexOffset = 3 // "twist" colors following triangle directions
+			}
+			tl, tr, br, bl := r.vertexColors(0), r.vertexColors(1), r.vertexColors(2), r.vertexColors(3)
+			origin, size := PtF32(vx, vy), PtF32(vw, vh)
+			for i := range 4 {
+				clr := interpTriQuadColor(tl, tr, br, bl, origin, size, PtF32(r.vertices[4+i].DstX, r.vertices[4+i].DstY))
+				setVertexColor(&r.vertices[4+(i+indexOffset)%4], clr)
+			}
 		}
 
 		r.setFlatCustomVAs(ox-tox, oy-toy, w, h)
