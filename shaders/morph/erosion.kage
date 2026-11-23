@@ -13,6 +13,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	}
 
 	softEdge := min(customVAs[1], thickness)
+	clampBorders := customVAs[2]
 	hardRadius := thickness - softEdge
 
 	lowerBound := sourceCoords - vec2(thickness)
@@ -28,6 +29,11 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	// erosion must preserve the original alpha
 	alpha := imageSrc0At(sourceCoords).a
 
+	// with clampBorders, samples outside the source read the nearest border pixel.
+	// that pixel is closer and also scanned, so outside samples can't erode
+	minCenter := imageSrc0Origin() + vec2(TexelHalfSize)
+	maxCenter := imageSrc0Origin() + imageSrc0Size() - vec2(TexelHalfSize)
+
 	// scan consecutive texel indices to keep the sampling grid regular.
 	for y := 0.0; y < MaxSamples; y += 1.0 {
 		sampleYIndex := firstTexel.y + y
@@ -41,7 +47,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 			}
 
 			sampleCoords := vec2(sampleXIndex, sampleYIndex) + vec2(TexelHalfSize)
-			sampleAlpha := imageSrc0At(sampleCoords).a
+			clampedCoords := clamp(sampleCoords, minCenter, maxCenter)
+			sampleAlpha := imageSrc0At(mix(sampleCoords, clampedCoords, clampBorders)).a
 			// a center-only scan can only undershoot the continuous target.
 			// treat each sample as a one-pixel square so the disk can reach
 			// the texel before reaching its center.

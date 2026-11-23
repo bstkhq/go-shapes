@@ -35,7 +35,7 @@ func (r *Renderer) FillCircle(target *ebiten.Image, cx, cy, radius float32, flag
 		return
 	}
 
-	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
+	bounding, colorMode := r.readOptInFlagPair(Hull, ColorIntrinsic, flags...)
 	if bounding == Hull {
 		// No ceil needed: the analytical shader reaches zero at the boundary, so
 		// every pixel center with non-zero output is inside it.
@@ -87,7 +87,7 @@ func (r *Renderer) FillCircleSoft(target *ebiten.Image, cx, cy, radius float32, 
 		shader = shaderCircleSoftBlur.Load()
 	}
 
-	bounding, colorMode := r.readBoundingAndColorModeFlags(Hull, ColorIntrinsic, flags...)
+	bounding, colorMode := r.readOptInFlagPair(Hull, ColorIntrinsic, flags...)
 	if bounding == Hull {
 		memo := r.prepareCircleHull(cx, cy, outRadius, colorMode, true)
 		tox, toy := rectOriginF32(target.Bounds())
@@ -166,7 +166,7 @@ func (r *Renderer) StrokeCircle(target *ebiten.Image, cx, cy, radius, thickness 
 		radius, thickness = 0.0, radius*2.0
 	}
 
-	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorIntrinsic, flags...)
+	bounding, colorMode := r.readOptInFlagPair(AABB, ColorIntrinsic, flags...)
 	// No ceil needed: the analytical shader reaches zero at the boundary, so
 	// every pixel center with non-zero output is inside it.
 	halfThick := thickness / 2.0

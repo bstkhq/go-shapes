@@ -31,6 +31,12 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 
 	// softEdge is how far before morphDistance the sample influence starts to decrease
 	softEdge := min(customVAs[1], morphDistance)
+	clampBorders := customVAs[2]
+
+	// with clampBorders, positions outside the mask read its nearest border
+	// pixel, so the area outside continues the mask instead of being empty
+	minCenter := imageSrc0Origin() + vec2(0.5)
+	maxCenter := imageSrc0Origin() + imageSrc0Size() - vec2(0.5)
 
 	// scanReach is the maximum sample distance, including the extra transition.
 	// distances are measured from sourceCoords to source texel centers.
@@ -38,7 +44,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 
 	firstTexel := ceil(sourceCoords-vec2(scanReach)-vec2(ScanEpsilon)) - vec2(1)
 	lastTexel := floor(sourceCoords + vec2(scanReach+ScanEpsilon))
-	sourceAlpha := imageSrc0At(sourceCoords).a
+	sourceAlpha := imageSrc0At(mix(sourceCoords, clamp(sourceCoords, minCenter, maxCenter), clampBorders)).a
 	expansionAlpha := sourceAlpha
 	erosionAlpha := sourceAlpha
 
@@ -57,7 +63,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 			dist := distance(sourceCoords, sampleCoords)
 			weight := outlineSampleWeight(dist, morphDistance, softEdge)
 			if weight > 0.0 {
-				sampleAlpha := imageSrc0At(sampleCoords).a
+				sampleAlpha := imageSrc0At(mix(sampleCoords, clamp(sampleCoords, minCenter, maxCenter), clampBorders)).a
 				expansionAlpha = max(expansionAlpha, mix(sourceAlpha, sampleAlpha, weight)) // not used for inner outlines
 				erosionAlpha = min(erosionAlpha, mix(sourceAlpha, sampleAlpha, weight))
 			}

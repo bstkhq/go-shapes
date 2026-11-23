@@ -461,20 +461,30 @@ func jfmShapes(r *Renderer) []*ebiten.Image {
 	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
 	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
 	r.FillCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
-	r.SetColorF32A(tcWhite)
-	rect := r.NewFilledRect(256, 192)
-	return []*ebiten.Image{circle, xSign, circ2, rect}
+	r.SetColorF32(0.7, 0.7, 0.7, 1.0)
+	// rhombus clipped by the 4 image borders, leaving the corners empty
+	rhombus := ebiten.NewImage(256, 192)
+	r.FillQuad(rhombus, [4]PointF32{{128, -24}, {288, 96}, {128, 216}, {-32, 96}}, 0)
+	// vertical stripes clipped by the top and bottom borders only. they go past
+	// the borders, so the border rows aren't antialiased
+	stripes := ebiten.NewImage(256, 192)
+	for x := float32(16); x < 256-16; x += 48 {
+		r.FillRect(stripes, x, -8, 24, 192+16, 0)
+	}
+	return []*ebiten.Image{circle, xSign, circ2, rhombus, stripes}
 }
 
 // go test -run ^TestJFMExpand$ . -count 1
 func TestJFMExpand(t *testing.T) {
 	imgIndex := 0
 	outline := false
+	clampBorders := false
 	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
 		if inpututil.IsKeyJustPressed(ebiten.KeyL) {
 			outline = !outline
 		}
+		clampBorders = updateToggle(ctx, ebiten.KeyC, clampBorders)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		canvas.Fill(color.Black)
@@ -493,21 +503,36 @@ func TestJFMExpand(t *testing.T) {
 		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 1.0)))
 
+		var flags []Flag // Clamp only applies to outlines
+		if outline && clampBorders {
+			flags = append(flags, Clamp)
+		}
 		if outline {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r, 0.666)
+			ctx.Renderer.MorphOutline(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r, 0.666, flags...)
 		} else {
 			ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2, bh/4-h/2, r, 1.333)
 		}
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, outline, false)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-w/2, bh-bh/4-h/2, r, outline, flags...)
 
 		maxDist := ceilF32(r)
 		source, jfmap := ctx.Renderer.UnsafeTempDual(1, ctx.Images[imgIndex], int(maxDist), false)
 		if outline {
-			ctx.Renderer.JFMapBoundary(jfmap, source, int(maxDist), 0.001, 1.0, BoundaryMode{})
+			mode := BoundaryMode{Clamp: clampBorders, Inset: int(maxDist)} // inset skips the padding
+			ctx.Renderer.JFMapBoundary(jfmap, source, int(maxDist), 0.001, 1.0, mode)
 		} else {
 			ctx.Renderer.JFMapFill(jfmap, source, int(maxDist), 0.001, 1.0)
 		}
-		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, outline, true)
+		ctx.Renderer.JFMExpand(canvas, source, jfmap, bw-bw/4-w/2-maxDist, bh-bh/4-h/2-maxDist, r, outline, Smoothed)
+		ctx.Renderer.SetTint(0)
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf(
+			"Top-left: source\nTop-right: MorphExpansion / MorphOutline\nBottom-left: JFMExpand\n"+
+				"Bottom-right: JFMExpand smoothed, custom jfmap\n"+
+				"Shape: %d/%d [Space]\nOutline: %t [L]\nClamp: %t [C] (outlines only)",
+			imgIndex+1, len(ctx.Images), outline, clampBorders,
+		)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -533,10 +558,10 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 		const r = 9.0
 		iw, ih := rectSizeF32(ctx.Images[imgIndex].Bounds())
 		ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw/4-iw/2+xShift, bh/4-ih/2+yShift, r, 1.333)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, false)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false)
 
 		ctx.Renderer.MorphExpansion(canvas, ctx.Images[imgIndex], bw-bw/4-iw/2+xShift, bh/4-ih/2+yShift, r, 1.333)
-		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, true)
+		ctx.Renderer.JFMExpand(canvas, ctx.Images[imgIndex], nil, bw-bw/4-iw/2+xShift, bh-bh/4-ih/2+yShift, r, false, Smoothed)
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -551,10 +576,12 @@ func TestJFMErode(t *testing.T) {
 	imgIndex := 0
 	motion := false
 	softEdge := float32(0.666)
+	var flags flagList
 
 	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
 		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, 0.666, 16.0, 1.0)
+		flags.UpdateFlag(Clamp, ebiten.KeyC)
 		if inpututil.IsKeyJustPressed(ebiten.KeyM) {
 			motion = !motion
 		}
@@ -574,16 +601,17 @@ func TestJFMErode(t *testing.T) {
 			r = 6.0
 		}
 
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r, softEdge)
-		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
-		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r, softEdge, flags...)
+		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, flags...)
+		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, append([]Flag{Smoothed}, flags...)...)
 		ctx.Renderer.SetTint(0)
 
 		ctx.Renderer.SetColor(color.White)
 		info := fmt.Sprintf(
 			"Top-left: source\nTop-right: MorphErosion\nBottom-left: JFMErode\nBottom-right: JFMErode smooth\n"+
-				"Shape: %d/%d [Space]\nMovement: %t [M]\nSoftEdge: %.02f [S] (only MorphErosion)",
-			imgIndex+1, len(ctx.Images), motion, softEdge,
+				"Shape: %d/%d [Space]\nMovement: %t [M]\nSoftEdge: %.02f [S] (only MorphErosion)\n"+
+				"Clamp: %t [C]",
+			imgIndex+1, len(ctx.Images), motion, softEdge, flags.Has(Clamp),
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}

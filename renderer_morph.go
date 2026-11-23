@@ -101,15 +101,19 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // Smooth position animation requires sufficiently large thickness and softEdge.
 // Animating either value alongside position can still cause stuttering.
 //
+// Supported flags: [Clamp], which prevents erosion from starting at the
+// source borders.
+//
 // Only the mask's alpha is used; colors are taken from the renderer.
-func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
+func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
+	clampBorders := r.readOptInFlag(Clamp, flags...)
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 	softEdge = min(warnZeroNegativeValue(r, softEdge), thickness)
-	r.setFlatCustomVAs01(thickness, softEdge)
+	r.setFlatCustomVAs(thickness, softEdge, mapBool[float32](clampBorders == Clamp, 0, 1), 0)
 	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
 }
 
@@ -127,12 +131,16 @@ func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy
 // outlines. A zero value gives the sharpest result; neighboring pixels still
 // enter the outline gradually to reduce flicker during subpixel motion.
 //
+// Supported flags: [Clamp], which prevents outlines along the mask borders.
+// With Clamp, nothing is drawn outside the mask area.
+//
 // Only the mask's alpha is used; colors are taken from the renderer.
-func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
+func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
 		return
 	}
+	clampBorders := r.readOptInFlag(Clamp, flags...)
 	if thickness < -8 || thickness > 16 {
 		r.Warnings.report(WarnThicknessClamped, thickness)
 		thickness = clamp(thickness, -8, 16)
@@ -146,9 +154,9 @@ func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy
 		return
 	}
 
-	r.setFlatCustomVAs01(thickness, softEdge)
+	r.setFlatCustomVAs(thickness, softEdge, mapBool[float32](clampBorders == Clamp, 0, 1), 0)
 	margin := float32(0)
-	if thickness > 0 {
+	if thickness > 0 && clampBorders != Clamp { // see Clamp docs above
 		margin = morphDistance + morphOutlineExtraReach + morphMarginEpsilon
 	}
 	r.DrawImgShader(target, mask, ox, oy, NewMargins(margin, margin), RegionExact, shaderMorphOutline.Load())
@@ -285,7 +293,7 @@ func (r *Renderer) JFMapFill(jfmap, source *ebiten.Image, maxDistance int, minAl
 	}
 
 	r.setFlatCustomVAs01(minAlpha, maxAlpha)
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitFill.Load())
+	r.jfmInit(jfmap, source, maxDistance, 0, shaderJFMInitFill.Load())
 }
 
 // BoundaryMode is a parameter type for [Renderer.JFMapBoundary]().
@@ -300,6 +308,11 @@ type BoundaryMode struct {
 	//
 	// Notice: this flag can behave unintuitively when combined with Outer.
 	Clamp bool
+
+	// Inset shrinks the area considered for boundary detection. Distances are
+	// computed across the full map, but Clamp is applied at the borders of the
+	// remaining area. Inset is given in pixels per side; can't be negative.
+	Inset int
 }
 
 // JFMapBoundary computes a jumping flood map of the given source image and
@@ -331,19 +344,35 @@ func (r *Renderer) JFMapBoundary(jfmap, source *ebiten.Image, maxDistance int, m
 		return
 	}
 
+	inset := warnZeroNegativeValue(r, mode.Inset)
+	if sw, sh := rectSize(source.Bounds()); 2*inset >= min(sw, sh) {
+		jfmap.Fill(color.RGBA{255, 255, 255, 255}) // no area left, so no seeds
+		return
+	}
+
 	outer := mapBool[float32](mode.Outer, 0, 1)
 	extend := mapBool[float32](mode.Clamp, 0, 1)
 	r.setFlatCustomVAs(minAlpha, maxAlpha, outer, extend)
-	r.jfmInit(jfmap, source, maxDistance, shaderJFMInitBoundary.Load())
+	r.jfmInit(jfmap, source, maxDistance, inset, shaderJFMInitBoundary.Load())
 }
 
 // helper for JFMapFill and JFMapBoundary. init shader vertex attributes must
 // have already been set. uses internal offscreen (#0).
-func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance int, initShader *ebiten.Shader) {
-	ox, oy, sw, sh := rectOriginSizeF32(source.Bounds())
-	seeds, _ := r.getTemp(0, int(sw), int(sh), false)
-	r.setDstRectCoords(0, 0, sw, sh)
-	r.setSrcRectCoords(ox, oy, ox+sw, oy+sh)
+//
+// inset trims that many pixels from each side of source before running the
+// init shader. The trimmed pixels get no seeds, and the shader only sees the
+// remaining area, so clamping happens at its borders (see BoundaryMode.Inset).
+func (r *Renderer) jfmInit(jfmap, source *ebiten.Image, maxDistance, inset int, initShader *ebiten.Shader) {
+	sw, sh := rectSize(source.Bounds())
+	seeds, _ := r.getTemp(0, sw, sh, false)
+	if inset > 0 {
+		seeds.Fill(color.White) // no seeds
+		source = source.SubImage(source.Bounds().Inset(inset)).(*ebiten.Image)
+	}
+	ox, oy, iw, ih := rectOriginSizeF32(source.Bounds())
+	fi := float32(inset)
+	r.setDstRectCoords(fi, fi, fi+iw, fi+ih)
+	r.setSrcRectCoords(ox, oy, ox+iw, oy+ih)
 
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
@@ -371,18 +400,26 @@ func (r *Renderer) JFMHeat(target, jfmap *ebiten.Image, ox, oy float32, maxDista
 //   - source and jfmap must be the same size.
 //   - outlineMode should be set to true when using boundary maps. It adjusts
 //     the internal alpha calculations to be relative to the source alpha.
-//   - smooth can be set to true to sample a 3x3 area for higher morphological
-//     accuracy.
 //   - If jfmap is nil, it is generated using [Renderer.JFMapFill]() or
 //     [Renderer.JFMapBoundary]() (based on outlineMode) with [0.001, 1.0]
 //     alpha interval (all non-transparent pixels are seeds). This uses
 //     internal offscreens (#0, #1).
 //
+// Supported flags: [Smoothed], [Clamp]. Smoothed samples a 3x3 area around
+// each pixel to soften jagged edges. Clamp prevents outlines along the source
+// borders (only applies when jfmap = nil and outlineMode = true).
+//
 // Only the source's alpha is used; colors are taken from the renderer.
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
 // See also [Renderer.MorphExpansion]().
-func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32, outlineMode bool, smooth bool) {
+func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distance float32, outlineMode bool, flags ...Flag) {
+	smoothed, clampBorders := r.readOptInFlagPair(Smoothed, Clamp, flags...)
+	smooth := smoothed == Smoothed
+	if clampBorders == Clamp && (!outlineMode || jfmap != nil) {
+		r.Warnings.report(WarnIncompatibleFlag, clampBorders)
+		clampBorders = noFlag
+	}
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
 		distance = 32000
@@ -394,7 +431,13 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 		jfmapMaxDist := ceilF32(distance)
 		source, jfmap = r.UnsafeTempDual(1, source, int(jfmapMaxDist), false)
 		if outlineMode {
-			r.JFMapBoundary(jfmap, source, int(jfmapMaxDist), 0.001, 1.0, BoundaryMode{})
+			// with Clamp, the inset skips the padding so that clamping happens
+			// at the original borders
+			var mode BoundaryMode
+			if clampBorders == Clamp {
+				mode = BoundaryMode{Clamp: true, Inset: int(jfmapMaxDist)}
+			}
+			r.JFMapBoundary(jfmap, source, int(jfmapMaxDist), 0.001, 1.0, mode)
 		} else {
 			r.JFMapFill(jfmap, source, int(jfmapMaxDist), 0.001, 1.0)
 		}
@@ -426,17 +469,19 @@ func (r *Renderer) JFMExpand(target, source, jfmap *ebiten.Image, ox, oy, distan
 // the given target.
 //   - distance must be in [0, 32k].
 //   - source and jfmap must be the same size.
-//   - smooth can be set to true to sample a 3x3 area for higher morphological
-//     accuracy.
 //   - If jfmap is nil, it is generated using [Renderer.JFMapFill]() with the
-//     alpha interval [0.0, 0.001]. This uses internal offscreens (#0, #1). The
-//     area outside source is not considered transparent, so shapes touching the
-//     source edges are not eroded from those edges.
+//     alpha interval [0.0, 0.001]. This uses internal offscreens (#0, #1).
+//
+// Supported flags: [Smoothed], [Clamp]. Smoothed samples a 3x3 area around
+// each pixel to soften jagged edges. Clamp prevents erosion from starting at
+// the source borders.
 //
 // This operation is affected by [Renderer.Tint].
 //
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]().
-func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32, smooth bool) {
+func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distance float32, flags ...Flag) {
+	smoothed, clampBorders := r.readOptInFlagPair(Smoothed, Clamp, flags...)
+	smooth := smoothed == Smoothed
 	if distance > 32000 { // up to 32766 should be technically distinguishable
 		r.Warnings.report(WarnDistanceClamped, distance)
 		distance = 32000
@@ -461,7 +506,7 @@ func (r *Renderer) JFMErode(target, source, jfmap *ebiten.Image, ox, oy, distanc
 	}
 
 	r.opts.Images[1] = jfmap
-	r.setFlatCustomVAs01(distance, r.tint)
+	r.setFlatCustomVAs(distance, r.tint, mapBool[float32](clampBorders == Clamp, 0, 1), 0)
 	r.DrawImgShader(target, source, ox, oy, NoMargins, RegionExact, shaderJFMErosion.Load())
 	r.opts.Images[1] = nil
 

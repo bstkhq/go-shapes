@@ -433,47 +433,30 @@ func blendOnlyAffectsNonZeroSourceArea(blend ebiten.Blend) bool {
 
 // read Bilinear and Dithered flags
 func (r *Renderer) readRenderFlags(flags ...Flag) (bilinear, dither bool) {
-	for _, flag := range flags {
-		switch flag {
-		case Bilinear:
-			if bilinear {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			bilinear = true
-		case Dithered:
-			if dither {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			dither = true
-		default:
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-
-	return bilinear, dither
+	bilinearFlag, ditherFlag := r.readOptInFlagPair(Bilinear, Dithered, flags...)
+	return bilinearFlag == Bilinear, ditherFlag == Dithered
 }
 
-// read optional bounding and colorMode flags. if no optional values are
-// provided, the return values will be noFlag and a suitable fallback should
-// be executed
-func (r *Renderer) readBoundingAndColorModeFlags(optInBounding, optInColorMode Flag, flags ...Flag) (bounding Flag, colorMode Flag) {
-	bounding, colorMode = noFlag, noFlag
+// read two independent opt-in flags. absent flags are returned as noFlag,
+// and a suitable fallback should be executed
+func (r *Renderer) readOptInFlagPair(optInA, optInB Flag, flags ...Flag) (a Flag, b Flag) {
+	a, b = noFlag, noFlag
 	for _, flag := range flags {
-		if flag == optInBounding {
-			if bounding != noFlag {
+		if flag == optInA {
+			if a != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			bounding = optInBounding
-		} else if flag == optInColorMode {
-			if colorMode != noFlag {
+			a = optInA
+		} else if flag == optInB {
+			if b != noFlag {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
-			colorMode = optInColorMode
+			b = optInB
 		} else {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
-	return bounding, colorMode
+	return a, b
 }
 
 func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) (optIn Flag) {

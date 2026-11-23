@@ -171,6 +171,16 @@ const (
 	// Dithering in this package is often implemented with blue noise textures.
 	Dithered
 
+	// Apply extra smoothing.
+	//
+	// The exact technique depends on the operation, but it generally samples a
+	// wider area around each pixel to soften jagged results, at the cost of
+	// extra work.
+	Smoothed
+
+	// Clamps sample requests outside bounds to the source's border.
+	Clamp
+
 	// Use axis-aligned bounding box geometry.
 	//
 	// The are three main use-cases to choose AABB when the default is already
@@ -199,8 +209,6 @@ const (
 	// The exact interpretation depends on the primitive.
 	ColorIntrinsic
 
-	// TODO: Approx could be useful in some cases for cheaper, faster alternatives?
-
 	// sentinel
 	numFlags
 )
@@ -211,6 +219,10 @@ func (f Flag) String() string {
 		return "Bilinear"
 	case Dithered:
 		return "Dithered"
+	case Smoothed:
+		return "Smoothed"
+	case Clamp:
+		return "Clamp"
 	case AABB:
 		return "AABB"
 	case Hull:

@@ -177,7 +177,7 @@ func (r *Renderer) StrokeLine(target *ebiten.Image, origin, end PointF32, thickn
 		return
 	}
 
-	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	bounding, colorMode := r.readOptInFlagPair(AABB, ColorAABB, flags...)
 	if bounding == AABB {
 		r.strokeAABBLine(target, shaderLine.Load(), origin, end, thickness, 0)
 	} else {
@@ -210,7 +210,7 @@ func (r *Renderer) StrokeLineSoft(target *ebiten.Image, origin, end PointF32, th
 	}
 
 	r.opts.Uniforms["BlurRadius"] = abs(softEdge)
-	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	bounding, colorMode := r.readOptInFlagPair(AABB, ColorAABB, flags...)
 	if bounding == AABB {
 		r.strokeAABBLine(target, shader, origin, end, thickness, softEdge)
 	} else {
@@ -381,7 +381,7 @@ func (r *Renderer) StrokeRect(target *ebiten.Image, ox, oy, w, h, inThickness, o
 		oy -= h
 	}
 
-	boundingMode, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorIntrinsic, flags...)
+	boundingMode, colorMode := r.readOptInFlagPair(AABB, ColorIntrinsic, flags...)
 	if boundingMode == noFlag {
 		boundingMode = Hull
 	}
@@ -509,7 +509,7 @@ func strokeRectHoleHalfSize(w, h, inThickness, rounding float32) (halfW, halfH f
 // default hull bounds, ColorAABB can't match rect colors very well and should
 // only be used for artistic purposes, not expecting behavior parity with AABB.
 func (r *Renderer) FillTriangle(target *ebiten.Image, points [3]PointF32, rounding float32, flags ...Flag) {
-	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	bounding, colorMode := r.readOptInFlagPair(AABB, ColorAABB, flags...)
 	r.drawTriangle(target, points, 0.0, rounding, bounding, colorMode)
 }
 
@@ -524,7 +524,7 @@ func (r *Renderer) StrokeTriangle(target *ebiten.Image, points [3]PointF32, thic
 	if thickness == 0 {
 		return
 	}
-	bounding, colorMode := r.readBoundingAndColorModeFlags(AABB, ColorAABB, flags...)
+	bounding, colorMode := r.readOptInFlagPair(AABB, ColorAABB, flags...)
 	r.drawTriangle(target, points, thickness, rounding, bounding, colorMode)
 }
 
