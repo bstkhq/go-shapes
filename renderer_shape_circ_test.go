@@ -344,7 +344,7 @@ func TestFillRadialSectorRounding(t *testing.T) {
 		w, h := rectSizeF32(canvas.Bounds())
 		cx, cy := w/2.0, h/2.0
 
-		endRads := uradsAddCW(startRads, max(aperture+apertureAnim, 0))
+		endRads := startRads + clamp(aperture+apertureAnim, 0, 2.0*math.Pi)
 		if ctx.SpacePressed {
 			ctx.Renderer.SetColorF32(0.5, 0.5, 0.5, 0.5)
 			ctx.Renderer.FillRadialSector(canvas, cx, cy, inRadius, outRadius, startRads, endRads, 0)
