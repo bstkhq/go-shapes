@@ -25,7 +25,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	firstTexel := ceil(lowerBound-vec2(ScanEpsilon)) - vec2(1)
 	lastTexel := floor(upperBound + vec2(ScanEpsilon))
 
-	// dilation must preserve the original alpha
+	// expansion must preserve the original alpha
 	alpha := imageSrc0At(sourceCoords).a
 
 	// scan consecutive texel indices to keep the sampling grid regular.

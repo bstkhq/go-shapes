@@ -93,7 +93,7 @@ func TestMorphExpansion(t *testing.T) {
 // go test -run ^TestMorphExpansionRect$ . -count 1
 func TestMorphExpansionRect(t *testing.T) {
 	const Radius = 64.0
-	const Expansion = 16.0
+	const Expansion = 32.0
 
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -550,9 +550,11 @@ func TestJFMExpandSoftMotion(t *testing.T) {
 func TestJFMErode(t *testing.T) {
 	imgIndex := 0
 	motion := false
+	softEdge := float32(0.666)
 
 	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
+		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, 0.666, 16.0, 1.0)
 		if inpututil.IsKeyJustPressed(ebiten.KeyM) {
 			motion = !motion
 		}
@@ -572,17 +574,16 @@ func TestJFMErode(t *testing.T) {
 			r = 6.0
 		}
 
-		ctx.Renderer.MorphErosion(
-			canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r, 0.666,
-		)
+		ctx.Renderer.MorphErosion(canvas, ctx.Images[imgIndex], bw-bw/4-w/2+mx, bh/4-h/2+my, r, softEdge)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw/4-w/2+mx, bh-bh/4-h/2+my, r, false)
 		ctx.Renderer.JFMErode(canvas, ctx.Images[imgIndex], nil, bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, true)
 		ctx.Renderer.SetTint(0)
 
 		ctx.Renderer.SetColor(color.White)
 		info := fmt.Sprintf(
-			"Top-left: source\nTop-right: MorphErosion\nBottom-left: JFMErode\nBottom-right: JFMErode smooth\nShape: %d/%d [Space]\nMovement: %t [M]",
-			imgIndex+1, len(ctx.Images), motion,
+			"Top-left: source\nTop-right: MorphErosion\nBottom-left: JFMErode\nBottom-right: JFMErode smooth\n"+
+				"Shape: %d/%d [Space]\nMovement: %t [M]\nSoftEdge: %.02f [S] (only MorphErosion)",
+			imgIndex+1, len(ctx.Images), motion, softEdge,
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 	}
