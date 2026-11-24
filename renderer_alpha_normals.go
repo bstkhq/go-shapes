@@ -18,7 +18,7 @@ import (
 // of to pixel centers, which can improve the results of jumping flood methods.
 //
 // Even when source has varying opacity, alpha is normalized locally to better
-// estimate boundaries. See shaders/morph/alpha_normals.kage for further
+// estimate boundaries. See shaders/analysis/alpha_normals.kage for further
 // encoding details and limitations.
 //
 // Notice that techniques like gamma correction can slightly skew "pixel

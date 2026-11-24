@@ -47,7 +47,7 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 	// convert the alpha ascent gradient to a normalized alpha descent, and
 	// compute the edge offset from the estimated coverage
 	descent := -normalize(gradient)
-	offset := clamp(edgeOffset(gradient, coverage), -0.75, 0.75)
+	offset := clamp(edgeOffset(descent, coverage), -0.75, 0.75)
 
 	// encode the descent into RG, offset into B, and signal the presence with A = 1
 	return vec4(descent*0.5+0.5, offset/1.5+0.5, 1)
@@ -58,6 +58,9 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 // gradient and the fraction of the pixel's area on the high side. Positive
 // when the center is on the low side.
 //
+// Precondition: direction must be the gradient normalized, and non-zero. Its
+// sign doesn't matter, so the descent direction can be passed directly.
+//
 // By symmetry, the unit gradient g is folded so that gx >= gy >= 0. For a line
 // at distance t from the center along g, the high side is:
 //   - A corner triangle with area (tmax-t)^2 / (2*gx*gy), tmax = (gx+gy)/2,
@@ -67,11 +70,15 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 //
 // Solving each case for t gives the three branches. This matches edgedf() in
 // Gustavson & Strand (2011), "Anti-aliased Euclidean distance transform".
-func edgeOffset(gradient vec2, coverage float) float {
-	if gradient.x == 0 || gradient.y == 0 {
-		return 0.5 - coverage
-	}
-	g := abs(normalize(gradient))
+func edgeOffset(direction vec2, coverage float) float {
+	// the original edgedf() also accepts zero and unnormalized gradients:
+	//   if gradient.x == 0 || gradient.y == 0 {
+	//       return 0.5 - coverage
+	//   }
+	//   g := abs(normalize(gradient))
+	// with the precondition, this isn't needed. axis aligned directions are
+	// still handled exactly by the branches below, as then a1 = 0
+	g := abs(direction)
 	if g.x < g.y {
 		g = g.yx
 	}
