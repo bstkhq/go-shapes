@@ -24,8 +24,15 @@ import (
 // Notice that techniques like gamma correction can slightly skew "pixel
 // coverage" and boundary detection.
 //
+// Supported flags: [Clamp], for sources that continue past their borders.
+// Without it, the area outside the source counts as transparent, so shapes
+// touching the borders get edges along them. With it, reads past the borders
+// take the nearest border pixel instead. Normals passed to operations that
+// use Clamp should also be built with Clamp.
+//
 // See also [Renderer.AlphaNormalsViz]().
-func (r *Renderer) AlphaNormalsCompute(target, source *ebiten.Image) {
+func (r *Renderer) AlphaNormalsCompute(target, source *ebiten.Image, flags ...Flag) {
+	clampBorders := r.readOptInFlag(Clamp, flags...)
 	sx, sy, sw, sh := rectOriginSizeF32(source.Bounds())
 	tx, ty, tw, th := rectOriginSizeF32(target.Bounds())
 	if sw != tw || sh != th {
@@ -34,6 +41,7 @@ func (r *Renderer) AlphaNormalsCompute(target, source *ebiten.Image) {
 
 	r.setDstRectCoords(tx, ty, tx+tw, ty+th)
 	r.setSrcRectCoords(sx, sy, sx+sw, sy+sh)
+	r.setFlatCustomVA0(mapBool[float32](clampBorders == Clamp, 0, 1))
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
 	r.opts.Images[0] = source

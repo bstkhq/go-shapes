@@ -6,7 +6,8 @@ package main
 // the estimated boundary, positive on the low side). Encoded as:
 //   - R, G: descent direction, mapped from [-1, 1] to [0, 1].
 //   - B: boundary offset, mapped from [-0.75, 0.75] to [0, 1].
-//   - A: 1 if the pixel has data, 0 if alpha doesn't change around it.
+//   - A: 1 if the pixel has data, 0 if alpha doesn't change around it or the
+//     direction isn't reliable (see the "unreliable case" block).
 //
 // The boundary is estimated as a straight line crossing the pixel, assuming
 // alpha forms a sharp step softened by antialiasing. See 'coverage' comments.
@@ -14,20 +15,34 @@ package main
 // Precision trap: R and G are stored with 8 bits each, so the decoded direction
 // must be normalized again before use, or distances measured along it drift by
 // up to ~0.5% of their length.
+//
+// Small alpha changes: alpha is stored with 8 bits too, so the smaller the
+// alpha change N around a pixel (hi-lo in 1/255 steps), the more its rounding
+// shows. The direction can be off by up to ~50/N degrees, and the boundary
+// offset by up to ~1/sqrt(N) pixels. The data is written anyway, not dropped,
+// because estimating the boundary without it is worse. For example, jf maps
+// without normals estimate it from the alpha alone, which on faint shapes is
+// off by ~1 px at N = 1, against ~0.34 px with normals.
 
-func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	// reads past the borders are clamped
+	clampBorders := customVAs[0] // 0.0 = false, 1.0 = true
+	inset := clampBorders - 0.5
+	minCoords := imageSrc0Origin() + inset
+	maxCoords := imageSrc0Origin() + imageSrc0Size() - inset
+
 	alpha := imageSrc0At(sourceCoords).a
 
 	// isotropic sobel gradient, pointing towards higher alpha.
 	// this computes the alpha ascent direction
-	tl := imageSrc0At(sourceCoords + vec2(-1, -1)).a
-	tc := imageSrc0At(sourceCoords + vec2(0, -1)).a
-	tr := imageSrc0At(sourceCoords + vec2(1, -1)).a
-	cl := imageSrc0At(sourceCoords + vec2(-1, 0)).a
-	cr := imageSrc0At(sourceCoords + vec2(1, 0)).a
-	bl := imageSrc0At(sourceCoords + vec2(-1, 1)).a
-	bc := imageSrc0At(sourceCoords + vec2(0, 1)).a
-	br := imageSrc0At(sourceCoords + vec2(1, 1)).a
+	tl := imageSrc0At(clamp(sourceCoords+vec2(-1, -1), minCoords, maxCoords)).a
+	tc := imageSrc0At(clamp(sourceCoords+vec2(0, -1), minCoords, maxCoords)).a
+	tr := imageSrc0At(clamp(sourceCoords+vec2(1, -1), minCoords, maxCoords)).a
+	cl := imageSrc0At(clamp(sourceCoords+vec2(-1, 0), minCoords, maxCoords)).a
+	cr := imageSrc0At(clamp(sourceCoords+vec2(1, 0), minCoords, maxCoords)).a
+	bl := imageSrc0At(clamp(sourceCoords+vec2(-1, 1), minCoords, maxCoords)).a
+	bc := imageSrc0At(clamp(sourceCoords+vec2(0, 1), minCoords, maxCoords)).a
+	br := imageSrc0At(clamp(sourceCoords+vec2(1, 1), minCoords, maxCoords)).a
 	const Sqrt2 = 1.41421356
 	gradient := vec2((tr+Sqrt2*cr+br)-(tl+Sqrt2*cl+bl), (bl+Sqrt2*bc+br)-(tl+Sqrt2*tc+tr))
 	if length(gradient) < 0.0001 {
@@ -37,9 +52,8 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 	// if the shape was solid, here we would compute pixel coverage = alpha.
 	// instead, we compute pixel coverage based on the min and max alpha values
 	// in the local 3x3 window we sampled. this can lose precision for very
-	// thin features (up to ~0.3 px for features thinner than ~2 px), but it
-	// generally supports translucent shapes and backgrounds better, and
-	// degrades more gracefully for gradients
+	// thin features (up to ~0.2 px extra error for 1px lines), but it
+	// generally supports translucent shapes and backgrounds better
 	lo := min(min(min(tl, tc), min(tr, cl)), min(min(cr, bl), min(min(bc, br), alpha)))
 	hi := max(max(max(tl, tc), max(tr, cl)), max(max(cr, bl), max(max(bc, br), alpha)))
 	coverage := (alpha - lo) / (hi - lo)
@@ -48,6 +62,20 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, _ vec4) vec4 {
 	// compute the edge offset from the estimated coverage
 	descent := -normalize(gradient)
 	offset := clamp(edgeOffset(descent, coverage), -0.75, 0.75)
+
+	// unreliable case: the pixel is a peak or a dip. Unlike a normal edge,
+	// where the pixel alpha falls within the alpha of its neighbors, for a
+	// very thin line no gradient direction can represent both edges at once.
+	// here, returning no data generally lowers error on readers like jfmap,
+	// where otherwise 1px lines worsen (median ~0.13 px, against ~0.05)
+	const Epsilon = 1.0 / 255.0  // ignores differences from 8-bit rounding
+	step := floor(descent + 0.5) // neighbor in the descent direction, rounded
+	// next fetches should hit texture cache
+	loSide := imageSrc0At(clamp(sourceCoords+step, minCoords, maxCoords)).a
+	hiSide := imageSrc0At(clamp(sourceCoords-step, minCoords, maxCoords)).a
+	if alpha > hiSide+Epsilon || alpha < loSide-Epsilon {
+		return vec4(0)
+	}
 
 	// encode the descent into RG, offset into B, and signal the presence with A = 1
 	return vec4(descent*0.5+0.5, offset/1.5+0.5, 1)
