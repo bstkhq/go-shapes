@@ -452,7 +452,7 @@ func (r *Renderer) readOptInFlagPair(optInA, optInB Flag, flags ...Flag) (a Flag
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
 			b = optInB
-		} else {
+		} else if flag != noFlag {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
@@ -467,7 +467,7 @@ func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) (optIn Flag) {
 				r.Warnings.report(WarnRepeatedFlag, flag)
 			}
 			optIn = optInFlag
-		} else {
+		} else if flag != noFlag {
 			r.Warnings.report(WarnInvalidFlag, flag)
 		}
 	}
