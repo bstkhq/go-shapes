@@ -136,6 +136,36 @@ func TestAlphaNormalsCompute(t *testing.T) {
 			`,
 		},
 		{
+			// an edge where alpha changes by 3 steps, too little for data
+			name:  "change of 3",
+			clamp: true,
+			source: `
+				000 000 003 003
+				000 000 003 003
+				000 000 003 003
+			`,
+			want: `
+				none none none none
+				none none none none
+				none none none none
+			`,
+		},
+		{
+			// the same edge changing by 4 steps, the smallest change with data
+			name:  "change of 4",
+			clamp: true,
+			source: `
+				000 000 004 004
+				000 000 004 004
+				000 000 004 004
+			`,
+			want: `
+				none -1,0,0.5 -1,0,-0.5 none
+				none -1,0,0.5 -1,0,-0.5 none
+				none -1,0,0.5 -1,0,-0.5 none
+			`,
+		},
+		{
 			// without Clamp, the area outside counts as transparent, so the
 			// borders are edges
 			name:  "opaque",

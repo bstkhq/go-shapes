@@ -6,8 +6,9 @@ package main
 // the estimated boundary, positive on the low side). Encoded as:
 //   - R, G: descent direction, mapped from [-1, 1] to [0, 1].
 //   - B: boundary offset, mapped from [-0.75, 0.75] to [0, 1].
-//   - A: 1 if the pixel has data, 0 if alpha doesn't change around it or the
-//     direction isn't reliable (see the "unreliable case" block).
+//   - A: 1 if the pixel has data, 0 if alpha changes too little around it
+//     (see "small alpha changes") or the direction isn't reliable (see the
+//     "unreliable case" block).
 //
 // The boundary is estimated as a straight line crossing the pixel, assuming
 // alpha forms a sharp step softened by antialiasing. See 'coverage' comments.
@@ -19,10 +20,11 @@ package main
 // Small alpha changes: alpha is stored with 8 bits too, so the smaller the
 // alpha change N around a pixel (hi-lo in 1/255 steps), the more its rounding
 // shows. The direction can be off by up to ~50/N degrees, and the boundary
-// offset by up to ~1/sqrt(N) pixels. The data is written anyway, not dropped,
-// because estimating the boundary without it is worse. For example, jf maps
-// without normals estimate it from the alpha alone, which on faint shapes is
-// off by ~1 px at N = 1, against ~0.34 px with normals.
+// offset by up to ~1/sqrt(N) pixels. On faint shapes with sharp edges, that's
+// still better than estimating the boundary from the alpha alone, like jf maps
+// do without normals. On smooth fades, though, the errors change from pixel to
+// pixel, and leave holes in jf map expansions and outlines. Pixels where alpha
+// changes by 3 steps or less get no data, to avoid them.
 
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	// reads past the borders are clamped
@@ -56,6 +58,10 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	// generally supports translucent shapes and backgrounds better
 	lo := min(min(min(tl, tc), min(tr, cl)), min(min(cr, bl), min(min(bc, br), alpha)))
 	hi := max(max(max(tl, tc), max(tr, cl)), max(max(cr, bl), max(max(bc, br), alpha)))
+	// small alpha changes (see the header)
+	if hi-lo < 0.0128 { // 3/255 + epsilon
+		return vec4(0)
+	}
 	coverage := (alpha - lo) / (hi - lo)
 
 	// convert the alpha ascent gradient to a normalized alpha descent, and
