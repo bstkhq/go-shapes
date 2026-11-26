@@ -8,15 +8,15 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	size := customVAs.zw
 
 	p := (targetCoords.xy - imageDstOrigin()) - origin - size/2
-	dist := distanceToRoundedRect(p, size.x, size.y, Rounding)
+	dist := distanceToRectWithRounding(p, size.x, size.y, Rounding)
 	alpha := 1.0 - smoothstep(-1.333, 0, dist)
 	alpha = pow(alpha, 1.0/2.2)
 	return color * alpha
 }
 
-func distanceToRoundedRect(coords vec2, width, height, radius float) float {
-	th := min(0, radius*2)
-	return distanceToRect(coords, width+th, height+th) - abs(radius)
+func distanceToRectWithRounding(coords vec2, width, height, rounding float) float {
+	th := min(0, rounding*2)
+	return distanceToRect(coords, width+th, height+th) - abs(rounding)
 }
 
 func distanceToRect(coords vec2, width, height float) float {

@@ -37,7 +37,7 @@ func Fragment(targetCoords vec4, _ vec2, _ vec4, customVAs vec4) vec4 {
 	coords.x += (srcSize.x - samplingWidth) / 2.0
 
 	if ExtraTaps == 0 {
-		return bilinearSampling0(coords)
+		return srcBilinear0(coords)
 	}
 
 	// One pixel along the arc covers more of the source strip near the inner
@@ -56,14 +56,14 @@ func Fragment(targetCoords vec4, _ vec2, _ vec4, customVAs vec4) vec4 {
 		if i >= taps {
 			break
 		}
-		sum += bilinearSampling0(coords + offset)
+		sum += srcBilinear0(coords + offset)
 		offset.x += spacing
 	}
 	return sum / float(taps)
 }
 
-func bilinearSampling0(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+func srcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -71,7 +71,7 @@ func bilinearSampling0(coords vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex

@@ -17,7 +17,7 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 	relCoords := targetCoords.xy - imageDstOrigin()
 	relCenterCoords := relCoords - center
 
-	p := rotate(relCenterCoords, -centerDir)
+	p := rotatePoint(relCenterCoords, -centerDir)
 	dist := sdfCircSector(p, WedgeNormal, InRadius, outRadius, Rounding)
 	alpha := 1.0 - smoothstep(-AAMargin, 0.0, dist)
 	return color * pow(alpha, 1.0/2.2)
@@ -39,7 +39,7 @@ func sdfCircSector(pos vec2, wedgeNormal vec2, inRadius, outRadius, rounding flo
 	return max(l, m) - inRounding - outRounding
 }
 
-func rotate(p vec2, rads float) vec2 {
-	cosR, sinR := cos(rads), sin(rads)
-	return vec2(p.x*cosR-p.y*sinR, p.x*sinR+p.y*cosR)
+func rotatePoint(p vec2, rads float) vec2 {
+	rc, rs := cos(rads), sin(rads)
+	return vec2(p.x*rc-p.y*rs, p.x*rs+p.y*rc)
 }

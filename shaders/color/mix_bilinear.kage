@@ -7,9 +7,9 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	alpha := customVAs[0]
 	mixLevel := customVAs[1]
 
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(sourceCoords)
-	srcColorA := bilinearSampling0(loPixIndex, hiPixIndex, blend)
-	srcColorB := bilinearSampling1(loPixIndex, hiPixIndex, blend)
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(sourceCoords)
+	srcColorA := rawBilinear0(loPixIndex, hiPixIndex, blend)
+	srcColorB := rawBilinear1(loPixIndex, hiPixIndex, blend)
 
 	// mixing
 	out := mix(srcColorA, srcColorB, mixLevel) * alpha
@@ -24,7 +24,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	return out
 }
 
-func bilinearSampling0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+func rawBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -32,7 +32,7 @@ func bilinearSampling0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearSampling1(loPixIndex, hiPixIndex, blend vec2) vec4 {
+func rawBilinear1(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	tl := imageSrc1At(loPixIndex)
 	tr := imageSrc1At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc1At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -40,7 +40,7 @@ func bilinearSampling1(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex

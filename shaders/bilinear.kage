@@ -6,12 +6,12 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	dstPixSize := customVAs.xy
 	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(sourceCoords, min(dstPixSize, vec2(1)))
 	if customVAs.z == 1.0 {
-		return clampedBilinear0(loPixIndex, hiPixIndex, blend)
+		return clampedRawBilinear0(loPixIndex, hiPixIndex, blend)
 	}
-	return bilinearSampling0(loPixIndex, hiPixIndex, blend)
+	return rawBilinear0(loPixIndex, hiPixIndex, blend)
 }
 
-func clampedBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+func clampedRawBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	loPixIndex, hiPixIndex = clampSourcePixelIndices(loPixIndex, hiPixIndex)
 	tl := imageSrc0UnsafeAt(loPixIndex)
 	tr := imageSrc0UnsafeAt(vec2(hiPixIndex.x, loPixIndex.y))
@@ -20,7 +20,7 @@ func clampedBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearSampling0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+func rawBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))

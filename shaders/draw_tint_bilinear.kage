@@ -7,7 +7,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	tint := customVAs[0]
 	alpha := customVAs[1]
 
-	out := bilinearSampling0(sourceCoords)
+	out := srcBilinear0(sourceCoords)
 	out = mix(out, color*out.a, tint) * alpha
 
 	if Dither == 1 {
@@ -20,8 +20,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	return out
 }
 
-func bilinearSampling0(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+func srcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -29,7 +29,7 @@ func bilinearSampling0(coords vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex

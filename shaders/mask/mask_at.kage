@@ -10,8 +10,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	var srcColor vec4
 	var maskAlpha float
 	if Bilinear == 1 {
-		srcColor = bilinearSampling0(sourceCoords)
-		maskAlpha = bilinearSampling1(sourceCoords + maskOffset).a
+		srcColor = srcBilinear0(sourceCoords)
+		maskAlpha = srcBilinear1(sourceCoords + maskOffset).a
 	} else {
 		srcColor = imageSrc0UnsafeAt(sourceCoords)
 		// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865
@@ -29,8 +29,8 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	return out
 }
 
-func bilinearSampling0(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+func srcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -38,8 +38,8 @@ func bilinearSampling0(coords vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearSampling1(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+func srcBilinear1(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
 	tl := imageSrc1At(loPixIndex)
 	tr := imageSrc1At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc1At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -47,7 +47,7 @@ func bilinearSampling1(coords vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex

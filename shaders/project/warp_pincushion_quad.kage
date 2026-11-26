@@ -33,7 +33,7 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	normSourceCoords = origSourceCoords + vec2(0.5)
 
 	finalCoords := normSourceCoords*imageSrc0Size() + imageSrc0Origin()
-	return bilinearSampling0(finalCoords)
+	return srcBilinear0(finalCoords)
 }
 
 func easeOutQuad(v vec2) vec2 {
@@ -41,8 +41,8 @@ func easeOutQuad(v vec2) vec2 {
 	return vec2(1.0) - omv*omv
 }
 
-func bilinearSampling0(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
+func srcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
 	tl := imageSrc0At(loPixIndex)
 	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
 	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
@@ -50,7 +50,7 @@ func bilinearSampling0(coords vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex

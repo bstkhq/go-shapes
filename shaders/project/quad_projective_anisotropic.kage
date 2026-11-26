@@ -26,8 +26,8 @@ func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
 		c1 = clampedDstBilinear0(texPos-offset, filterWidth)
 		c2 = clampedDstBilinear0(texPos+offset, filterWidth)
 	} else {
-		c1 = clampedBilinear0(texPos - offset)
-		c2 = clampedBilinear0(texPos + offset)
+		c1 = clampedSrcBilinear0(texPos - offset)
+		c2 = clampedSrcBilinear0(texPos + offset)
 	}
 	out := (c1 + c2) * 0.5
 	return mix(out, color*out, customVAs[0])
@@ -51,17 +51,17 @@ func majorAxis(dx, dy vec2) vec2 {
 	return (dx*v.x + dy*v.y) * inversesqrt(vv)
 }
 
-func clampedBilinear0(coords vec2) vec4 {
-	loPixIndex, hiPixIndex, blend := bilinearIndicesAndBlend(coords)
-	return sampleBilinear0(loPixIndex, hiPixIndex, blend)
+func clampedSrcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
+	return clampedRawBilinear0(loPixIndex, hiPixIndex, blend)
 }
 
 func clampedDstBilinear0(coords, filterWidth vec2) vec4 {
 	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, filterWidth)
-	return sampleBilinear0(loPixIndex, hiPixIndex, blend)
+	return clampedRawBilinear0(loPixIndex, hiPixIndex, blend)
 }
 
-func sampleBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+func clampedRawBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	loPixIndex, hiPixIndex = clampSourcePixelIndices(loPixIndex, hiPixIndex)
 	tl := imageSrc0UnsafeAt(loPixIndex)
 	tr := imageSrc0UnsafeAt(vec2(hiPixIndex.x, loPixIndex.y))
@@ -70,7 +70,7 @@ func sampleBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
 	return bilinearMix(tl, tr, bl, br, blend)
 }
 
-func bilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
 	lower := coords - vec2(0.5)
 	loPixIndex := floor(lower)
 	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
