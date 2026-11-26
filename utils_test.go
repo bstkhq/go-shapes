@@ -6,6 +6,9 @@ import (
 	"image/color"
 	"math"
 	"math/rand/v2"
+	"regexp"
+	"strings"
+	"testing"
 
 	"github.com/bstkhq/go-shapes/internal/pixcheck"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -120,6 +123,47 @@ func padded(img *ebiten.Image, padding int) *ebiten.Image {
 	opts.GeoM.Translate(float64(padding), float64(padding))
 	out.DrawImage(img, &opts)
 	return out
+}
+
+// namedShader is a shader source with a name for test messages.
+type namedShader struct {
+	name string
+	src  []byte
+}
+
+// checkSharedShaderFuncs checks that each of the given functions is defined in
+// all the given shaders, and is the same as in the first one. Comments,
+// whitespace and image indices are ignored, as copies can leave out comments
+// and bind their images in a different order.
+func checkSharedShaderFuncs(t *testing.T, shaders []namedShader, funcs ...string) {
+	t.Helper()
+	for _, name := range funcs {
+		reference, found := shaderFunc(shaders[0].src, name)
+		if !found {
+			t.Errorf("%s isn't defined in %s", name, shaders[0].name)
+			continue
+		}
+		for _, shader := range shaders[1:] {
+			code, found := shaderFunc(shader.src, name)
+			if !found {
+				t.Errorf("%s isn't defined in %s", name, shader.name)
+			} else if code != reference {
+				t.Errorf("%s in %s isn't the same as in %s", name, shader.name, shaders[0].name)
+			}
+		}
+	}
+}
+
+// shaderFunc returns the code of the named function in a shader source, without
+// comments, whitespace or image indices, for checkSharedShaderFuncs.
+func shaderFunc(src []byte, name string) (string, bool) {
+	code := regexp.MustCompile(`(?ms)^func ` + regexp.QuoteMeta(name) + `\(.*?^}`).Find(src)
+	if code == nil {
+		return "", false
+	}
+	code = regexp.MustCompile(`//[^\n]*`).ReplaceAll(code, nil)
+	code = regexp.MustCompile(`imageSrc\d`).ReplaceAll(code, []byte("imageSrcN"))
+	return strings.Join(strings.Fields(string(code)), " "), true
 }
 
 func setColorsLR(renderer *Renderer, left, right [4]float32) {
