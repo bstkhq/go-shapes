@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
+	"github.com/bstkhq/go-shapes/internal/pixcheck"
 )
 
 // TestExpandShaderAxis covers cases that DrawImgShader's 1:1 readback test
@@ -60,29 +62,32 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4) vec4 {
 }
 `
 
-	shader, err := ebiten.NewShader([]byte(safeCopyShader))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	const SourceOX, SourceOY = 8, 12
-	source := ebiten.NewImageWithOptions(image.Rect(SourceOX, SourceOY, SourceOX+2, SourceOY+2), nil)
-	source.Set(SourceOX+0, SourceOY+0, color.RGBA{255, 0, 0, 255})
-	source.Set(SourceOX+1, SourceOY+0, color.RGBA{0, 255, 0, 255})
-	source.Set(SourceOX+0, SourceOY+1, color.RGBA{0, 0, 255, 255})
-	source.Set(SourceOX+1, SourceOY+1, color.RGBA{255, 255, 255, 255})
+	var got *image.RGBA
+	pixcheck.Run(t, func() {
+		shader, err := ebiten.NewShader([]byte(safeCopyShader))
+		if err != nil {
+			t.Error(err)
+			return
+		}
 
-	target := ebiten.NewImage(10, 3)
-	r := NewRenderer()
-	r.DrawImgShader(target, source, 1.25, 0.25, NoMargins, RegionExact, shader)
-	r.DrawImgShader(target, source, 6.25, 0.25, NoMargins, RegionExpanded, shader)
+		source := ebiten.NewImageWithOptions(image.Rect(SourceOX, SourceOY, SourceOX+2, SourceOY+2), nil)
+		source.Set(SourceOX+0, SourceOY+0, color.RGBA{255, 0, 0, 255})
+		source.Set(SourceOX+1, SourceOY+0, color.RGBA{0, 255, 0, 255})
+		source.Set(SourceOX+0, SourceOY+1, color.RGBA{0, 0, 255, 255})
+		source.Set(SourceOX+1, SourceOY+1, color.RGBA{255, 255, 255, 255})
 
-	readback := NewReadTestApp(target)
-	if err := ebiten.RunGame(readback); err != nil {
-		t.Fatal(err)
+		target := ebiten.NewImage(10, 3)
+		r := NewRenderer()
+		r.DrawImgShader(target, source, 1.25, 0.25, NoMargins, RegionExact, shader)
+		r.DrawImgShader(target, source, 6.25, 0.25, NoMargins, RegionExpanded, shader)
+		got = pixcheck.Read(target)
+	})
+	if got == nil {
+		return
 	}
 
-	expected := image.NewRGBA(target.Bounds())
+	expected := image.NewRGBA(got.Bounds())
 	for _, ox := range []int{1, 6} {
 		expected.SetRGBA(ox+0, 0, color.RGBA{255, 0, 0, 255})
 		expected.SetRGBA(ox+1, 0, color.RGBA{0, 255, 0, 255})
@@ -96,11 +101,11 @@ func Fragment(_ vec4, sourceCoords vec2, _ vec4) vec4 {
 		expected.SetRGBA(x, 2, color.RGBA{255, 0, 255, 255})
 	}
 
-	for y := range target.Bounds().Dy() {
-		for x := range target.Bounds().Dx() {
-			got, want := readback.RGBA.RGBAAt(x, y), expected.RGBAAt(x, y)
-			if got != want {
-				t.Errorf("pixel (%d, %d): got %v, want %v", x, y, got, want)
+	for y := range got.Bounds().Dy() {
+		for x := range got.Bounds().Dx() {
+			gotPixel, wantPixel := got.RGBAAt(x, y), expected.RGBAAt(x, y)
+			if gotPixel != wantPixel {
+				t.Errorf("pixel (%d, %d): got %v, want %v", x, y, gotPixel, wantPixel)
 			}
 		}
 	}
