@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestMap$ . -count 1
+// go test -tags interactive -run ^TestMap$ . -count 1
 func TestMap(t *testing.T) {
 	const CardWidth, CardHeight = 128, 164
 	card := newCardWaver(CardWidth, CardHeight)
@@ -66,12 +68,12 @@ func TestMap(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMapQuad$ . -count 1
+// go test -tags interactive -run ^TestMapQuad$ . -count 1
 func TestMapQuad(t *testing.T) {
 	testMapQuad(t, (*Renderer).MapQuad)
 }
 
-// go test -run ^TestMapQuad4$ . -count 1
+// go test -tags interactive -run ^TestMapQuad4$ . -count 1
 func TestMapQuad4(t *testing.T) {
 	testMapQuad(t, (*Renderer).MapQuad4)
 }
@@ -174,7 +176,7 @@ func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.I
 	}
 }
 
-// go test -run ^TestMapProjectiveStress$ . -count 1
+// go test -tags interactive -run ^TestMapProjectiveStress$ . -count 1
 func TestMapProjectiveStress(t *testing.T) {
 	const CardWidth, CardHeight = 32, 48
 	const NumRows = 9

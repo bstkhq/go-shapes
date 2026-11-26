@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestFlatPaint$ . -count 1
+// go test -tags interactive -run ^TestFlatPaint$ . -count 1
 func TestFlatPaint(t *testing.T) {
 	// NOTICE: FlatPaint was removed in favor of DrawAt
 	updater := func(TestAppCtx) {}
@@ -44,7 +46,7 @@ func TestFlatPaint(t *testing.T) {
 	}
 }
 
-// go test -run ^TestColorizeByLightness$ . -count 1
+// go test -tags interactive -run ^TestColorizeByLightness$ . -count 1
 func TestColorizeByLightness(t *testing.T) {
 	bias := float32(0.0)
 	steps := 7
@@ -104,7 +106,7 @@ func TestColorizeByLightness(t *testing.T) {
 	}
 }
 
-// go test -run ^TestOklabShift$ . -count 1
+// go test -tags interactive -run ^TestOklabShift$ . -count 1
 func TestOklabShift(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -132,7 +134,7 @@ func TestOklabShift(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDitherMat4$ . -count 1
+// go test -tags interactive -run ^TestDitherMat4$ . -count 1
 func TestDitherMat4(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -181,7 +183,7 @@ func combineDitherMat4(a, b [16]float32) [16]float32 {
 	return out
 }
 
-// go test -run ^TestColorMix$ . -count 1
+// go test -tags interactive -run ^TestColorMix$ . -count 1
 func TestColorMix(t *testing.T) {
 	var flags flagList
 	updater := func(ctx TestAppCtx) {

@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestGlow2$ . -count 1
+// go test -tags interactive -run ^TestGlow2$ . -count 1
 func TestGlow2(t *testing.T) {
 	updater := func(ctx TestAppCtx) {
 		if inpututil.IsKeyJustPressed(ebiten.KeyT) {
@@ -58,7 +60,7 @@ func TestGlow2(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyGlowK$ . -count 1
+// go test -tags interactive -run ^TestApplyGlowK$ . -count 1
 func TestApplyGlowK(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -106,7 +108,7 @@ func TestApplyGlowK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyGlowKBleed$ . -count 1
+// go test -tags interactive -run ^TestApplyGlowKBleed$ . -count 1
 // Notice: some bleeding edge cases are quite difficult to reproduce
 // and haven't been able to catch them through tests yet, only live
 // code in more complex projects.
@@ -143,7 +145,7 @@ func TestApplyGlowKBleed(t *testing.T) {
 	}
 }
 
-// go test -run ^TestGlowColorK$ . -count 1
+// go test -tags interactive -run ^TestGlowColorK$ . -count 1
 func TestGlowColorK(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -170,7 +172,7 @@ func TestGlowColorK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestGlowCompare$ . -count 1
+// go test -tags interactive -run ^TestGlowCompare$ . -count 1
 func TestGlowCompare(t *testing.T) {
 	modes := []string{"none", "std", "color", "dark"}
 	mode := 0
@@ -308,7 +310,7 @@ func newCross(r *Renderer, size int) *ebiten.Image {
 	return cross
 }
 
-// go test -run ^TestGlowKCompare$ . -count 1
+// go test -tags interactive -run ^TestGlowKCompare$ . -count 1
 func TestGlowKCompare(t *testing.T) {
 	modes := []string{"glow", "glow-color", "glow-dark", "none"}
 	mode := 0

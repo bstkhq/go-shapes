@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -9,7 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestStudyWaveFuncs$ . -count 1
+// go test -tags interactive -run ^TestStudyWaveFuncs$ . -count 1
 func TestStudyWaveFuncs(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -23,7 +25,7 @@ func TestStudyWaveFuncs(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStudyRadians$ . -count 1
+// go test -tags interactive -run ^TestStudyRadians$ . -count 1
 func TestStudyRadians(t *testing.T) {
 	const PointRadius = 3.5
 	const Dist = 96.0
@@ -47,7 +49,7 @@ func TestStudyRadians(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStudyRotation$ . -count 1
+// go test -tags interactive -run ^TestStudyRotation$ . -count 1
 func TestStudyRotation(t *testing.T) {
 	const CircRadius = 64.0
 	const PointRadius = 3.5
@@ -91,7 +93,7 @@ func TestStudyRotation(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStudyGaussian$ . -count 1
+// go test -tags interactive -run ^TestStudyGaussian$ . -count 1
 func TestStudyGaussian(t *testing.T) {
 	const Radius = 64.0
 	const H = 192.0
@@ -124,7 +126,7 @@ func TestStudyGaussian(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStudyColorInterpolation$ . -count 1
+// go test -tags interactive -run ^TestStudyColorInterpolation$ . -count 1
 func TestStudyColorInterpolation(t *testing.T) {
 	triangles := [][3]PointF32{
 		{PtF32(0.25, 0.25), PtF32(0.75, 0.25), PtF32(0.25, 0.75)},

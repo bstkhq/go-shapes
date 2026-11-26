@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -7,7 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestScale$ . -count 1
+// go test -tags interactive -run ^TestScale$ . -count 1
 func TestScale(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -52,7 +54,7 @@ func TestScale(t *testing.T) {
 	}
 }
 
-// go test -run ^TestScaleFiltering$ . -count 1
+// go test -tags interactive -run ^TestScaleFiltering$ . -count 1
 func TestScaleFiltering(t *testing.T) {
 	const W, H = 192, 128
 	const MinScalePercent, MaxScalePercent = 10, 500

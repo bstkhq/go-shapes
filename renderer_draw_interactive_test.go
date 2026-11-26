@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestDrawAt$ . -count 1
+// go test -tags interactive -run ^TestDrawAt$ . -count 1
 func TestDrawAt(t *testing.T) {
 	var flags flagList
 	updater := func(TestAppCtx) {
@@ -78,7 +80,7 @@ func TestDrawAt(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawImgShader$ . -count 1
+// go test -tags interactive -run ^TestDrawImgShader$ . -count 1
 func TestDrawImgShader(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -135,7 +137,7 @@ func TestDrawImgShader(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDrawCircShader$ . -count 1
+// go test -tags interactive -run ^TestDrawCircShader$ . -count 1
 func TestDrawCircShader(t *testing.T) {
 	var startDegs float32
 	var degs float32 = 360

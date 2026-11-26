@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -12,7 +14,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestBlur$ . -count 1
+// go test -tags interactive -run ^TestBlur$ . -count 1
 func TestBlur(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(16.0)
@@ -41,7 +43,7 @@ func TestBlur(t *testing.T) {
 	}
 }
 
-// go test -run ^TestBlur2$ . -count 1
+// go test -tags interactive -run ^TestBlur2$ . -count 1
 func TestBlur2(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(16.0)
@@ -85,7 +87,7 @@ func TestBlur2(t *testing.T) {
 	}
 }
 
-// go test -run ^TestDirBlur$ . -count 1
+// go test -tags interactive -run ^TestDirBlur$ . -count 1
 func TestDirBlur(t *testing.T) {
 	radius := float32(64.0)
 	fxRadius := float32(24.0)
@@ -132,7 +134,7 @@ func TestDirBlur(t *testing.T) {
 	}
 }
 
-// go test -run ^TestBlurK$ . -count 1
+// go test -tags interactive -run ^TestBlurK$ . -count 1
 func TestBlurK(t *testing.T) {
 	radius := float32(64.0)
 	dscale := DownscaleX4
@@ -188,7 +190,7 @@ func TestBlurK(t *testing.T) {
 	}
 }
 
-// go test -run ^TestBlurKLoop$ . -count 1
+// go test -tags interactive -run ^TestBlurKLoop$ . -count 1
 func TestBlurKLoop(t *testing.T) {
 	const Radius = 64.0
 
@@ -222,7 +224,7 @@ func TestBlurKLoop(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurKBleed$ . -count 1
+// go test -tags interactive -run ^TestApplyBlurKBleed$ . -count 1
 func TestApplyBlurKBleed(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -260,7 +262,7 @@ func TestApplyBlurKBleed(t *testing.T) {
 	}
 }
 
-// go test -run ^TestApplyBlurVogel$ . -count 1
+// go test -tags interactive -run ^TestApplyBlurVogel$ . -count 1
 func TestApplyBlurVogel(t *testing.T) {
 	radius := float32(64.0)
 	sampling := 8
@@ -312,7 +314,7 @@ func TestApplyBlurVogel(t *testing.T) {
 	}
 }
 
-// go test -run ^TestBlurVogelFull$ . -count 1
+// go test -tags interactive -run ^TestBlurVogelFull$ . -count 1
 func TestBlurVogelFull(t *testing.T) {
 	const Sampling = 16
 	const Downscale = DownscaleNone

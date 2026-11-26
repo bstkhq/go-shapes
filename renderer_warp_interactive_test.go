@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestWarpBarrel$ . -count 1
+// go test -tags interactive -run ^TestWarpBarrel$ . -count 1
 func TestWarpBarrel(t *testing.T) {
 	const W, H = 480, 360
 	warp := float32(0.5)
@@ -78,7 +80,7 @@ func warpBarrelTestTiles(r *Renderer, w, h int) ([]*ebiten.Image, []string) {
 	return images, names
 }
 
-// go test -run ^TestWarpArc$ . -count 1
+// go test -tags interactive -run ^TestWarpArc$ . -count 1
 func TestWarpArc(t *testing.T) {
 	const MinRadius, MaxRadius = 40, 330
 	outRadius := float32(96)

@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -9,7 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestHalftoneTri$ . -count 1
+// go test -tags interactive -run ^TestHalftoneTri$ . -count 1
 func TestHalftoneTri(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -48,7 +50,7 @@ func TestHalftoneTri(t *testing.T) {
 // ScanlinesSharp and WaveLines cover the whole target: unlike draws at explicit
 // coords, non-zero target origins (Key0) must not displace their output.
 
-// go test -run ^TestScanlinesSharp . -count 1
+// go test -tags interactive -run ^TestScanlinesSharp$ . -count 1
 func TestScanlinesSharp(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -64,7 +66,7 @@ func TestScanlinesSharp(t *testing.T) {
 	}
 }
 
-// go test -run ^TestWaveLines$ . -count 1
+// go test -tags interactive -run ^TestWaveLines$ . -count 1
 func TestWaveLines(t *testing.T) {
 	const LineThick = 6.0
 

@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestDrawShapes$ . -count 1
+// go test -tags interactive -run ^TestDrawShapes$ . -count 1
 func TestDrawShapes(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -61,7 +63,7 @@ func TestDrawShapes(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeLine$ . -count 1
+// go test -tags interactive -run ^TestStrokeLine$ . -count 1
 func TestStrokeLine(t *testing.T) {
 	var flags flagList
 	var thick float32 = 8.0
@@ -128,7 +130,7 @@ func TestStrokeLine(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeTriangle$ . -count 1
+// go test -tags interactive -run ^TestStrokeTriangle$ . -count 1
 func TestStrokeTriangle(t *testing.T) {
 	var thick float32
 	updater := func(TestAppCtx) {
@@ -171,7 +173,7 @@ func TestStrokeTriangle(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillTriangles$ . -count 1
+// go test -tags interactive -run ^TestFillTriangles$ . -count 1
 func TestFillTriangles(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -263,7 +265,7 @@ func TestFillTriangles(t *testing.T) {
 	}
 }
 
-// go test -run ^TestTriangleHull$ . -count 1
+// go test -tags interactive -run ^TestTriangleHull$ . -count 1
 func TestTriangleHull(t *testing.T) {
 	var drag pointsDragger
 	var triangle [3]PointF32
@@ -343,7 +345,7 @@ func TestTriangleHull(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillHexagons$ . -count 1
+// go test -tags interactive -run ^TestFillHexagons$ . -count 1
 func TestFillHexagons(t *testing.T) {
 	const Pad, MinRadius, MaxRadius = 16, 48, 64
 	const MinApothem = MinRadius * Sqrt3Div2
@@ -435,7 +437,7 @@ func TestFillHexagons(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRect$ . -count 1
+// go test -tags interactive -run ^TestFillRect$ . -count 1
 func TestFillRect(t *testing.T) {
 	var smoothMovement bool
 	updater := func(ctx TestAppCtx) {
@@ -502,7 +504,7 @@ func TestFillRect(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRectPrecise$ . -count 1
+// go test -tags interactive -run ^TestFillRectPrecise$ . -count 1
 func TestFillRectPrecise(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -537,7 +539,7 @@ func TestFillRectPrecise(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeIntRect$ . -count 1
+// go test -tags interactive -run ^TestStrokeIntRect$ . -count 1
 func TestStrokeIntRect(t *testing.T) {
 	var flags flagList
 	colorSets := newTestColorSets(tcsVivid4, tcsPastel4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure))
@@ -590,7 +592,7 @@ func TestStrokeIntRect(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeRect$ . -count 1
+// go test -tags interactive -run ^TestStrokeRect$ . -count 1
 func TestStrokeRect(t *testing.T) {
 	var flags flagList
 	colorSets := newTestColorSets(
@@ -642,7 +644,7 @@ func TestStrokeRect(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeRectAnim$ . -count 1
+// go test -tags interactive -run ^TestStrokeRectAnim$ . -count 1
 func TestStrokeRectAnim(t *testing.T) {
 	var flags flagList
 	updater := func(ctx TestAppCtx) {
@@ -701,7 +703,7 @@ func TestStrokeRectAnim(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRectRounding$ . -count 1
+// go test -tags interactive -run ^TestFillRectRounding$ . -count 1
 func TestFillRectRounding(t *testing.T) {
 	var inThick, outThick float32
 	updater := func(ctx TestAppCtx) {
@@ -729,7 +731,7 @@ func TestFillRectRounding(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillQuad$ . -count 1
+// go test -tags interactive -run ^TestFillQuad$ . -count 1
 func TestFillQuad(t *testing.T) {
 	regions := [][2]PointF32{ // origin and sizes
 		{PtF32(0.0, 0.0), PtF32(0.333, 0.5)},
@@ -800,7 +802,7 @@ func TestFillQuad(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillQuadSoft$ . -count 1
+// go test -tags interactive -run ^TestFillQuadSoft$ . -count 1
 func TestFillQuadSoft(t *testing.T) {
 	const W, H = 128, 64
 	rounding := float32(0)
@@ -867,7 +869,7 @@ func TestFillQuadSoft(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRectSoft$ . -count 1
+// go test -tags interactive -run ^TestFillRectSoft$ . -count 1
 func TestFillRectSoft(t *testing.T) {
 	const (
 		W, H                   = 128, 64

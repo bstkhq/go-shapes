@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestGradient$ . -count 1
+// go test -tags interactive -run ^TestGradient$ . -count 1
 func TestGradient(t *testing.T) {
 	// to appreciate dithering, resize the window or press F11 to go fullscreen
 	var steps float64
@@ -70,7 +72,7 @@ func TestGradient(t *testing.T) {
 	}
 }
 
-// go test -run ^TestGradientRadial$ . -count 1
+// go test -tags interactive -run ^TestGradientRadial$ . -count 1
 func TestGradientRadial(t *testing.T) {
 	// to appreciate dithering, resize the window or press F11 to go fullscreen
 	var steps float64

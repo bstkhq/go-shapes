@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -16,7 +18,7 @@ func setMaskFlagsAndTitle(ctx TestAppCtx, flags *flagList) {
 	flags.UpdateFlag(Dithered, ebiten.KeyD)
 }
 
-// go test -run ^TestMask$ . -count 1
+// go test -tags interactive -run ^TestMask$ . -count 1
 func TestMask(t *testing.T) {
 	var flags flagList
 	smoothMovement := false
@@ -79,7 +81,7 @@ func TestMask(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMaskAt$ . -count 1
+// go test -tags interactive -run ^TestMaskAt$ . -count 1
 func TestMaskAt(t *testing.T) {
 	var flags flagList
 	verticalMotion := false
@@ -130,7 +132,7 @@ func TestMaskAt(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMaskHorz$ . -count 1
+// go test -tags interactive -run ^TestMaskHorz$ . -count 1
 func TestMaskHorz(t *testing.T) {
 	var flags flagList
 	smoothMovement := false
@@ -179,7 +181,7 @@ func TestMaskHorz(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMaskCirc$ . -count 1
+// go test -tags interactive -run ^TestMaskCirc$ . -count 1
 func TestMaskCirc(t *testing.T) {
 	var flags flagList
 	smoothMovement := false
@@ -233,7 +235,7 @@ func TestMaskCirc(t *testing.T) {
 	}
 }
 
-// go test -run ^TestMaskThreshold$ . -count 1
+// go test -tags interactive -run ^TestMaskThreshold$ . -count 1
 func TestMaskThreshold(t *testing.T) {
 	const Size = 256
 
@@ -283,7 +285,7 @@ func TestMaskThreshold(t *testing.T) {
 	}
 }
 
-// go test -run ^TestBakeAlphaMaskRadial$ . -count 1
+// go test -tags interactive -run ^TestBakeAlphaMaskRadial$ . -count 1
 func TestBakeAlphaMaskRadial(t *testing.T) {
 	const (
 		Size             = 256

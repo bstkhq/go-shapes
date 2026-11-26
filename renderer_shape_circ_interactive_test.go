@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -9,7 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestFillCircle$ . -count 1
+// go test -tags interactive -run ^TestFillCircle$ . -count 1
 func TestFillCircle(t *testing.T) {
 	var animatedPos, animatedRadius, killCorner bool
 	var radius float32 = 90.0
@@ -59,7 +61,7 @@ func TestFillCircle(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillCircleSoft$ . -count 1
+// go test -tags interactive -run ^TestFillCircleSoft$ . -count 1
 func TestFillCircleSoft(t *testing.T) {
 	var animatedPos, animatedRadius bool
 	var radius, softEdge float32 = 90.0, 16.0
@@ -119,7 +121,7 @@ func TestFillCircleSoft(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeCircle$ . -count 1
+// go test -tags interactive -run ^TestStrokeCircle$ . -count 1
 func TestStrokeCircle(t *testing.T) {
 	var animatedPos, animatedRadius, animatedThickness bool
 	var radius, thickness float32 = 90.0, 8.0
@@ -174,7 +176,7 @@ func TestStrokeCircle(t *testing.T) {
 	}
 }
 
-// go test -run ^TestStrokeArc$ . -count 1
+// go test -tags interactive -run ^TestStrokeArc$ . -count 1
 func TestStrokeArc(t *testing.T) {
 	var startRads, endRads float64 = 0.2, RadsBottomRight
 	var thickness, radius float32 = 16.0, 96.0
@@ -207,7 +209,7 @@ func TestStrokeArc(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillEllipse$ . -count 1
+// go test -tags interactive -run ^TestFillEllipse$ . -count 1
 func TestFillEllipse(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -233,7 +235,7 @@ func TestFillEllipse(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillCircularSectorInner$ . -count 1
+// go test -tags interactive -run ^TestFillCircularSectorInner$ . -count 1
 func TestFillCircularSectorInner(t *testing.T) {
 	var animRounding, animSpin, debugBounds bool
 	updater := func(ctx TestAppCtx) {
@@ -273,7 +275,7 @@ func TestFillCircularSectorInner(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRadialSector$ . -count 1
+// go test -tags interactive -run ^TestFillRadialSector$ . -count 1
 func TestFillRadialSector(t *testing.T) {
 	updater := func(ctx TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -298,7 +300,7 @@ func TestFillRadialSector(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRadialSectorRounding$ . -count 1
+// go test -tags interactive -run ^TestFillRadialSectorRounding$ . -count 1
 func TestFillRadialSectorRounding(t *testing.T) {
 	var startRads, aperture float64 = 0, math.Pi / 4.0
 	var inRadius, outRadius float32 = 64.0, 128.0
@@ -360,7 +362,7 @@ func TestFillRadialSectorRounding(t *testing.T) {
 	}
 }
 
-// go test -run ^TestFillRadialWedge$ . -count 1
+// go test -tags interactive -run ^TestFillRadialWedge$ . -count 1
 func TestFillRadialWedge(t *testing.T) {
 	var inRate, outRate float64 = 0.2, 0.35
 	var rotate bool = true

@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -11,7 +13,7 @@ import (
 // Tiling functions cover the whole target: unlike draws at explicit coords,
 // non-zero target origins (Key0) must not displace their output.
 
-// go test -run ^TestTileRectsGrid$ . -count 1
+// go test -tags interactive -run ^TestTileRectsGrid$ . -count 1
 func TestTileRectsGrid(t *testing.T) {
 	var xOffset, yOffset float32
 	updater := func(TestAppCtx) {
@@ -34,7 +36,7 @@ func TestTileRectsGrid(t *testing.T) {
 	}
 }
 
-// go test -run ^TestTileDotsHex$ . -count 1
+// go test -tags interactive -run ^TestTileDotsHex$ . -count 1
 func TestTileDotsHex(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -56,7 +58,7 @@ func TestTileDotsHex(t *testing.T) {
 	}
 }
 
-// go test -run ^TestTileDotsGrid$ . -count 1
+// go test -tags interactive -run ^TestTileDotsGrid$ . -count 1
 func TestTileDotsGrid(t *testing.T) {
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -75,7 +77,7 @@ func TestTileDotsGrid(t *testing.T) {
 	}
 }
 
-// go test -run ^TestTileTriUpGrid$ . -count 1
+// go test -tags interactive -run ^TestTileTriUpGrid$ . -count 1
 func TestTileTriUpGrid(t *testing.T) {
 	const inSize = 24
 	updater := func(TestAppCtx) {}
@@ -95,7 +97,7 @@ func TestTileTriUpGrid(t *testing.T) {
 	}
 }
 
-// go test -run ^TestTileTriHex$ . -count 1
+// go test -tags interactive -run ^TestTileTriHex$ . -count 1
 func TestTileTriHex(t *testing.T) {
 	const minInSize = 12
 	const maxInSize = 30

@@ -1,413 +1,810 @@
 package shapes
 
 import (
+	"errors"
 	"fmt"
+	"image"
 	"image/color"
 	"math"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/bstkhq/go-shapes/internal/pixcheck"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestJFMExpand$ . -count 1
-func TestJFMExpand(t *testing.T) {
-	const MaxDist = 16
-	const MapRange = MaxDist + 2 // boundaries can be ~1.5 pixels away from seed centers
-	imgIndex, regionIndex := 0, 0
-	dist := float32(6)
-	motion := false
-	mapNormals, opNormals, animDist := true, true, true
-	cache := newJFMTestCache(MapRange, MapRange)
-
-	updater := func(ctx TestAppCtx) {
-		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		dist = updateParam(ctx, ebiten.KeyD, dist, 0, MaxDist, 1)
-		animDist = updateToggle(ctx, ebiten.KeyA, animDist)
-		motion = updateToggle(ctx, ebiten.KeyM, motion)
-		regionIndex = updateParam(ctx, ebiten.KeyR, regionIndex, 0, len(jfmRegions)-1, 1)
-		mapNormals = updateToggle(ctx, ebiten.KeyJ, mapNormals)
-		opNormals = updateToggle(ctx, ebiten.KeyN, opNormals)
+// Each pixel of a jfmap must point to the seed whose boundary is nearest,
+// measured from inside or outside the region depending on the pixel.
+func TestJFMapCompute(t *testing.T) {
+	// a seed 258 pixels below the top of a 1x260 column, with a max distance
+	// of 257: every pixel points to it except the top one, which is too far
+	longRange := image.NewRGBA(image.Rect(0, 0, 1, 260))
+	for y := range 260 {
+		longRange.SetRGBA(0, y, encodeJFMOffset(image.Pt(0, 258-y)))
 	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-		bw, bh := rectSizeF32(canvas.Bounds())
-		img := ctx.Images[imgIndex]
-		w, h := rectSizeF32(img.Bounds())
-		r := dist
-		if animDist {
-			r = float32(ctx.DistAnim(MaxDist, 1.0))
-		}
-		mx, my := float32(0.0), float32(0.0)
-		if motion {
-			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
-		}
+	longRange.SetRGBA(0, 0, jfmNone)
 
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
-		if imgIndex == 2 {
-			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
-		}
-
-		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
-		ctx.Renderer.MorphExpansion(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, r, 1.333)
-
-		normals := cache.alphaNormals(ctx.Renderer, img, false)
-		region := jfmRegions[regionIndex]
-		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
-		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, false)
-		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ox, oy := bw-bw/4-w/2-MapRange+mx, bh-bh/4-h/2-MapRange+my
-		ctx.Renderer.JFMExpand(canvas, cache.source(img), ox, oy, r, jfmap)
-
-		ctx.Renderer.SetColor(color.White)
-		minAlpha, maxAlpha := jfmRegion(region.minAlpha, region.maxAlpha)
-		controls := fmt.Sprintf(
-			"Shape: %d/%d [Space]\nDistance: %.1f [D], animated: %t [A]\nMovement: %t [M]\n\n"+
-				"(JFM only controls)\nRegion: %s, alpha in [%.3g, %.3g] [R]\n"+
-				"Normals: jfmap %t [J], operation %t [N]",
-			imgIndex+1, len(ctx.Images), r, animDist, motion,
-			region.name, minAlpha, maxAlpha, mapNormals, opNormals,
-		)
-		ctx.Renderer.Text(canvas, controls, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-		panels := "Top-left: source\nTop-right: MorphExpansion\nBottom-right: JFMExpand"
-		ctx.Renderer.Text(canvas, panels, 8, bh-8, TextOpts(1.0, BottomLeft.Snap(Baseline)))
+	cases := []struct {
+		name    string
+		compute func(r *Renderer) *ebiten.Image // returns the jfmap
+		want    *image.RGBA
+	}{
+		{
+			// with Clamp, the rows above and below continue the same, so only
+			// the ends of the shape are seeds: x = 2 (alpha 64, its boundary
+			// 0.25 outside its center) and x = 5 (alpha 255, its boundary 0.5
+			// beyond its center). x = 4 is closer to the boundary at x = 5
+			// (1 + 0.5) than to the one at x = 2 (2 - 0.25). bounds don't
+			// start at (0, 0)
+			name: "row",
+			compute: func(r *Renderer) *ebiten.Image {
+				source := pixcheck.NewImage(pixcheck.ParseAlpha(`
+					000 000 064 255 255 255 000
+				`), image.Pt(8, 8))
+				size := source.Bounds().Size()
+				jfmap := ebiten.NewImageWithOptions(image.Rectangle{Max: size}.Add(image.Pt(16, 16)), nil)
+				r.JFMapCompute(jfmap, source, JFMapComputeOptions{MaxDistance: 8}, Clamp)
+				return jfmap
+			},
+			want: pixcheck.Parse(`
+				2,0 1,0 0,0 -1,0 1,0 0,0 -1,0
+			`, parseJFMOffset),
+		},
+		{
+			// offsets too large to fit in a single byte
+			name: "long range",
+			compute: func(r *Renderer) *ebiten.Image {
+				source := ebiten.NewImage(1, 260)
+				source.Set(0, 258, color.White)
+				jfmap := ebiten.NewImage(1, 260)
+				r.JFMapCompute(jfmap, source, JFMapComputeOptions{MaxDistance: 257})
+				return jfmap
+			},
+			want: longRange,
+		},
 	}
 
-	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	report := pixcheck.Report{FormatPixel: formatJFMOffset}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		for _, c := range cases {
+			report.CompareRGBA(c.name, pixcheck.Read(c.compute(r)), c.want)
+		}
+	})
+	report.Check(t)
 }
 
-// go test -run ^TestJFMOutline$ . -count 1
-func TestJFMOutline(t *testing.T) {
-	const MaxThickness = 16
-	const MaxInnerThickness = 8         // MorphOutline's limit, which fits in MapRange
-	const MapRange = MaxThickness/2 + 2 // boundaries can be ~1.5 pixels away from seed centers
-	imgIndex, regionIndex := 0, 0
-	thickness := float32(6)
-	clampBorders, motion := false, false
-	mapNormals, opNormals := true, true
-	animThickness := 0
-	cache := newJFMTestCache(MapRange, MapRange)
+// ---- TestJFMapCompute helpers ----
 
-	updater := func(ctx TestAppCtx) {
-		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		thickness = updateParam(ctx, ebiten.KeyT, thickness, -float32(MaxInnerThickness), MaxThickness, 1)
-		animThickness = updateParam(ctx, ebiten.KeyA, animThickness, -1, 1, 1)
-		clampBorders = updateToggle(ctx, ebiten.KeyC, clampBorders)
-		motion = updateToggle(ctx, ebiten.KeyM, motion)
-		regionIndex = updateParam(ctx, ebiten.KeyR, regionIndex, 0, len(jfmRegions)-1, 1)
-		mapNormals = updateToggle(ctx, ebiten.KeyJ, mapNormals)
-		opNormals = updateToggle(ctx, ebiten.KeyN, opNormals)
-	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-		bw, bh := rectSizeF32(canvas.Bounds())
-		img := ctx.Images[imgIndex]
-		w, h := rectSizeF32(img.Bounds())
-		th := thickness
-		switch animThickness {
-		case 1:
-			th = float32(ctx.DistAnim(MaxThickness, 1.0))
-		case -1:
-			th = -float32(ctx.DistAnim(MaxInnerThickness, 1.0))
-		}
-		mx, my := float32(0.0), float32(0.0)
-		if motion {
-			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
-		}
+// jfmNone is the value of jfmap pixels without any seed within the maximum
+// distance.
+var jfmNone = color.RGBA{255, 255, 255, 255}
 
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
-		if imgIndex == 2 {
-			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
-		}
-
-		var flags []Flag
-		if clampBorders {
-			flags = append(flags, Clamp)
-		}
-		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
-		ctx.Renderer.MorphOutline(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, th, 0.666, flags...)
-
-		normals := cache.alphaNormals(ctx.Renderer, img, clampBorders)
-		region := jfmRegions[regionIndex]
-		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
-		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, clampBorders)
-		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ox, oy := bw-bw/4-w/2-MapRange+mx, bh-bh/4-h/2-MapRange+my
-		ctx.Renderer.JFMOutline(canvas, cache.source(img), ox, oy, th, jfmap)
-
-		ctx.Renderer.SetColor(color.White)
-		minAlpha, maxAlpha := jfmRegion(region.minAlpha, region.maxAlpha)
-		controls := fmt.Sprintf(
-			"Shape: %d/%d [Space]\nThickness: %.1f [T], animation: %s [A]\nClamp: %t [C]\nMovement: %t [M]\n\n"+
-				"(JFM only controls)\nRegion: %s, alpha in [%.3g, %.3g] [R]\n"+
-				"Normals: jfmap %t [J], operation %t [N]",
-			imgIndex+1, len(ctx.Images), th, []string{"Inner", "Off", "Outer"}[animThickness+1],
-			clampBorders, motion, region.name, minAlpha, maxAlpha, mapNormals, opNormals,
-		)
-		ctx.Renderer.Text(canvas, controls, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-		panels := "Top-left: source\nTop-right: MorphOutline\nBottom-right: JFMOutline"
-		ctx.Renderer.Text(canvas, panels, 8, bh-8, TextOpts(1.0, BottomLeft.Snap(Baseline)))
-	}
-
-	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+// encodeJFMOffset encodes an offset to a seed like jfm_pass.kage does: 16 bits
+// per axis, the highest one for the sign and the rest for the magnitude.
+func encodeJFMOffset(offset image.Point) color.RGBA {
+	x, y := encodeJFMAxis(offset.X), encodeJFMAxis(offset.Y)
+	return color.RGBA{x[0], x[1], y[0], y[1]}
 }
 
-// go test -run ^TestJFMErode$ . -count 1
-func TestJFMErode(t *testing.T) {
-	const MaxDist = 16
-	const MapRange = MaxDist + 2 // boundaries can be ~1.5 pixels away from seed centers
-	imgIndex, regionIndex := 0, 0
-	dist := float32(6)
-	softEdge := float32(0.666)
-	var flags flagList
-	motion, mapNormals, opNormals, animDist := false, true, true, true
-	cache := newJFMTestCache(0, MapRange)
-
-	updater := func(ctx TestAppCtx) {
-		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		softEdge = updateParam(ctx, ebiten.KeyS, softEdge, 0.666, 16.0, 1.0)
-		flags.UpdateFlag(Clamp, ebiten.KeyC)
-		dist = updateParam(ctx, ebiten.KeyD, dist, 0, MaxDist, 1)
-		animDist = updateToggle(ctx, ebiten.KeyA, animDist)
-		motion = updateToggle(ctx, ebiten.KeyM, motion)
-		regionIndex = updateParam(ctx, ebiten.KeyR, regionIndex, 0, len(jfmRegions)-1, 1)
-		mapNormals = updateToggle(ctx, ebiten.KeyJ, mapNormals)
-		opNormals = updateToggle(ctx, ebiten.KeyN, opNormals)
+func encodeJFMAxis(value int) [2]uint8 {
+	var sign uint8
+	if value < 0 {
+		sign, value = 0x80, -value
 	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-		bw, bh := rectSizeF32(canvas.Bounds())
-		img := ctx.Images[imgIndex]
-		w, h := rectSizeF32(img.Bounds())
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
-		r := dist
-		if animDist {
-			r = float32(ctx.DistAnim(MaxDist, 1.0))
-		}
-		mx, my := float32(0.0), float32(0.0)
-		if motion {
-			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
-		}
-		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 0.5)))
-
-		ctx.Renderer.MorphErosion(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, r, softEdge, flags...)
-
-		normals := cache.alphaNormals(ctx.Renderer, img, flags.Has(Clamp))
-		region := jfmRegions[regionIndex]
-		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
-		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, flags.Has(Clamp))
-		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ctx.Renderer.JFMErode(canvas, cache.source(img), bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, jfmap)
-		ctx.Renderer.SetTint(0)
-
-		ctx.Renderer.SetColor(color.White)
-		minAlpha, maxAlpha := jfmRegion(region.minAlpha, region.maxAlpha)
-		controls := fmt.Sprintf(
-			"Shape: %d/%d [Space]\nSoftEdge: %.02f [S] (MorphErosion only)\nClamp: %t [C]\n"+
-				"Distance: %.1f [D], animated: %t [A]\nMovement: %t [M]\n\n"+
-				"(JFM only controls)\nRegion: %s, alpha in [%.3g, %.3g] [R]\n"+
-				"Normals: jfmap %t [J], operation %t [N]",
-			imgIndex+1, len(ctx.Images), softEdge, flags.Has(Clamp), r, animDist, motion,
-			region.name, minAlpha, maxAlpha, mapNormals, opNormals,
-		)
-		ctx.Renderer.Text(canvas, controls, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-		panels := "Top-left: source\nTop-right: MorphErosion\nBottom-right: JFMErode\n" +
-			"Tint animates between source and renderer colors"
-		ctx.Renderer.Text(canvas, panels, 8, bh-8, TextOpts(1.0, BottomLeft.Snap(Baseline)))
-	}
-
-	app := NewTestApp(updater, drawer)
-	app.Images = append(app.Images, jfmShapes(app.Renderer)...)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	return [2]uint8{sign | uint8(value>>8), uint8(value)}
 }
 
-// go test -run ^TestJFMapViews$ . -count 1
-func TestJFMapViews(t *testing.T) {
-	clamp, inside, viz := false, false, false
-	opacity := float32(1.0)
-	updater := func(ctx TestAppCtx) {
-		clamp = updateToggle(ctx, ebiten.KeyC, clamp)
-		inside = updateToggle(ctx, ebiten.KeyI, inside)
-		viz = updateToggle(ctx, ebiten.KeyV, viz)
-		opacity = updateParam(ctx, ebiten.KeyO, opacity, 0.25, 1.0, 0.25)
-	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Clear()
-		px, py := ebiten.CursorPosition()
-		rc := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.White)
-		ctx.Renderer.FillCircle(canvas, float32(px), float32(py), 128.0)
-		ctx.Renderer.FillCircle(canvas, rc.X, rc.Y, 96.0)
+func decodeJFMOffset(pix color.RGBA) image.Point {
+	return image.Pt(decodeJFMAxis(pix.R, pix.G), decodeJFMAxis(pix.B, pix.A))
+}
 
-		if !ctx.SpacePressed {
-			const MaxDist = 128
-			bounds := canvas.Bounds()
-			// the source is read too, so it can't be drawn onto
-			source := ctx.Renderer.UnsafeTempCopy(2, canvas, 0, false)
-			target := ctx.Renderer.UnsafeTemp(1, bounds.Dx(), bounds.Dy(), false)
+func decodeJFMAxis(hi, lo uint8) int {
+	magnitude := int(hi&0x7F)<<8 | int(lo)
+	if hi&0x80 != 0 {
+		return -magnitude
+	}
+	return magnitude
+}
+
+// parseJFMOffset converts an offset written as "x,y", or "none", into a jfmap
+// pixel, for [pixcheck.Parse].
+func parseJFMOffset(text string) (color.RGBA, error) {
+	if text == "none" {
+		return jfmNone, nil
+	}
+	xText, yText, found := strings.Cut(text, ",")
+	x, errX := strconv.Atoi(xText)
+	y, errY := strconv.Atoi(yText)
+	if !found || errX != nil || errY != nil {
+		return color.RGBA{}, errors.New(`expected "x,y" or "none"`)
+	}
+	return encodeJFMOffset(image.Pt(x, y)), nil
+}
+
+// formatJFMOffset is the reverse of [parseJFMOffset], for [pixcheck.Format].
+func formatJFMOffset(pixel color.RGBA) string {
+	if pixel == jfmNone {
+		return "none"
+	}
+	offset := decodeJFMOffset(pixel)
+	return fmt.Sprintf("%d,%d", offset.X, offset.Y)
+}
+
+// ---- TestJFMReadBestSeed ----
+
+// The jfmap reads must give the same result as the best seed of the whole
+// region, found by brute force, for every pixel and region (see jfmRegions).
+// Seeds the map misses would show up as holes, which happened when the map and
+// the reads measured distances differently.
+//
+// Note: the CPU copy uses the same formulas as the shaders, so this checks that
+// the map finds the best seed, not that the formulas are right. For regions
+// whose limits cut through mid alpha, expansions have a known limitation (see
+// TestKnownLimitation_JFMExpandMidAlphaLimits).
+func TestJFMReadBestSeed(t *testing.T) {
+	configs := []jfmBestSeedConfig{
+		{op: jfmOpExpand, normals: false},
+		{op: jfmOpExpand, normals: true},
+		{op: jfmOpErode, normals: false},
+		{op: jfmOpErode, normals: true},
+		{op: jfmOpOutline, normals: false},
+		{op: jfmOpOutline, normals: true},
+		{op: jfmOpOutline, inner: true, normals: false},
+		{op: jfmOpOutline, inner: true, normals: true},
+	}
+	distances := []float32{0.5, 1.75, 3, 4.5}
+
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 2}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		for _, region := range jfmRegions {
+			jfmap := JFMap{MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
+			for _, shape := range []testShape{blobShape, cornerShape, fadeShape, thinShape} {
+				for _, config := range configs {
+					for _, distance := range distances {
+						got, want := readWithBestSeed(r, shape, config, distance, jfmap)
+						label := fmt.Sprintf("%s, %s, %+v, distance %g", region.name, shape.name, config, distance)
+						report.CompareRGBA(label, got, want)
+					}
+				}
+			}
+		}
+	})
+	report.Check(t)
+}
+
+type jfmBestSeedConfig struct {
+	op             int
+	inner, normals bool // inner only applies to outlines
+}
+
+// readWithBestSeed is a helper for TestJFMReadBestSeed. It returns the result
+// of the operation drawn by the renderer (got), with a jfmap generated at draw
+// time for the region of jfmap, and the result computed on the CPU with the
+// best seed for each pixel (want). The results include the area the operations
+// draw around the source, which is the margin of the generated maps:
+// distance + 2 pixels for expansions, and thickness / 2 + 2 for outlines (none
+// for inner outlines).
+func readWithBestSeed(r *Renderer, shape testShape, config jfmBestSeedConfig, distance float32, jfmap JFMap) (got, want *image.RGBA) {
+	source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+	model := jfmModel{jfmap: jfmap, source: shape.img}
+	if config.normals {
+		jfmap.Normals = alphaNormals(r, source)
+		model.normals = pixcheck.Read(jfmap.Normals)
+	}
+
+	amount := mapBool(config.inner, distance, -distance)
+	var pad int
+	switch {
+	case config.op == jfmOpExpand:
+		pad = int(math.Ceil(float64(distance))) + 2
+	case config.op == jfmOpOutline && !config.inner:
+		pad = int(math.Ceil(float64(distance/2))) + 2
+	}
+	w, h := shape.img.Rect.Dx()+2*pad, shape.img.Rect.Dy()+2*pad
+	target := ebiten.NewImage(w, h)
+	switch config.op {
+	case jfmOpExpand:
+		r.JFMExpand(target, source, float32(pad), float32(pad), distance, jfmap)
+	case jfmOpErode:
+		r.JFMErode(target, source, 0, 0, distance, jfmap)
+	case jfmOpOutline:
+		r.JFMOutline(target, source, float32(pad), float32(pad), amount, jfmap)
+	}
+
+	model = model.padded(pad)
+	want = image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			want.SetRGBA(x, y, model.result(config.op, image.Pt(x, y), float64(amount)))
+		}
+	}
+	return pixcheck.Read(target), want
+}
+
+// thinShape has features too thin for alpha normals (lines of 1 and 2 pixels)
+// and faint pixels, where seeds get no normals data.
+var thinShape = testShape{"thin", pixcheck.ParseAlpha(`
+	000 000 000 000 000 000 000 000 000 000
+	000 255 255 255 255 255 255 255 255 000
+	000 000 000 000 000 000 000 000 000 000
+	000 000 012 040 000 000 000 000 000 000
+	000 000 000 000 000 255 128 000 000 000
+	000 000 000 000 000 255 128 000 000 000
+	000 024 000 000 000 255 128 000 000 000
+	000 024 000 000 000 255 128 000 000 000
+	000 000 000 000 000 000 000 000 000 000
+	000 000 000 000 000 000 000 000 000 000
+`)}
+
+// ---- TestJFMGeneratedMap ----
+
+// The jfmap operations must give the same result with a jfmap generated at draw
+// time as with a precomputed one with plenty of range.
+func TestJFMGeneratedMap(t *testing.T) {
+	configs := []jfmGeneratedConfig{
+		{op: jfmOpExpand, clamp: false, normals: false},
+		{op: jfmOpExpand, clamp: false, normals: true},
+		{op: jfmOpErode, clamp: false, normals: false},
+		{op: jfmOpErode, clamp: false, normals: true},
+		{op: jfmOpErode, clamp: true, normals: false},
+		{op: jfmOpErode, clamp: true, normals: true},
+		{op: jfmOpOutline, clamp: false, normals: false},
+		{op: jfmOpOutline, clamp: false, normals: true},
+		{op: jfmOpOutline, clamp: true, normals: false},
+		{op: jfmOpOutline, clamp: true, normals: true},
+		{op: jfmOpOutline, inner: true, clamp: false, normals: false},
+		{op: jfmOpOutline, inner: true, clamp: false, normals: true},
+		{op: jfmOpOutline, inner: true, clamp: true, normals: false},
+		{op: jfmOpOutline, inner: true, clamp: true, normals: true},
+	}
+	distances := []float32{0, 0.5, 1, 1.75, 3, 4.5}
+
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 1}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		// the band is cut by the borders, so that Clamp matters
+		for _, shape := range []testShape{blobShape, bandShape} {
+			for _, config := range configs {
+				for _, distance := range distances {
+					got, want := readWithBothMaps(r, shape, config, distance)
+					report.Compare(fmt.Sprintf("%s, %+v, distance %g", shape.name, config, distance), got, want)
+				}
+			}
+		}
+	})
+	report.Check(t)
+}
+
+type jfmGeneratedConfig struct {
+	op                    int
+	inner, clamp, normals bool // inner only applies to outlines
+}
+
+// readWithBothMaps is a helper for TestJFMGeneratedMap. It draws the
+// operation twice and returns both results: want uses a precomputed jfmap, and
+// got one generated at draw time. Inner outlines with a generated map draw
+// nothing outside the source, so only the source area is returned for them.
+func readWithBothMaps(r *Renderer, shape testShape, config jfmGeneratedConfig, distance float32) (got, want *ebiten.Image) {
+	// generated maps and their padding reach distance + 2, so this is plenty
+	// for both the precomputed map and the margin around the results
+	margin := int(math.Ceil(float64(distance))) + 8
+
+	source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+	w, h := shape.img.Rect.Dx()+2*margin, shape.img.Rect.Dy()+2*margin
+	var flags []Flag
+	if config.clamp {
+		flags = append(flags, Clamp)
+	}
+	var normals, paddedNormals *ebiten.Image
+	if config.normals {
+		normals = alphaNormals(r, source, flags...)
+		paddedNormals = padded(normals, margin)
+	}
+	draw := func(target, source *ebiten.Image, offset float32, jfmap JFMap, flags ...Flag) {
+		switch config.op {
+		case jfmOpExpand:
+			r.JFMExpand(target, source, offset, offset, distance, jfmap)
+		case jfmOpErode:
+			r.JFMErode(target, source, offset, offset, distance, jfmap, flags...)
+		case jfmOpOutline:
+			r.JFMOutline(target, source, offset, offset, mapBool(config.inner, distance, -distance), jfmap, flags...)
+		}
+	}
+
+	// the precomputed map is padded, which works for all the operations. with
+	// Clamp, the inset makes clamping happen at the original borders
+	paddedSource := padded(source, margin)
+	computeOpts := JFMapComputeOptions{MaxDistance: margin, Inset: mapBool(config.clamp, 0, margin), Normals: paddedNormals}
+	precomputed := r.JFMapCompute(ebiten.NewImage(w, h), paddedSource, computeOpts, flags...)
+	want = ebiten.NewImage(w, h)
+	draw(want, paddedSource, 0, precomputed)
+
+	generated := JFMap{Normals: normals}
+	got = ebiten.NewImage(w, h)
+	draw(got, source, float32(margin), generated, flags...)
+	if config.inner {
+		area := shape.img.Rect.Sub(shape.img.Rect.Min).Add(image.Pt(margin, margin))
+		return got.SubImage(area).(*ebiten.Image), want.SubImage(area).(*ebiten.Image)
+	}
+	return got, want
+}
+
+// ---- TestJFMNormalsFallback ----
+
+// Seeds fall back to the estimate from their alpha when they have no normals
+// data, and when their line puts the pixel being measured on the wrong side of
+// the boundary. So normals without any data must give the same results as no
+// normals at all. Normals pointing the wrong way must too when expanding, as
+// all their lines put the pixels on the wrong side. The other operations also
+// measure the pixels that are their own seed, which use their line as is.
+func TestJFMNormalsFallback(t *testing.T) {
+	const Pad, Offset = 8, 8.25 // fractional, to also measure from off-center points
+
+	ops := []struct {
+		name string
+		draw func(r *Renderer, target, source *ebiten.Image, jfmap JFMap)
+	}{
+		{"JFMExpand", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMExpand(target, source, Offset, Offset, 3, jfmap)
+		}},
+		// small amounts make the pixels that are their own seed matter
+		{"JFMErode 0.5", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMErode(target, source, Offset, Offset, 0.5, jfmap)
+		}},
+		{"JFMErode 2.5", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMErode(target, source, Offset, Offset, 2.5, jfmap)
+		}},
+		{"JFMOutline 1", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMOutline(target, source, Offset, Offset, 1, jfmap)
+		}},
+		{"JFMOutline 4", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMOutline(target, source, Offset, Offset, 4, jfmap)
+		}},
+		{"JFMapHeat outside", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMapHeat(target, source, Offset, Offset, 6, false, jfmap)
+		}},
+		{"JFMapHeat inside", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMapHeat(target, source, Offset, Offset, 6, true, jfmap)
+		}},
+		{"JFMapViz", func(r *Renderer, target, source *ebiten.Image, jfmap JFMap) {
+			r.JFMapViz(target, source, Offset, Offset, 6, jfmap)
+		}},
+	}
+
+	var report pixcheck.Report
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		for _, shape := range []testShape{blobShape, thinShape} {
+			for _, op := range ops {
+				source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+				w, h := shape.img.Rect.Dx()+2*Pad, shape.img.Rect.Dy()+2*Pad
+				want := ebiten.NewImage(w, h)
+				op.draw(r, want, source, JFMap{})
+
+				emptyNormals := JFMap{Normals: ebiten.NewImage(shape.img.Rect.Dx(), shape.img.Rect.Dy())}
+				got := ebiten.NewImage(w, h)
+				op.draw(r, got, source, emptyNormals)
+				report.Compare(shape.name+", "+op.name+", empty normals", got, want)
+			}
+		}
+
+		// the same lines, with the high and low alpha sides swapped. only on
+		// shapes without thin or faint features, whose lines can be wrong for
+		// some pixels already, and right for them once swapped
+		for _, shape := range []testShape{blobShape, fadeShape, cornerShape} {
+			source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+			w, h := shape.img.Rect.Dx()+2*Pad, shape.img.Rect.Dy()+2*Pad
+			want := ebiten.NewImage(w, h)
+			r.JFMExpand(want, source, Offset, Offset, 3, JFMap{})
+
+			wrongNormals := JFMap{Normals: pixcheck.NewImage(invertedNormals(pixcheck.Read(alphaNormals(r, source))), image.Point{})}
+			got := ebiten.NewImage(w, h)
+			r.JFMExpand(got, source, Offset, Offset, 3, wrongNormals)
+			report.Compare(shape.name+", JFMExpand, wrong normals", got, want)
+		}
+	})
+	report.Check(t)
+}
+
+// invertedNormals returns normals with their direction and offset negated, for
+// TestJFMNormalsFallback. Each line stays in place, but with its high and low
+// alpha sides swapped.
+func invertedNormals(normals *image.RGBA) *image.RGBA {
+	inverted := image.NewRGBA(normals.Rect)
+	for y := normals.Rect.Min.Y; y < normals.Rect.Max.Y; y++ {
+		for x := normals.Rect.Min.X; x < normals.Rect.Max.X; x++ {
+			if pixel := normals.RGBAAt(x, y); pixel.A != 0 {
+				inverted.SetRGBA(x, y, color.RGBA{255 - pixel.R, 255 - pixel.G, 255 - pixel.B, pixel.A})
+			}
+		}
+	}
+	return inverted
+}
+
+// ---- TestJFMErodeBorders ----
+
+// Without Clamp, JFMErode erodes from the source borders as if the area outside
+// were transparent. With Clamp, the borders don't erode at all.
+func TestJFMErodeBorders(t *testing.T) {
+	// fully opaque, so the borders are the only thing that can erode it
+	opaque := pixcheck.ParseAlpha(`
+		255 255 255 255 255 255 255 255
+		255 255 255 255 255 255 255 255
+		255 255 255 255 255 255 255 255
+		255 255 255 255 255 255 255 255
+		255 255 255 255 255 255 255 255
+		255 255 255 255 255 255 255 255
+	`)
+
+	// pixel centers are 0.5, 1.5 and 2.5 pixels away from the borders. at
+	// those distances, the alpha left is clamp(0.5 + distance - radius)
+	cases := []struct {
+		name     string
+		distance float32
+		clamp    bool
+		want     *image.RGBA
+	}{
+		{"radius 0", 0, false, opaque},
+		{"radius 0.75", 0.75, false, pixcheck.ParseAlpha(`
+			064 064 064 064 064 064 064 064
+			064 255 255 255 255 255 255 064
+			064 255 255 255 255 255 255 064
+			064 255 255 255 255 255 255 064
+			064 255 255 255 255 255 255 064
+			064 064 064 064 064 064 064 064
+		`)},
+		{"radius 1.25", 1.25, false, pixcheck.ParseAlpha(`
+			000 000 000 000 000 000 000 000
+			000 191 191 191 191 191 191 000
+			000 191 255 255 255 255 191 000
+			000 191 255 255 255 255 191 000
+			000 191 191 191 191 191 191 000
+			000 000 000 000 000 000 000 000
+		`)},
+		{"radius 2", 2, false, pixcheck.ParseAlpha(`
+			000 000 000 000 000 000 000 000
+			000 000 000 000 000 000 000 000
+			000 000 255 255 255 255 000 000
+			000 000 255 255 255 255 000 000
+			000 000 000 000 000 000 000 000
+			000 000 000 000 000 000 000 000
+		`)},
+		{"radius 2, clamp", 2, true, opaque},
+	}
+
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 1}}
+	// with normals, the borders are measured with the lines of the seeds on
+	// them. the 4 corner pixels see a diagonal edge, so the corners are cut
+	// like a 45 degree chamfer instead of staying square
+	reportNormals := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 1, MaxOver: 4}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		source := pixcheck.NewImage(opaque, image.Pt(3, 5))
+		for _, c := range cases {
 			var flags []Flag
-			if clamp {
+			if c.clamp {
 				flags = append(flags, Clamp)
 			}
-			jfmap := ctx.Renderer.JFMapCompute(target, source, JFMapComputeOptions{MaxDistance: MaxDist}, flags...)
-			ctx.Renderer.SetColorF32(opacity, opacity, opacity, opacity) // premultiplied
-			if viz {
-				ctx.Renderer.JFMapViz(canvas, source, 0, 0, MaxDist, jfmap)
-			} else {
-				ctx.Renderer.JFMapHeat(canvas, source, 0, 0, MaxDist, inside, jfmap)
+			jfmap := JFMap{}
+			got := ebiten.NewImage(source.Bounds().Dx(), source.Bounds().Dy())
+			r.JFMErode(got, source, 0, 0, c.distance, jfmap, flags...)
+			report.CompareRGBA(c.name, pixcheck.Read(got), c.want)
+
+			jfmap.Normals = alphaNormals(r, source, flags...)
+			gotNormals := ebiten.NewImage(source.Bounds().Dx(), source.Bounds().Dy())
+			r.JFMErode(gotNormals, source, 0, 0, c.distance, jfmap, flags...)
+			reportNormals.CompareRGBA(c.name+", normals", pixcheck.Read(gotNormals), c.want)
+		}
+	})
+	report.Check(t)
+	reportNormals.Check(t)
+}
+
+// ---- TestJFMErodeSmooth ----
+
+// JFMErode must start from the source and shrink it steadily as the distance
+// grows, without jumps at small distances, with and without normals.
+func TestJFMErodeSmooth(t *testing.T) {
+	const Step = 0.125
+
+	// each step erodes a band of the same width, so the area lost per step can
+	// only change gradually: its ratio to the area lost in the previous step
+	// must stay within the range measured for each case, widened by 0.05. the
+	// blob varies more, as distances to small shapes come in fewer distinct
+	// values, especially without normals
+	cases := []struct {
+		name               string
+		blob, normals      bool
+		minRatio, maxRatio float64
+	}{
+		{"circle", false, false, 0.85, 1.26},
+		{"circle, normals", false, true, 0.85, 1.07},
+		{"blob", true, false, 0.54, 1.21},
+		{"blob, normals", true, true, 0.65, 1.26},
+	}
+
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		circle := ebiten.NewImage(32, 32)
+		r.FillCircle(circle, 16.3, 15.6, 11)
+		blob := pixcheck.NewImage(blobShape.img, image.Pt(3, 5))
+		for _, c := range cases {
+			source := mapBool(c.blob, circle, blob)
+			if areas, ok := erodedAreas(t, r, source, c.normals, Step, c.name); ok {
+				checkSteadyLoss(t, areas, Step, c.minRatio, c.maxRatio, c.name)
 			}
 		}
-
-		_, bh := rectSizeF32(canvas.Bounds())
-		ctx.Renderer.SetColor(color.White)
-		controls := fmt.Sprintf(
-			"JFMapViz: %t [V] (JFMapHeat otherwise)\nInside: %t [I] (JFMapHeat only)\n"+
-				"Opacity: %.2f [O]\nClamp: %t [C]\nShow source: %t [Hold Space]",
-			viz, inside, opacity, clamp, ctx.SpacePressed,
-		)
-		ctx.Renderer.Text(canvas, controls, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-		panels := "Distances to two circles: one follows the cursor, the other is\n" +
-			"placed with right click"
-		ctx.Renderer.Text(canvas, panels, 8, bh-8, TextOpts(1.0, BottomLeft.Snap(Baseline)))
-	}
-
-	app := NewTestApp(updater, drawer)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
-func jfmShapes(r *Renderer) []*ebiten.Image {
-	const BaseRadius = 128
-	const XW, XH = BaseRadius * 2, (BaseRadius * 7) / 4
-	const XMargin, XThick = BaseRadius / 3, BaseRadius / 8
-	const Circ2Radius = 72
-
-	circle := ebiten.NewImage(BaseRadius*2, BaseRadius*2)
-	gradientOpts := GradientOpts(color.RGBA{0, 196, 255, 255}, color.RGBA{0, 0, 0, 0}, false)
-	gradientOpts.Bias = 0.5
-	r.GradientRadial(circle, gradientOpts, BaseRadius, BaseRadius, BaseRadius*0.25, BaseRadius*0.75, BaseRadius)
-	r.opts.Blend = ebiten.BlendSourceAtop
-	gradientOpts = GradientOpts(color.RGBA{196, 64, 0, 196}, color.RGBA{64, 16, 0, 64}, false)
-	gradientOpts.Bias = -0.25
-	r.Gradient(circle, gradientOpts, DirRadsBLTR)
-	r.opts.Blend = ebiten.BlendSourceOver
-	r.SetColorF32(0.75, 0.5, 1.0, 1.0)
-	xSign := ebiten.NewImage(XW, XH)
-	r.StrokeLine(xSign, PtF32(XMargin, XMargin), PtF32(XW-XMargin, XH-XMargin), XThick)
-	r.StrokeLine(xSign, PtF32(XW-XMargin, XMargin), PtF32(XMargin, XH-XMargin), XThick)
-	circ2 := ebiten.NewImage(Circ2Radius*2, Circ2Radius*2)
-	r.SetColorF32(0.5, 0.25, 0.75, 1.0)
-	r.FillCircle(circ2, Circ2Radius, Circ2Radius, Circ2Radius)
-	r.SetColorF32(0.7, 0.7, 0.7, 1.0)
-	// rhombus clipped by the 4 image borders, leaving the corners empty
-	rhombus := ebiten.NewImage(256, 192)
-	r.FillQuad(rhombus, [4]PointF32{{128, -24}, {288, 96}, {128, 216}, {-32, 96}}, 0)
-	// vertical stripes clipped by the top and bottom borders only. they go past
-	// the borders, so the border rows aren't antialiased
-	stripes := ebiten.NewImage(256, 192)
-	for x := float32(16); x < 256-16; x += 48 {
-		r.FillRect(stripes, x, -8, 24, 192+16, 0)
+// erodedAreas is a helper for TestJFMErodeSmooth. It returns the areas left
+// after eroding source by 0, step, 2*step, ... 16*step, and fails t if erosion
+// by 0 doesn't return the source.
+func erodedAreas(t *testing.T, r *Renderer, source *ebiten.Image, withNormals bool, step float32, label string) ([]float64, bool) {
+	var normals *ebiten.Image
+	if withNormals {
+		normals = alphaNormals(r, source)
 	}
-	// magic circle: rings of different thicknesses plus a hexagram, with some
-	// strokes thinner than 2 pixels
-	magic := ebiten.NewImage(256, 256)
-	r.SetColorF32(1.0, 0.85, 0.4, 1.0)
-	for _, ring := range [][2]float32{{120, 6}, {109, 1.5}, {101, 3}, {40, 2}, {24, 8}, {8, 1}} {
-		r.StrokeCircle(magic, 128, 128, ring[0], ring[1])
-	}
-	for i, thickness := range []float32{3, 1.5} {
-		var tri [3]PointF32
-		for j := range tri {
-			sin, cos := math.Sincos(math.Pi * (float64(i) - 0.5 + float64(j)*2.0/3.0))
-			tri[j] = PtF32(128+101*cos, 128+101*sin)
+	w, h := source.Bounds().Dx(), source.Bounds().Dy()
+	var areas []float64
+	for i := range 17 {
+		target := ebiten.NewImage(w, h)
+		jfmap := JFMap{Normals: normals}
+		r.JFMErode(target, source, 0, 0, float32(i)*step, jfmap)
+		eroded := pixcheck.Read(target)
+		if i == 0 {
+			if diff := pixcheck.MaxChannelDelta.Compare(eroded, pixcheck.Read(source)); diff.Over(1) > 0 {
+				t.Errorf("%s: erosion by 0 changes it: %s", label, diff)
+				return nil, false
+			}
 		}
-		r.StrokeTriangle(magic, tri, thickness, 0)
+		areas = append(areas, pixcheck.AlphaSum(eroded))
 	}
-	return []*ebiten.Image{circle, xSign, circ2, rhombus, stripes, magic}
+	return areas, true
 }
 
-// jfmTestCache keeps what TestJFMExpand, TestJFMOutline and TestJFMErode
-// would otherwise compute on every frame: the sources with transparent padding
-// around them, for the operations to draw on, their alpha normals and their
-// jfmaps.
-type jfmTestCache struct {
-	padding, mapRange int
-	sources           map[*ebiten.Image]*ebiten.Image
-	normals           map[jfmTestNormalsKey]*ebiten.Image
-	jfmaps            map[jfmTestMapKey]JFMap
-}
-
-type jfmTestNormalsKey struct {
-	img   *ebiten.Image
-	clamp bool
-}
-
-type jfmTestMapKey struct {
-	img   *ebiten.Image
-	opts  JFMapComputeOptions
-	clamp bool
-}
-
-func newJFMTestCache(padding, mapRange int) *jfmTestCache {
-	return &jfmTestCache{
-		padding:  padding,
-		mapRange: mapRange,
-		sources:  make(map[*ebiten.Image]*ebiten.Image),
-		normals:  make(map[jfmTestNormalsKey]*ebiten.Image),
-		jfmaps:   make(map[jfmTestMapKey]JFMap),
+// checkSteadyLoss is a helper for TestJFMErodeSmooth. It fails t if a step
+// loses no area, or an area outside [minRatio, maxRatio] times the previous
+// step's.
+func checkSteadyLoss(t *testing.T, areas []float64, step float32, minRatio, maxRatio float64, label string) {
+	for i := 1; i+1 < len(areas); i++ {
+		lost, nextLost := areas[i-1]-areas[i], areas[i]-areas[i+1]
+		if lost <= 0 || nextLost < lost*minRatio || nextLost > lost*maxRatio {
+			t.Errorf("%s: area lost per step goes from %.2f to %.2f at distance %g (areas %.2f)", label, lost, nextLost, float32(i)*step, areas)
+			return
+		}
 	}
 }
 
-// source returns img with the padding.
-func (c *jfmTestCache) source(img *ebiten.Image) *ebiten.Image {
-	source, found := c.sources[img]
-	if !found {
-		source = padded(img, c.padding)
-		c.sources[img] = source
+// ---- TestJFMExpandKeepsSource ----
+
+// JFMExpand must keep every pixel of the region at least as opaque as it was,
+// growing by the distance, also at fractional positions.
+func TestJFMExpandKeepsSource(t *testing.T) {
+	configs := []jfmKeepsSourceConfig{
+		{offset: 0, normals: false},
+		{offset: 0.25, normals: false},
+		{offset: 0.75, normals: false},
+		{offset: 0, normals: true},
+		{offset: 0.25, normals: true},
+		{offset: 0.75, normals: true},
 	}
-	return source
+	distances := []float32{0, 0.5, 1, 2}
+
+	report := pixcheck.Report{Rule: pixcheck.Rule{Metric: pixcheck.Shortfall, MaxDelta: 1}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		for _, shape := range []testShape{fadeShape, blobShape} {
+			for _, config := range configs {
+				for _, distance := range distances {
+					got, want := expandOverSource(r, shape, config, distance)
+					report.CompareRGBA(fmt.Sprintf("%s, %+v, distance %g", shape.name, config, distance), got, want)
+				}
+			}
+		}
+	})
+	report.Check(t)
 }
 
-// alphaNormals returns the alpha normals of img, with the padding. With clamp,
-// they're computed before adding the padding, so that img continues past its
-// own borders, not past the padding.
-func (c *jfmTestCache) alphaNormals(r *Renderer, img *ebiten.Image, clamp bool) *ebiten.Image {
-	key := jfmTestNormalsKey{img, clamp}
-	normals, found := c.normals[key]
-	if !found {
-		normals = padded(alphaNormals(r, img, mapBool(clamp, noFlag, Clamp)), c.padding)
-		c.normals[key] = normals
+// expandOverSource is a helper for TestJFMExpandKeepsSource. It returns the
+// lowest result allowed (want), and the expansion of shape drawn at
+// config.offset (got).
+func expandOverSource(r *Renderer, shape testShape, config jfmKeepsSourceConfig, distance float32) (got, want *image.RGBA) {
+	const Margin = 4 // more than the expansions reach
+	w, h := shape.img.Rect.Dx()+2*Margin, shape.img.Rect.Dy()+2*Margin
+	origin := Margin + config.offset
+
+	source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+	var normals *ebiten.Image
+	if config.normals {
+		normals = alphaNormals(r, source)
 	}
-	return normals
+	target := ebiten.NewImage(w, h)
+	jfmap := JFMap{Normals: normals}
+	r.JFMExpand(target, source, origin, origin, distance, jfmap)
+	return pixcheck.Read(target), expansionLowerBound(shape, origin, distance, w, h)
 }
 
-// jfmap returns a jfmap of img with the padding, computed with opts and the
-// cache's map range. With clamp, the padding is left out of the map, so that
-// img continues past its own borders.
-func (c *jfmTestCache) jfmap(r *Renderer, img *ebiten.Image, opts JFMapComputeOptions, clamp bool) JFMap {
-	key := jfmTestMapKey{img, opts, clamp}
-	jfmap, found := c.jfmaps[key]
-	if !found {
-		source := c.source(img)
-		target := ebiten.NewImage(source.Bounds().Dx(), source.Bounds().Dy())
-		opts.MaxDistance = c.mapRange
-		opts.Inset = mapBool(clamp, 0, c.padding)
-		jfmap = r.JFMapCompute(target, source, opts, mapBool(clamp, noFlag, Clamp))
-		c.jfmaps[key] = jfmap
+type jfmKeepsSourceConfig struct {
+	offset  float32
+	normals bool
+}
+
+// expansionLowerBound returns the lowest result allowed for an expansion of
+// shape by distance, drawn at (origin, origin) onto a w x h target: each pixel
+// takes the alpha of the source pixel it shows, plus the distance.
+func expansionLowerBound(shape testShape, origin, distance float32, w, h int) *image.RGBA {
+	lowest := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			// the source pixel whose area contains this pixel's center
+			sx := int(math.Floor(float64(float32(x) + 0.5 - origin)))
+			sy := int(math.Floor(float64(float32(y) + 0.5 - origin)))
+			if !image.Pt(sx, sy).In(shape.img.Rect) {
+				continue
+			}
+			if alpha := float32(shape.img.RGBAAt(sx, sy).A); alpha > 0 {
+				v := uint8(min(255, math.Round(float64(alpha+255*distance))))
+				lowest.SetRGBA(x, y, color.RGBA{v, v, v, v})
+			}
+		}
 	}
-	return jfmap
+	return lowest
+}
+
+// ---- TestJFMExpandMotion ----
+
+// JFMExpand must follow fractional positions smoothly, with and without
+// normals: the result moves with the offset, and its area stays the same.
+func TestJFMExpandMotion(t *testing.T) {
+	const Distance = 3
+
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		circle := ebiten.NewImage(24, 24)
+		r.FillCircle(circle, 12, 12, 7)
+		for _, normals := range []*ebiten.Image{nil, alphaNormals(r, circle)} {
+			measure := func(offset float32) (area, x, y float64) {
+				target := ebiten.NewImage(40, 40)
+				jfmap := JFMap{Normals: normals}
+				r.JFMExpand(target, circle, 8+offset, 8+offset*0.5, Distance, jfmap)
+				result := pixcheck.Read(target)
+				x, y = pixcheck.AlphaCentroid(result)
+				return pixcheck.AlphaSum(result), x, y
+			}
+			baseArea, baseX, baseY := measure(0)
+			for i := 1; i <= 10; i++ {
+				offset := float64(i) * 0.1
+				area, x, y := measure(float32(offset))
+				if math.Abs(x-baseX-offset) > 0.05 || math.Abs(y-baseY-offset*0.5) > 0.05 {
+					t.Errorf("normals %t, offset (%.1f, %.2f): the result moved by (%.3f, %.3f)", normals != nil, offset, offset*0.5, x-baseX, y-baseY)
+				}
+				if math.Abs(area-baseArea) > baseArea*0.005 {
+					t.Errorf("normals %t, offset (%.1f, %.2f): the area changed from %.2f to %.2f", normals != nil, offset, offset*0.5, baseArea, area)
+				}
+			}
+		}
+	})
+}
+
+// ---- TestJFMExpandAccuracy ----
+
+// Expanding a circle must give about the same as drawing the circle with the
+// radius grown by the distance. Unlike the other tests, which check that the
+// operations agree with each other or with values worked out by hand, this one
+// checks them against shapes drawn independently.
+func TestJFMExpandAccuracy(t *testing.T) {
+	// measured: the worst pixels are off by 84 without normals and 42 with
+	// them, and the areas by up to 1.8% and 0.8%
+	reports := map[bool]*pixcheck.Report{
+		false: {Rule: pixcheck.Rule{Metric: pixcheck.AlphaDelta, MaxDelta: 100}},
+		true:  {Rule: pixcheck.Rule{Metric: pixcheck.AlphaDelta, MaxDelta: 51}},
+	}
+	maxAreaError := map[bool]float64{false: 0.025, true: 0.012}
+
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		for _, withNormals := range []bool{false, true} {
+			for _, radius := range []float32{6.2, 17.6} {
+				for _, distance := range []float32{0.5, 1.5, 3.25, 6} {
+					got, want := expandCircle(r, radius, distance, withNormals)
+					label := fmt.Sprintf("radius %g, distance %g, normals %t", radius, distance, withNormals)
+					reports[withNormals].CompareRGBA(label, got, want)
+					gotArea, wantArea := pixcheck.AlphaSum(got), pixcheck.AlphaSum(want)
+					if math.Abs(gotArea-wantArea) > wantArea*maxAreaError[withNormals] {
+						t.Errorf("%s: area %.2f instead of %.2f", label, gotArea, wantArea)
+					}
+				}
+			}
+		}
+	})
+	reports[false].Check(t)
+	reports[true].Check(t)
+}
+
+// expandCircle is a helper for TestJFMExpandAccuracy. It returns a circle
+// expanded by distance (got), and the circle drawn with the radius grown by
+// distance (want).
+func expandCircle(r *Renderer, radius, distance float32, withNormals bool) (got, want *image.RGBA) {
+	const Size, X, Y = 64, 32.3, 31.6
+
+	circle := ebiten.NewImage(Size, Size)
+	r.FillCircle(circle, X, Y, radius)
+	jfmap := JFMap{}
+	if withNormals {
+		jfmap.Normals = alphaNormals(r, circle)
+	}
+	expanded := ebiten.NewImage(Size, Size)
+	r.JFMExpand(expanded, circle, 0, 0, distance, jfmap)
+
+	grown := ebiten.NewImage(Size, Size)
+	r.FillCircle(grown, X, Y, radius+distance)
+	return pixcheck.Read(expanded), pixcheck.Read(grown)
+}
+
+// ---- TestKnownLimitation_JFMExpandMidAlphaLimits ----
+
+// Known limitation: JFMExpand misplaces the boundaries of regions whose limits
+// cut through mid alpha, like a threshold or a band over a fade, by up to
+// about a pixel.
+//
+// Inside a seed, the boundary is placed by reading the seed's alpha as the
+// coverage of a sharp antialiased edge. That's exact on the edges of shapes,
+// but at a mid-alpha limit on a fade, the seed's alpha doesn't tell where
+// alpha crosses the limit. In this test, where alpha rises by 20/255 per
+// pixel, the boundaries end up 0.5-0.7 pixels inside the region, so the pixels
+// next to them get far less coverage than expected.
+//
+// Fixing it would need to store, for each seed, where alpha crosses the limit,
+// which the map has no room for if large textures have to be supported.
+//
+// The test records the current output, so that any change shows up and has
+// to be updated on purpose.
+func TestKnownLimitation_JFMExpandMidAlphaLimits(t *testing.T) {
+	// a ramp from 0 to 1. the map is computed with Clamp, so the rows above
+	// and below continue the same, and the region limits are the only
+	// boundaries
+	ramp := pixcheck.ParseAlpha(`
+		000 020 040 060 080 100 120 140 160 180 200 220 240 255
+	`)
+	threshold := JFMap{MinAlpha: 0.5, MaxAlpha: 1}
+	band := JFMap{MinAlpha: 0.2, MaxAlpha: 0.8}
+	lowSide := JFMap{MinAlpha: 0, MaxAlpha: 0.5}
+	cases := []struct {
+		name     string
+		region   JFMap
+		distance float32
+		want     string
+	}{
+		{"threshold [0.5, 1], distance 0", threshold, 0, `
+		000 000 000 000 000 000 000 140 160 180 200 220 240 255`},
+		{"threshold [0.5, 1], distance 0.5", threshold, 0.5, `
+		000 000 000 000 000 000 012 255 255 255 255 255 255 255`},
+		{"band [0.2, 0.8], distance 0", band, 0, `
+		000 000 000 060 080 100 120 115 095 075 055 000 000 000`},
+		{"band [0.2, 0.8], distance 0.5", band, 0.5, `
+		000 000 000 188 207 227 248 243 223 202 183 000 000 000`},
+		{"low side [0, 0.5], distance 0", lowSide, 0, `
+		255 235 215 195 175 155 135 000 000 000 000 000 000 000`},
+		{"low side [0, 0.5], distance 0.5", lowSide, 0.5, `
+		255 255 255 255 255 255 255 007 000 000 000 000 000 000`},
+	}
+
+	// small differences between GPUs and drivers are allowed
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 2}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		source := pixcheck.NewImage(ramp, image.Pt(3, 5))
+		for _, c := range cases {
+			computeOpts := JFMapComputeOptions{MaxDistance: 8, MinAlpha: c.region.MinAlpha, MaxAlpha: c.region.MaxAlpha}
+			jfmap := r.JFMapCompute(ebiten.NewImage(ramp.Rect.Dx(), ramp.Rect.Dy()), source, computeOpts, Clamp)
+			target := ebiten.NewImage(ramp.Rect.Dx(), ramp.Rect.Dy())
+			r.JFMExpand(target, source, 0, 0, c.distance, jfmap)
+			report.CompareRGBA(c.name, pixcheck.Read(target), pixcheck.ParseAlpha(c.want))
+		}
+	})
+	report.Check(t)
 }

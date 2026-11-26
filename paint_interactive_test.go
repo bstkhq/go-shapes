@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -9,7 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestPaint$ . -count 1
+// go test -tags interactive -run ^TestPaint$ . -count 1
 func TestPaint(t *testing.T) {
 	const RectWidth, RectHeight = 128, 64
 

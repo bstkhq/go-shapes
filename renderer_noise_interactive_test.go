@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-// go test -run ^TestNoise$ . -count 1
+// go test -tags interactive -run ^TestNoise$ . -count 1
 func TestNoise(t *testing.T) {
 	move := true
 	updater := func(TestAppCtx) {
@@ -49,7 +51,7 @@ func TestNoise(t *testing.T) {
 	}
 }
 
-// go test -run ^TestNoiseAspectRatio$ . -count 1
+// go test -tags interactive -run ^TestNoiseAspectRatio$ . -count 1
 func TestNoiseAspectRatio(t *testing.T) {
 	const SubWidth, SubHeight = 96 * 3, 96
 	sub := ebiten.NewImage(SubWidth, SubHeight)
@@ -78,7 +80,7 @@ func TestNoiseAspectRatio(t *testing.T) {
 	}
 }
 
-// go test -run ^TestNoiseGolden$ . -count 1
+// go test -tags interactive -run ^TestNoiseGolden$ . -count 1
 func TestNoiseGolden(t *testing.T) {
 	scale := float32(1.0)
 	move := true

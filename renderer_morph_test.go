@@ -1,302 +1,136 @@
 package shapes
 
 import (
-	"fmt"
-	"image/color"
+	"image"
+	"slices"
 	"testing"
 
+	"github.com/bstkhq/go-shapes/internal/pixcheck"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// go test -run ^TestMorphExpansion$ . -count 1
-func TestMorphExpansion(t *testing.T) {
-	const (
-		Radius       = 64.0
-		MaxThickness = 16.0
-	)
+// ---- TestMorphBordersAsPadding and TestMorphClampContinuesBorders ----
 
-	thickness := float32(0)
-	softEdge := float32(1.333)
-	animateThickness := true
-	smoothMovement := false
-	updater := func(ctx TestAppCtx) {
-		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
-		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness*2, 0.25)
-		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
-		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
-	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(backTestColor)
+// Without Clamp, every morphological operation must give the same result as
+// drawing the source with transparent padding around it, so the area past its
+// borders behaves exactly like transparent pixels.
+func TestMorphBordersAsPadding(t *testing.T) {
+	const Pad = 8 // more than any of the operations reaches
 
-		currentThickness := thickness
-		if animateThickness {
-			currentThickness = float32(ctx.DistAnim(MaxThickness, 0.5))
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 1}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		// shapes cut by the borders, so that the borders matter
+		for _, shape := range []testShape{bandShape, cornerShape} {
+			for _, op := range morphOps {
+				source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
+				w, h := source.Bounds().Dx()+2*Pad, source.Bounds().Dy()+2*Pad
+				want := ebiten.NewImage(w, h)
+				op.draw(r, want, padded(source, Pad), 0, 0)
+				got := ebiten.NewImage(w, h)
+				op.draw(r, got, source, Pad, Pad)
+				report.Compare(shape.name+", "+op.name, got, want)
+			}
 		}
-		effectiveSoftEdge := min(softEdge, currentThickness)
-		shiftX, shiftY := float32(0), float32(0)
-		if smoothMovement {
-			shiftX = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
-			shiftY = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
-		}
-
-		ctx.Renderer.SetColor(color.White)
-		info := fmt.Sprintf(
-			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nSmooth movement: %t [M]",
-			currentThickness, softEdge, effectiveSoftEdge, animateThickness, smoothMovement,
-		)
-		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-
-		morphBlend := ebiten.BlendSourceOver
-		if ctx.SpacePressed {
-			morphBlend = ebiten.BlendCopy
-		}
-		lc := ctx.LeftClickF32().AddXY(shiftX, shiftY)
-		rc := ctx.RightClickF32().AddXY(shiftX, shiftY)
-
-		// Standalone circle.
-		ctx.Renderer.Options().Blend = morphBlend
-		ctx.Renderer.SetColor(color.White)
-		ctx.Renderer.MorphExpansion(canvas, ctx.Images[0], rc.X-Radius, lc.Y-Radius, currentThickness, softEdge)
-
-		// Compare the result against the source and maximum-expansion bounds.
-		comparisonY := rc.Y
-		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius+MaxThickness)
-		ctx.Renderer.SetColor(color.White)
-		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
-		ctx.Renderer.MorphExpansion(canvas, ctx.Images[0], lc.X-Radius, comparisonY-Radius, currentThickness, softEdge)
-
-		// Non-circular source.
-		ctx.Renderer.Options().Blend = morphBlend
-		triW, triH := rectSizeF32(ctx.Images[1].Bounds())
-		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.MorphExpansion(canvas, ctx.Images[1], rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
-		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-	}
-
-	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewFilledCircle(Radius)
-	triangle := ebiten.NewImage(160, 128)
-	triPoints := [3]PointF32{{X: 12, Y: 12}, {X: 148, Y: 30}, {X: 44, Y: 116}}
-	app.Renderer.FillTriangle(triangle, triPoints, 0)
-	app.Images = append(app.Images, circle, triangle)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	})
+	report.Check(t)
 }
 
-// go test -run ^TestMorphExpansionRect$ . -count 1
-func TestMorphExpansionRect(t *testing.T) {
-	const Radius = 64.0
-	const Expansion = 32.0
+// With Clamp, every operation that supports it must give the same result as
+// drawing a source that continues past its borders, repeating the pixels on
+// them. Only the source area is compared: past the borders, the JFM operations
+// follow the distances to the boundaries inside instead, and MorphOutline
+// draws nothing.
+func TestMorphClampContinuesBorders(t *testing.T) {
+	const Pad = 8 // more than any of the operations reaches
 
-	updater := func(TestAppCtx) {}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
-
-		lc := ctx.LeftClickF32()
-		rc := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		expansion := float32(ctx.DistAnim(Expansion, 1.0))
-		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, expansion)
-		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[1], rc.X-Radius, rc.Y-Radius, expansion)
-
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lc.X-Radius, lc.Y-Radius)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[3], 0.5, lc.X-Radius-Expansion, lc.Y-Radius-Expansion)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[1], 0.5, rc.X-Radius, rc.Y-Radius)
-		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[2], 0.5, rc.X-Radius-Expansion, rc.Y-Radius-Expansion)
-	}
-
-	app := NewTestApp(updater, drawer)
-	img1 := app.Renderer.NewFilledRect(int(Radius*2), int(Radius*2))
-	img4 := app.Renderer.NewFilledRect(int((Radius+Expansion)*2), int((Radius+Expansion)*2))
-	img2 := app.Renderer.NewFilledCircle(float64(Radius))
-	img3 := app.Renderer.NewFilledCircle(float64(Radius + Expansion))
-	app.Images = append(app.Images, img1, img2, img3, img4)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	report := pixcheck.Report{Rule: pixcheck.Rule{MaxDelta: 1}}
+	pixcheck.Run(t, func() {
+		r := NewRenderer()
+		// shapes cut by the borders, so that the borders matter
+		for _, shape := range []testShape{bandShape, cornerShape} {
+			for _, op := range morphOpsWithFlags {
+				w, h := shape.img.Rect.Dx(), shape.img.Rect.Dy()
+				want := ebiten.NewImage(w, h)
+				continued := pixcheck.NewImage(repeatBorders(shape.img, Pad), image.Point{})
+				op.draw(r, want, continued, -Pad, -Pad)
+				got := ebiten.NewImage(w, h)
+				op.draw(r, got, pixcheck.NewImage(shape.img, image.Pt(3, 5)), 0, 0, Clamp)
+				report.Compare(shape.name+", "+op.name, got, want)
+			}
+		}
+	})
+	report.Check(t)
 }
 
-// go test -run ^TestMorphErosion$ . -count 1
-func TestMorphErosion(t *testing.T) {
-	const (
-		Radius       = 96.0
-		MaxThickness = 16.0
-	)
-
-	thickness := float32(0)
-	softEdge := float32(0.666)
-	animateThickness := true
-	smoothMovement := false
-	strokeTriangle := false
-	updater := func(ctx TestAppCtx) {
-		thickness = updateParam(ctx, ebiten.KeyR, thickness, 0, MaxThickness, 0.25)
-		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness*2, 0.25)
-		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
-		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
-		strokeTriangle = updateToggle(ctx, ebiten.KeyS, strokeTriangle)
-	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(backTestColor)
-
-		currentThickness := thickness
-		if animateThickness {
-			currentThickness = float32(ctx.DistAnim(MaxThickness, 0.5))
-		}
-		effectiveSoftEdge := min(softEdge, currentThickness)
-		shiftX, shiftY := float32(0), float32(0)
-		if smoothMovement {
-			shiftX = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
-			shiftY = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
-		}
-
-		ctx.Renderer.SetColor(color.White)
-		triangleType := "Filled"
-		triangleIndex := 1
-		if strokeTriangle {
-			triangleType = "Stroked"
-			triangleIndex = 2
-		}
-		info := fmt.Sprintf(
-			"Thickness: %.2f [R/Shift+R]\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nSmooth movement: %t [M]\nTriangle: %s [S]",
-			currentThickness, softEdge, effectiveSoftEdge, animateThickness, smoothMovement, triangleType,
-		)
-		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-
-		morphBlend := ebiten.BlendSourceOver
-		if ctx.SpacePressed {
-			morphBlend = ebiten.BlendCopy
-		}
-		lc := ctx.LeftClickF32().AddXY(shiftX, shiftY)
-		rc := ctx.RightClickF32().AddXY(shiftX, shiftY)
-
-		// Standalone circle.
-		ctx.Renderer.Options().Blend = morphBlend
-		ctx.Renderer.SetColor(color.White)
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], rc.X-Radius, lc.Y-Radius, currentThickness, softEdge)
-
-		// Compare the result against the source and maximum-erosion bounds.
-		comparisonY := rc.Y
-		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-		ctx.Renderer.SetColor(color.White)
-		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius)
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, comparisonY, Radius-MaxThickness)
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 164, 164})
-		ctx.Renderer.MorphErosion(canvas, ctx.Images[0], lc.X-Radius, comparisonY-Radius, currentThickness, softEdge)
-
-		// Non-circular source.
-		ctx.Renderer.Options().Blend = morphBlend
-		triangle := ctx.Images[triangleIndex]
-		triW, triH := rectSizeF32(triangle.Bounds())
-		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
-		ctx.Renderer.MorphErosion(canvas, triangle, rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
-		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-	}
-
-	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewFilledCircle(Radius)
-	filledTriangle := ebiten.NewImage(256, 164)
-	strokeTriangleImg := ebiten.NewImage(256, 164)
-	var points [3]PointF32
-	points[0] = PointF32{X: 16, Y: 16}
-	points[1] = points[0].AddXY(224, 0)
-	points[2] = points[0].AddXY(0, 132)
-	app.Renderer.FillTriangle(filledTriangle, points, 0)
-	app.Renderer.StrokeTriangle(strokeTriangleImg, points, MaxThickness*2, 0)
-	app.Images = append(app.Images, circle, filledTriangle, strokeTriangleImg)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+// morphOp draws a morphological operation of source onto target at (ox, oy),
+// for TestMorphBordersAsPadding and TestMorphClampContinuesBorders.
+type morphOp struct {
+	name string
+	draw func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag)
 }
 
-// go test -run ^TestMorphOutline$ . -count 1
-func TestMorphOutline(t *testing.T) {
-	const (
-		Radius       = 64.0
-		MinThickness = -8.0
-		MaxThickness = 16.0
-	)
+// morphOpsWithFlags are the operations that support Clamp, checked by
+// TestMorphClampContinuesBorders.
+var morphOpsWithFlags = []morphOp{
+	{"MorphErosion", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.MorphErosion(target, source, ox, oy, 2, 0.5, flags...)
+	}},
+	{"MorphOutline", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.MorphOutline(target, source, ox, oy, 3, 0.5, flags...)
+	}},
+	{"JFMErode", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.JFMErode(target, source, ox, oy, 2.5, JFMap{}, flags...)
+	}},
+	{"JFMErode, normals", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.JFMErode(target, source, ox, oy, 2.5, JFMap{Normals: alphaNormals(r, source, flags...)}, flags...)
+	}},
+	{"JFMOutline", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.JFMOutline(target, source, ox, oy, 5, JFMap{}, flags...)
+	}},
+	{"JFMOutline, normals", func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		r.JFMOutline(target, source, ox, oy, 5, JFMap{Normals: alphaNormals(r, source, flags...)}, flags...)
+	}},
+}
 
-	colorSets := newTestColorSets(tcsSingle("White", tcWhite), tcsBase4, tcsPastel4, tcsVivid4)
-	thickness := float32(8)
-	softEdge := float32(0)
-	animateThickness := false
-	smoothMovement := false
-	showSources := false
-	updater := func(ctx TestAppCtx) {
-		thickness = updateParam(ctx, ebiten.KeyR, thickness, MinThickness, MaxThickness, 0.25)
-		softEdge = updateParam(ctx, ebiten.KeyE, softEdge, 0, MaxThickness, 0.25)
-		animateThickness = updateToggle(ctx, ebiten.KeyT, animateThickness)
-		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
-		colorSets.Update(ebiten.KeyS)
-		showSources = ebiten.IsKeyPressed(ebiten.KeyC)
+// morphOps are all the morphological operations, checked by
+// TestMorphBordersAsPadding.
+var morphOps = slices.Concat(morphOpsWithFlags, []morphOp{
+	withoutFlags("MorphExpansion", func(r *Renderer, target, source *ebiten.Image, ox, oy float32) {
+		r.MorphExpansion(target, source, ox, oy, 2, 0.5)
+	}),
+	withoutFlags("MorphExpansionRect", func(r *Renderer, target, source *ebiten.Image, ox, oy float32) {
+		r.MorphExpansionRect(target, source, ox, oy, 2)
+	}),
+	withoutFlags("JFMExpand", func(r *Renderer, target, source *ebiten.Image, ox, oy float32) {
+		r.JFMExpand(target, source, ox, oy, 2.5, JFMap{})
+	}),
+	withoutFlags("JFMExpand, normals", func(r *Renderer, target, source *ebiten.Image, ox, oy float32) {
+		r.JFMExpand(target, source, ox, oy, 2.5, JFMap{Normals: alphaNormals(r, source)})
+	}),
+})
+
+// withoutFlags adapts an operation without flags to a morphOp, which panics if
+// it gets any.
+func withoutFlags(name string, draw func(r *Renderer, target, source *ebiten.Image, ox, oy float32)) morphOp {
+	return morphOp{name, func(r *Renderer, target, source *ebiten.Image, ox, oy float32, flags ...Flag) {
+		if len(flags) > 0 {
+			panic(name + " doesn't support flags")
+		}
+		draw(r, target, source, ox, oy)
+	}}
+}
+
+// repeatBorders returns img with padding around it that repeats the pixels on
+// its borders, for TestMorphClampContinuesBorders.
+func repeatBorders(img *image.RGBA, padding int) *image.RGBA {
+	w, h := img.Rect.Dx(), img.Rect.Dy()
+	out := image.NewRGBA(image.Rect(0, 0, w+2*padding, h+2*padding))
+	for y := range out.Rect.Dy() {
+		for x := range out.Rect.Dx() {
+			sx, sy := clamp(x-padding, 0, w-1), clamp(y-padding, 0, h-1)
+			out.SetRGBA(x, y, img.RGBAAt(img.Rect.Min.X+sx, img.Rect.Min.Y+sy))
+		}
 	}
-	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(backTestColor)
-
-		currentThickness := thickness
-		if animateThickness {
-			currentThickness = MinThickness + float32(ctx.DistAnim(MaxThickness-MinThickness, 0.5))
-		}
-		inThickness, outThickness := currentThickness/2.0, currentThickness/2.0
-		if currentThickness < 0 {
-			inThickness, outThickness = -currentThickness, 0
-		}
-		effectiveSoftEdge := min(softEdge, inThickness)
-
-		xShift, yShift := float32(0), float32(0)
-		if smoothMovement {
-			xShift = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
-			yShift = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
-		}
-
-		ctx.Renderer.SetColor(color.White)
-		info := fmt.Sprintf(
-			"Thickness: %.2f [R/Shift+R] (-8 inner to +16 balanced)\nSoft edge: %.2f (effective: %.2f) [E/Shift+E]\nThickness animation: %t [T]\nColor set: %s [S]\nSources: %t [Hold C]\nSmooth movement: %t [M]",
-			currentThickness, softEdge, effectiveSoftEdge, animateThickness, colorSets.Info(), showSources, smoothMovement,
-		)
-		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
-
-		lc := ctx.LeftClickF32().AddXY(xShift, yShift)
-		ctx.Renderer.SetColor(color.RGBA{0, 255, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius+outThickness+1.0)
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
-		ctx.Renderer.FillCircle(canvas, lc.X, lc.Y, Radius-inThickness-1.0)
-
-		if ctx.SpacePressed {
-			ctx.Renderer.Options().Blend = ebiten.BlendCopy
-		}
-		ctx.Renderer.SetColor(color.RGBA{0, 0, 255, 255})
-		ctx.Renderer.MorphOutline(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, currentThickness, softEdge)
-
-		colorSets.Apply(ctx.Renderer)
-		rc := ctx.RightClickF32().AddXY(xShift, yShift)
-		shape := ctx.Images[1]
-		shapeW, shapeH := rectSizeF32(shape.Bounds())
-		shapeOX, shapeOY := lc.X-shapeW/2.0, rc.Y-shapeH/2.0
-		if showSources {
-			ctx.DrawAtF32(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius)
-			ctx.DrawAtF32(canvas, shape, shapeOX, shapeOY)
-		} else {
-			ctx.Renderer.MorphOutline(canvas, ctx.Images[0], rc.X-Radius, rc.Y-Radius, currentThickness, softEdge)
-			ctx.Renderer.MorphOutline(canvas, shape, shapeOX, shapeOY, currentThickness, softEdge)
-		}
-		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
-
-	}
-
-	app := NewTestApp(updater, drawer)
-	circle := app.Renderer.NewFilledCircle(Radius)
-	triangle := ebiten.NewImage(160, 128)
-	triPoints := [3]PointF32{{X: 12, Y: 12}, {X: 148, Y: 30}, {X: 44, Y: 116}}
-	app.Renderer.FillTriangle(triangle, triPoints, 0)
-	app.Images = append(app.Images, circle, triangle)
-	if err := ebiten.RunGame(app); err != nil {
-		t.Fatal(err)
-	}
+	return out
 }
