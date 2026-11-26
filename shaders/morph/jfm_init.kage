@@ -1,0 +1,48 @@
+//kage:unit pixels
+package main
+
+// see jfm_pass.kage for further context on JFA
+
+// this shader initializes a jfa mask based on boundary detection. seeds are the
+// pixels inside the region with any neighbor outside of it. diagonal neighbors
+// count too, as the corners of the pixel steps along diagonal edges only touch
+// the outside diagonally. without clampBorders, the area outside the source
+// counts as transparent. with clampBorders, the source continues past its
+// borders, so they don't create boundaries
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	clampBorders := customVAs[0]
+	region := customVAs.yz // [minAlpha, maxAlpha], inclusive
+	if !within(imageSrc0At(sourceCoords).a, region) {
+		return vec4(1) // mark as max offset / uninitialized
+	}
+
+	minCenter := imageSrc0Origin() + 0.5
+	maxCenter := imageSrc0Origin() + imageSrc0Size() - 0.5
+	neighbors := [8]vec2{
+		sourceCoords + vec2(-1, -1),
+		sourceCoords + vec2(0, -1),
+		sourceCoords + vec2(+1, -1),
+		sourceCoords + vec2(-1, 0),
+		sourceCoords + vec2(+1, 0),
+		sourceCoords + vec2(-1, +1),
+		sourceCoords + vec2(0, +1),
+		sourceCoords + vec2(+1, +1),
+	}
+	for i := 0; i < 8; i++ {
+		coords := neighbors[i]
+		if clampBorders == 1.0 {
+			coords = clamp(coords, minCenter, maxCenter)
+		}
+		if !within(imageSrc0At(coords).a, region) {
+			return vec4(0) // this pixel is a boundary, mark as seed (offset = 0)
+		}
+	}
+	return vec4(1) // max offset / uninitialized
+}
+
+// ---- shared code, see jfm_read.kage ----
+
+func within(alpha float, region vec2) bool {
+	return region[0] <= alpha && alpha <= region[1]
+}

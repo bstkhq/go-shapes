@@ -171,13 +171,6 @@ const (
 	// Dithering in this package is often implemented with blue noise textures.
 	Dithered
 
-	// Apply extra smoothing.
-	//
-	// The exact technique depends on the operation, but it generally samples a
-	// wider area around each pixel to soften jagged results, at the cost of
-	// extra work.
-	Smoothed
-
 	// Clamps sample requests outside bounds to the source's border.
 	Clamp
 
@@ -219,8 +212,6 @@ func (f Flag) String() string {
 		return "Bilinear"
 	case Dithered:
 		return "Dithered"
-	case Smoothed:
-		return "Smoothed"
 	case Clamp:
 		return "Clamp"
 	case AABB:

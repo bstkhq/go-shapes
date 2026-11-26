@@ -322,22 +322,6 @@ var shaderTileTriUpGrid = shaderRef{src: shaderTileTriUpGridSrc}
 var shaderTileTriHexSrc []byte
 var shaderTileTriHex = shaderRef{src: shaderTileTriHexSrc}
 
-//go:embed shaders/morph/jfm_pass.kage
-var shaderJFMPassSrc []byte
-var shaderJFMPass = shaderRef{src: shaderJFMPassSrc}
-
-//go:embed shaders/morph/jfm_init_fill.kage
-var shaderJFMInitFillSrc []byte
-var shaderJFMInitFill = shaderRef{src: shaderJFMInitFillSrc}
-
-//go:embed shaders/morph/jfm_init_boundary.kage
-var shaderJFMInitBoundarySrc []byte
-var shaderJFMInitBoundary = shaderRef{src: shaderJFMInitBoundarySrc}
-
-//go:embed shaders/morph/jfm_heat.kage
-var shaderJFMHeatSrc []byte
-var shaderJFMHeat = shaderRef{src: shaderJFMHeatSrc}
-
 //go:embed shaders/analysis/alpha_normals.kage
 var shaderAlphaNormalsSrc []byte
 var shaderAlphaNormals = shaderRef{src: shaderAlphaNormalsSrc}
@@ -346,13 +330,25 @@ var shaderAlphaNormals = shaderRef{src: shaderAlphaNormalsSrc}
 var shaderAlphaNormalsVizSrc []byte
 var shaderAlphaNormalsViz = shaderRef{src: shaderAlphaNormalsVizSrc}
 
-//go:embed shaders/morph/jfm_expansion.kage
-var shaderJFMExpansionSrc []byte
-var shaderJFMExpansion = shaderRef{src: shaderJFMExpansionSrc}
+//go:embed shaders/morph/jfm_init.kage
+var shaderJFMInitSrc []byte
+var shaderJFMInit = shaderRef{src: shaderJFMInitSrc}
 
-//go:embed shaders/morph/jfm_erosion.kage
-var shaderJFMErosionSrc []byte
-var shaderJFMErosion = shaderRef{src: shaderJFMErosionSrc}
+//go:embed shaders/morph/jfm_pass.kage
+var shaderJFMPassSrc []byte
+var shaderJFMPass = shaderRef{src: shaderJFMPassSrc}
+
+//go:embed shaders/morph/jfm_read.kage
+var shaderJFMReadSrc []byte
+var shaderJFMRead = shaderRef{src: shaderJFMReadSrc}
+
+//go:embed shaders/morph/jfm_heat.kage
+var shaderJFMHeatSrc []byte
+var shaderJFMHeat = shaderRef{src: shaderJFMHeatSrc}
+
+//go:embed shaders/morph/jfm_viz.kage
+var shaderJFMVizSrc []byte
+var shaderJFMViz = shaderRef{src: shaderJFMVizSrc}
 
 //go:embed shaders/misc/halftone_tri.kage
 var shaderHalftoneTriSrc []byte

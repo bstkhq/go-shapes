@@ -17,7 +17,11 @@ package main
 //    and the remaining 15 bits represent the magnitude. See jfaDecodeAxisOffsetToSeed
 //    and jfaEncodeAxisOffsetToSeed for the actual code.
 
-func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+// imageSrc0 = jf map, imageSrc1 = alpha normals (optional), imageSrc2 = source
+
+var HasNormals float
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	pix := imageSrc0At(sourceCoords)
 	if pix == vec4(0) {
 		return vec4(0) // already a seed
@@ -25,33 +29,35 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 
 	jump := int(customVAs[0])
 	maxOffset := int(customVAs[1])
+	region := customVAs.zw // [minAlpha, maxAlpha], inclusive
+
+	// like SDFs, pixels inside the region get negative distances
+	fromSign := 1.0
+	if within(imageSrc2UnsafeAt(sourceCoords).a, region) {
+		fromSign = -1.0
+	}
+
 	bestOffset := jfaComputeOffsetToSeed(pix)
 	initOffset := bestOffset
-	bestDist := sqDist(bestOffset) // if pix is max_offset/uninitialized, bestDist = 2*(32767^2) (expect precision loss)
+	bestDist := 65536.0 * 65536.0 // uninitialized pixels never win
+	if pix != vec4(1) {
+		bestDist = seedDist(sourceCoords, sourceCoords+vec2(bestOffset), fromSign, region)
+	}
 
 	offsets := [8]ivec2{
 		ivec2(-jump, -jump), ivec2(0, -jump), ivec2(+jump, -jump),
 		ivec2(-jump, 0), ivec2(+jump, 0),
 		ivec2(-jump, +jump), ivec2(0, +jump), ivec2(+jump, +jump),
 	}
-	var neighbours [8]vec4
 	srcOrigin := imageSrc0Origin()
 	srcMax := srcOrigin + imageSrc0Size() - vec2(0.001)
-
-	neighbours[0] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[0]), srcOrigin, srcMax)
-	neighbours[1] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[1]), srcOrigin, srcMax)
-	neighbours[2] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[2]), srcOrigin, srcMax)
-	neighbours[3] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[3]), srcOrigin, srcMax)
-	neighbours[4] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[4]), srcOrigin, srcMax)
-	neighbours[5] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[5]), srcOrigin, srcMax)
-	neighbours[6] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[6]), srcOrigin, srcMax)
-	neighbours[7] = imgSrc0AtOrWhite(sourceCoords+vec2(offsets[7]), srcOrigin, srcMax)
-
 	for i := 0; i < 8; i++ {
-		neighbour := neighbours[i]
-		offset := jfaComputeOffsetToSeed(neighbour) // neighbour best seed offset
-		offset += offsets[i]                        // our candidate best seed offset
-		dist := sqDist(offset)
+		neighbor := imgSrc0AtOrWhite(sourceCoords+vec2(offsets[i]), srcOrigin, srcMax)
+		if neighbor == vec4(1) {
+			continue // uninitialized neighbors have no candidate
+		}
+		offset := jfaComputeOffsetToSeed(neighbor) + offsets[i] // our candidate best seed offset
+		dist := seedDist(sourceCoords, sourceCoords+vec2(offset), fromSign, region)
 		if dist < bestDist || (dist == bestDist && winTie(offset, bestOffset)) {
 			bestDist = dist
 			bestOffset = offset
@@ -65,10 +71,66 @@ func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4
 	return pix
 }
 
-func sqDist(offset ivec2) float {
-	fOffset := vec2(offset)
-	return fOffset.x*fOffset.x + fOffset.y*fOffset.y
+// ---- shared code, see jfm_read.kage (image indices differ) ----
+
+func seedDist(from, seed vec2, fromSign float, region vec2) float {
+	// estimate from alpha: the boundary is regionOffset away from the seed's
+	// center, towards from
+	alpha := imageSrc2UnsafeAt(seed).a
+	fromAlpha := length(from-seed) + fromSign*regionOffset(alpha, region)
+	if HasNormals != 1.0 {
+		return fromAlpha
+	}
+
+	// estimate with normals, when provided
+	normal := imageSrc1UnsafeAt(seed)
+	if normal.a == 0 {
+		return fromAlpha // no normals data for this seed
+	}
+	// normalEdgeDist is positive on the low alpha side, which is outside the
+	// region at the low alpha boundary, and inside it at the high one
+	dist := fromSign * nearestBoundarySign(alpha, region) * normalEdgeDist(from, seed, normal)
+	if dist < 0 {
+		// the edge places from on the wrong side of the boundary, so it can't
+		// be right for from (e.g., on features too thin for a reliable
+		// direction)
+		return fromAlpha
+	}
+	return dist
 }
+
+func regionOffset(alpha float, region vec2) float {
+	return nearestBoundarySign(alpha, region) * (0.5 - alpha)
+}
+
+func normalEdgeDist(from, normalOrigin vec2, normal vec4) float {
+	descent := normalize(normal.rg*2.0 - 1.0) // 8-bit components, normalize again
+	boundaryOffset := (normal.b - 0.5) * 1.5
+	fromEdge := from - (normalOrigin - descent*boundaryOffset)
+	across := dot(fromEdge, descent)
+	// the edge is a segment one pixel long, so corners stay round
+	pastEnd := max(abs(dot(fromEdge, vec2(-descent.y, descent.x)))-0.5, 0)
+	return sign(across) * sqrt(across*across+pastEnd*pastEnd)
+}
+
+func nearestBoundarySign(alpha float, region vec2) float {
+	if region[1] >= 1.0 {
+		return 1.0 // no high alpha boundary
+	}
+	if region[0] <= 0.0 {
+		return -1.0 // no low alpha boundary
+	}
+	if abs(alpha-region[0]) <= abs(alpha-region[1]) {
+		return 1.0
+	}
+	return -1.0
+}
+
+func within(alpha float, region vec2) bool {
+	return region[0] <= alpha && alpha <= region[1]
+}
+
+// ---- end of shared code ----
 
 func winTie(offset, bestOffset ivec2) bool {
 	return (offset.x < bestOffset.x || (offset.x == bestOffset.x && offset.y < bestOffset.y))

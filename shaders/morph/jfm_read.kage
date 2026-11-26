@@ -1,0 +1,178 @@
+//kage:unit pixels
+package main
+
+// see jfm_pass.kage for further context on JFA and offsets decoding, and
+// ../analysis/alpha_normals.kage for the alpha normals encoding
+
+// this shader reads jf maps for JFMExpand, JFMErode and JFMOutline, which all
+// measure the signed distance from each pixel to the region boundary in the
+// same way as the map was computed, and only differ in how they turn it into
+// coverage. it's also the reference for the shared code at the end, which the
+// other jfm shaders (jfm_init, jfm_pass, jfm_heat and jfm_viz) copy without the
+// doc comments
+
+// imageSrc0 = source, imageSrc1 = jf map, imageSrc2 = alpha normals (optional)
+
+var HasNormals float
+var Operation float // 0 = expand, 1 = erode, 2 = outline
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	amount := customVAs[0] // distance or thickness
+	tint := customVAs[1]
+	region := customVAs.zw // [minAlpha, maxAlpha], inclusive
+
+	// floor to reduce precision issues, see github.com/hajimehoshi/ebiten/issues/3865.
+	// sourceCoords is only a pixel center when drawing at integer coordinates,
+	// so the seed position is computed from the center of the pixel instead.
+	// at fractional coordinates, sourceCoords can also fall slightly outside
+	// the source, so the pixel is clamped to stay within the jf map
+	pixel := clamp(floor(sourceCoords), imageSrc0Origin(), imageSrc0Origin()+imageSrc0Size()-1)
+	center := pixel + 0.5
+	clr := imageSrc0UnsafeAt(center)
+	inside := within(clr.a, region)
+
+	// pixels inside the region keep their own coverage when expanding, which
+	// also preserves fades instead of turning them into solid areas
+	if Operation == 0 && inside {
+		return color * min(1, 0.5-regionOffset(clr.a, region)+amount)
+	}
+
+	s := signedDistance(sourceCoords, center, clr.a, inside, region)
+	if Operation == 0 {
+		return color * clamp(amount-s+0.5, 0, 1)
+	}
+	if Operation == 1 {
+		// erosion keeps the source colors, so the coverage left is applied as
+		// a fraction of the coverage that the same distance gives before
+		// eroding. this makes erosion by 0 return the source exactly, even
+		// where the normals estimate a coverage slightly different from the
+		// alpha. pixels estimated as uncovered keep a minimal coverage, so
+		// that they only disappear once the distance is above 0
+		before := max(0.5-s, 0.001)
+		keep := clamp(before-amount, 0, 1) / min(before, 1)
+		return mix(clr, color*clr.a, tint) * keep
+	}
+	return color * clamp(amount*0.5-abs(s)+0.5, 0, 1)
+}
+
+// ---- shared code ----
+
+// signedDistance returns the signed distance from the position from to the
+// region boundary, positive outside, using the seed stored in the jf map for
+// the pixel at the given center. Not used by jfm_pass.
+func signedDistance(from, center vec2, alpha float, inside bool, region vec2) float {
+	fromSign := 1.0 // like SDFs, positive outside the region
+	if inside {
+		fromSign = -1.0
+	}
+	encoded := imageSrc1UnsafeAt(center)
+	if encoded == vec4(1) {
+		return fromSign * 65536.0 // no seed within the map range
+	}
+	offset := vec2(jfaComputeOffsetToSeed(encoded))
+	if offset != vec2(0) {
+		return fromSign * seedDist(from, center+offset, fromSign, region)
+	}
+
+	// the pixel is a seed itself, so the boundary crosses it. it's measured
+	// from the exact sample point, without the side check, as the pixel can
+	// be on both sides of its own boundary
+	if HasNormals == 1.0 {
+		normal := imageSrc2UnsafeAt(center)
+		if normal.a != 0 {
+			return nearestBoundarySign(alpha, region) * normalEdgeDist(from, center, normal)
+		}
+	}
+	return regionOffset(alpha, region)
+}
+
+// seedDist returns the distance between from and the region boundary at the
+// seed centered at seed. fromSign is the SDF sign at from: +1 outside the
+// region, and -1 inside. The seed can't be the pixel that contains from.
+// jfm_pass ranks seeds by this same distance, so the seed stored in the map
+// is the nearest one for the shaders that read it.
+//
+// The boundary is estimated from the seed's alpha, or from its alpha normals
+// when provided.
+func seedDist(from, seed vec2, fromSign float, region vec2) float {
+	// estimate from alpha: the boundary is regionOffset away from the seed's
+	// center, towards from
+	alpha := imageSrc0UnsafeAt(seed).a
+	fromAlpha := length(from-seed) + fromSign*regionOffset(alpha, region)
+	if HasNormals != 1.0 {
+		return fromAlpha
+	}
+
+	// estimate with normals, when provided
+	normal := imageSrc2UnsafeAt(seed)
+	if normal.a == 0 {
+		return fromAlpha // no normals data for this seed
+	}
+	// normalEdgeDist is positive on the low alpha side, which is outside the
+	// region at the low alpha boundary, and inside it at the high one
+	dist := fromSign * nearestBoundarySign(alpha, region) * normalEdgeDist(from, seed, normal)
+	if dist < 0 {
+		// the edge places from on the wrong side of the boundary, so it can't
+		// be right for from (e.g., on features too thin for a reliable
+		// direction)
+		return fromAlpha
+	}
+	return dist
+}
+
+// regionOffset estimates the signed distance from the center of a pixel with
+// the given alpha to the region boundary, positive outside. It treats alpha
+// as the coverage of a sharp antialiased edge, which is equivalent to
+// edgeOffset in ../analysis/alpha_normals.kage for an axis-aligned edge.
+func regionOffset(alpha float, region vec2) float {
+	return nearestBoundarySign(alpha, region) * (0.5 - alpha)
+}
+
+// normalEdgeDist returns the signed distance from the position from to the
+// edge given by the alpha normal at normalOrigin, positive on the low alpha
+// side. The edge is perpendicular to the alpha descent, at the boundary offset
+// from normalOrigin (see ../analysis/alpha_normals.kage).
+func normalEdgeDist(from, normalOrigin vec2, normal vec4) float {
+	descent := normalize(normal.rg*2.0 - 1.0) // 8-bit components, normalize again
+	boundaryOffset := (normal.b - 0.5) * 1.5
+	fromEdge := from - (normalOrigin - descent*boundaryOffset)
+	across := dot(fromEdge, descent)
+	// the edge is a segment one pixel long, so corners stay round
+	pastEnd := max(abs(dot(fromEdge, vec2(-descent.y, descent.x)))-0.5, 0)
+	return sign(across) * sqrt(across*across+pastEnd*pastEnd)
+}
+
+// nearestBoundarySign returns +1 if alpha is closer to the region's low alpha
+// boundary, and -1 if it's closer to the high alpha boundary.
+func nearestBoundarySign(alpha float, region vec2) float {
+	if region[1] >= 1.0 {
+		return 1.0 // no high alpha boundary
+	}
+	if region[0] <= 0.0 {
+		return -1.0 // no low alpha boundary
+	}
+	if abs(alpha-region[0]) <= abs(alpha-region[1]) {
+		return 1.0
+	}
+	return -1.0
+}
+
+// within reports whether alpha is in the region, limits included.
+func within(alpha float, region vec2) bool {
+	return region[0] <= alpha && alpha <= region[1]
+}
+
+// taken from jfm_pass.kage
+func jfaComputeOffsetToSeed(pix vec4) ivec2 {
+	return ivec2(jfaDecodeAxisOffsetToSeed(pix.xy), jfaDecodeAxisOffsetToSeed(pix.zw))
+}
+
+// taken from jfm_pass.kage
+func jfaDecodeAxisOffsetToSeed(pq vec2) int {
+	const epsilon = 0.001
+	hi := int((pq[0] + epsilon) * 255.0)
+	lo := int((pq[1] + epsilon) * 255.0)
+	magnitude := ((hi & 0x7F) << 8) | lo
+	sign := 1 - ((hi >> 7) << 1)
+	return sign * magnitude
+}
