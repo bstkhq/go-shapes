@@ -52,7 +52,11 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 		keep := clamp(before-amount, 0, 1) / min(before, 1)
 		return mix(clr, color*clr.a, tint) * keep
 	}
-	return color * clamp(amount*0.5-abs(s)+0.5, 0, 1)
+
+	// outlines are centered if amount >= 0, inner otherwise
+	width := abs(amount)
+	middle := min(amount, 0) * 0.5
+	return color * clamp(width*0.5-abs(s-middle)+0.5, 0, 1)
 }
 
 // ---- shared code ----

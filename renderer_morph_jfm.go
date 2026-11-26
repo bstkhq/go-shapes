@@ -260,14 +260,16 @@ func (r *Renderer) JFMErode(target, source *ebiten.Image, ox, oy, distance float
 	r.jfmRead(target, source, ox, oy, distance, distance, false, jfmap, shaderJFMRead.Load(), jfmOpErode, r.tint, flags...)
 }
 
-// JFMOutline draws an outline of the given source onto the given target,
-// centered on the region boundary, with a total width of thickness.
-//   - thickness must be in [0, 32k].
+// JFMOutline draws an outline of the given source onto the given target. If
+// thickness > 0, the outline is centered on the region boundary, with a total
+// width of thickness. If thickness < 0, it extends inwards by -thickness.
+//   - thickness must be in [-32k, 32k].
 //   - If jfmap.Offsets is nil, it is generated using [Renderer.JFMapCompute]().
 //     This uses internal offscreens (#0, #1, #3, and #2 with normals).
 //   - With precomputed jfmap.Offsets, the outline stops at the source borders
 //     (see [JFMap] for how to make room for it), and the map needs a
-//     MaxDistance of at least thickness/2 + 2.
+//     MaxDistance of at least thickness/2 + 2, or -thickness + 2 for inner
+//     outlines.
 //
 // Supported flags: [Clamp], which only applies to internal jumping flood map
 // computation when jfmap.Offsets is nil. Clamping prevents outlines along the
@@ -278,6 +280,11 @@ func (r *Renderer) JFMErode(target, source *ebiten.Image, ox, oy, distance float
 // For additional context on jumping flood maps, see [Renderer.JFMapCompute]()
 // and [JFMap]. See also [Renderer.MorphOutline]().
 func (r *Renderer) JFMOutline(target, source *ebiten.Image, ox, oy, thickness float32, jfmap JFMap, flags ...Flag) {
+	if thickness < 0 { // inner outline, nothing drawn outside
+		thickness = -r.checkJFMDistance(-thickness)
+		r.jfmRead(target, source, ox, oy, thickness, -thickness, false, jfmap, shaderJFMRead.Load(), jfmOpOutline, 0, flags...)
+		return
+	}
 	thickness = r.checkJFMDistance(thickness)
 	r.jfmRead(target, source, ox, oy, thickness, thickness/2, true, jfmap, shaderJFMRead.Load(), jfmOpOutline, 0, flags...)
 }

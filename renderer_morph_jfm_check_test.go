@@ -151,6 +151,8 @@ func TestJFMReadBestSeed(t *testing.T) {
 		{op: jfmOpErode, normals: true},
 		{op: jfmOpOutline, normals: false},
 		{op: jfmOpOutline, normals: true},
+		{op: jfmOpOutline, inner: true, normals: false},
+		{op: jfmOpOutline, inner: true, normals: true},
 	}
 	distances := []float32{0.5, 1.75, 3, 4.5}
 
@@ -174,8 +176,8 @@ func TestJFMReadBestSeed(t *testing.T) {
 }
 
 type jfmBestSeedConfig struct {
-	op      int
-	normals bool
+	op             int
+	inner, normals bool // inner only applies to outlines
 }
 
 // readWithBestSeed is a helper for TestJFMReadBestSeed. It returns the result
@@ -183,7 +185,8 @@ type jfmBestSeedConfig struct {
 // time for the region of jfmap, and the result computed on the CPU with the
 // best seed for each pixel (want). The results include the area the operations
 // draw around the source, which is the margin of the generated maps:
-// distance + 2 pixels for expansions, and thickness / 2 + 2 for outlines.
+// distance + 2 pixels for expansions, and thickness / 2 + 2 for outlines (none
+// for inner outlines).
 func readWithBestSeed(r *Renderer, shape testShape, config jfmBestSeedConfig, distance float32, jfmap JFMap) (got, want *image.RGBA) {
 	source := pixcheck.NewImage(shape.img, image.Pt(3, 5))
 	model := jfmModel{jfmap: jfmap, source: shape.img}
@@ -192,11 +195,12 @@ func readWithBestSeed(r *Renderer, shape testShape, config jfmBestSeedConfig, di
 		model.normals = pixcheck.Read(jfmap.Normals)
 	}
 
+	amount := mapBool(config.inner, distance, -distance)
 	var pad int
-	switch config.op {
-	case jfmOpExpand:
+	switch {
+	case config.op == jfmOpExpand:
 		pad = int(math.Ceil(float64(distance))) + 2
-	case jfmOpOutline:
+	case config.op == jfmOpOutline && !config.inner:
 		pad = int(math.Ceil(float64(distance/2))) + 2
 	}
 	w, h := shape.img.Rect.Dx()+2*pad, shape.img.Rect.Dy()+2*pad
@@ -207,14 +211,14 @@ func readWithBestSeed(r *Renderer, shape testShape, config jfmBestSeedConfig, di
 	case jfmOpErode:
 		r.JFMErode(target, source, 0, 0, distance, jfmap)
 	case jfmOpOutline:
-		r.JFMOutline(target, source, float32(pad), float32(pad), distance, jfmap)
+		r.JFMOutline(target, source, float32(pad), float32(pad), amount, jfmap)
 	}
 
 	model = model.padded(pad)
 	want = image.NewRGBA(image.Rect(0, 0, w, h))
 	for y := range h {
 		for x := range w {
-			want.SetRGBA(x, y, model.result(config.op, image.Pt(x, y), float64(distance)))
+			want.SetRGBA(x, y, model.result(config.op, image.Pt(x, y), float64(amount)))
 		}
 	}
 	return pixcheck.Read(target), want
@@ -251,6 +255,10 @@ func TestJFMGeneratedMap(t *testing.T) {
 		{op: jfmOpOutline, clamp: false, normals: true},
 		{op: jfmOpOutline, clamp: true, normals: false},
 		{op: jfmOpOutline, clamp: true, normals: true},
+		{op: jfmOpOutline, inner: true, clamp: false, normals: false},
+		{op: jfmOpOutline, inner: true, clamp: false, normals: true},
+		{op: jfmOpOutline, inner: true, clamp: true, normals: false},
+		{op: jfmOpOutline, inner: true, clamp: true, normals: true},
 	}
 	distances := []float32{0, 0.5, 1, 1.75, 3, 4.5}
 
@@ -271,13 +279,14 @@ func TestJFMGeneratedMap(t *testing.T) {
 }
 
 type jfmGeneratedConfig struct {
-	op             int
-	clamp, normals bool
+	op                    int
+	inner, clamp, normals bool // inner only applies to outlines
 }
 
 // readWithBothMaps is a helper for TestJFMGeneratedMap. It draws the
 // operation twice and returns both results: want uses a precomputed jfmap, and
-// got one generated at draw time.
+// got one generated at draw time. Inner outlines with a generated map draw
+// nothing outside the source, so only the source area is returned for them.
 func readWithBothMaps(r *Renderer, shape testShape, config jfmGeneratedConfig, distance float32) (got, want *ebiten.Image) {
 	// generated maps and their padding reach distance + 2, so this is plenty
 	// for both the precomputed map and the margin around the results
@@ -301,7 +310,7 @@ func readWithBothMaps(r *Renderer, shape testShape, config jfmGeneratedConfig, d
 		case jfmOpErode:
 			r.JFMErode(target, source, offset, offset, distance, jfmap, flags...)
 		case jfmOpOutline:
-			r.JFMOutline(target, source, offset, offset, distance, jfmap, flags...)
+			r.JFMOutline(target, source, offset, offset, mapBool(config.inner, distance, -distance), jfmap, flags...)
 		}
 	}
 
@@ -316,6 +325,10 @@ func readWithBothMaps(r *Renderer, shape testShape, config jfmGeneratedConfig, d
 	generated := JFMap{Normals: normals}
 	got = ebiten.NewImage(w, h)
 	draw(got, source, float32(margin), generated, flags...)
+	if config.inner {
+		area := shape.img.Rect.Sub(shape.img.Rect.Min).Add(image.Pt(margin, margin))
+		return got.SubImage(area).(*ebiten.Image), want.SubImage(area).(*ebiten.Image)
+	}
 	return got, want
 }
 

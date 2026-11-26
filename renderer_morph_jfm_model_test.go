@@ -47,7 +47,8 @@ func (m jfmModel) result(op int, pixel image.Point, amount float64) color.RGBA {
 		before := max(0.5-m.signedDist(center, pixel), 0.001)
 		coverage = alpha * clamp(before-amount, 0, 1) / min(before, 1)
 	case op == jfmOpOutline:
-		coverage = clamp(amount*0.5-math.Abs(m.signedDist(center, pixel))+0.5, 0, 1)
+		width, middle := math.Abs(amount), min(amount, 0)*0.5
+		coverage = clamp(width*0.5-math.Abs(m.signedDist(center, pixel)-middle)+0.5, 0, 1)
 	}
 	v := uint8(math.Round(coverage * 255))
 	return color.RGBA{v, v, v, v}

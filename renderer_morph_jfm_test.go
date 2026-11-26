@@ -84,17 +84,19 @@ func TestJFMExpand(t *testing.T) {
 // go test -run ^TestJFMOutline$ . -count 1
 func TestJFMOutline(t *testing.T) {
 	const MaxThickness = 16
+	const MaxInnerThickness = 8         // MorphOutline's limit, which fits in MapRange
 	const MapRange = MaxThickness/2 + 2 // boundaries can be ~1.5 pixels away from seed centers
 	imgIndex, regionIndex := 0, 0
 	thickness := float32(6)
 	clampBorders, motion := false, false
-	mapNormals, opNormals, animThickness := true, true, true
+	mapNormals, opNormals := true, true
+	animThickness := 0
 	cache := newJFMTestCache(MapRange, MapRange)
 
 	updater := func(ctx TestAppCtx) {
 		imgIndex = updateParam(ctx, ebiten.KeySpace, imgIndex, 0, len(ctx.Images)-1, 1)
-		thickness = updateParam(ctx, ebiten.KeyT, thickness, 0, MaxThickness, 1)
-		animThickness = updateToggle(ctx, ebiten.KeyA, animThickness)
+		thickness = updateParam(ctx, ebiten.KeyT, thickness, -float32(MaxInnerThickness), MaxThickness, 1)
+		animThickness = updateParam(ctx, ebiten.KeyA, animThickness, -1, 1, 1)
 		clampBorders = updateToggle(ctx, ebiten.KeyC, clampBorders)
 		motion = updateToggle(ctx, ebiten.KeyM, motion)
 		regionIndex = updateParam(ctx, ebiten.KeyR, regionIndex, 0, len(jfmRegions)-1, 1)
@@ -107,8 +109,11 @@ func TestJFMOutline(t *testing.T) {
 		img := ctx.Images[imgIndex]
 		w, h := rectSizeF32(img.Bounds())
 		th := thickness
-		if animThickness {
+		switch animThickness {
+		case 1:
 			th = float32(ctx.DistAnim(MaxThickness, 1.0))
+		case -1:
+			th = -float32(ctx.DistAnim(MaxInnerThickness, 1.0))
 		}
 		mx, my := float32(0.0), float32(0.0)
 		if motion {
@@ -140,11 +145,11 @@ func TestJFMOutline(t *testing.T) {
 		ctx.Renderer.SetColor(color.White)
 		minAlpha, maxAlpha := jfmRegion(region.minAlpha, region.maxAlpha)
 		controls := fmt.Sprintf(
-			"Shape: %d/%d [Space]\nThickness: %.1f [T], animated: %t [A]\nClamp: %t [C]\nMovement: %t [M]\n\n"+
+			"Shape: %d/%d [Space]\nThickness: %.1f [T], animation: %s [A]\nClamp: %t [C]\nMovement: %t [M]\n\n"+
 				"(JFM only controls)\nRegion: %s, alpha in [%.3g, %.3g] [R]\n"+
 				"Normals: jfmap %t [J], operation %t [N]",
-			imgIndex+1, len(ctx.Images), th, animThickness, clampBorders, motion,
-			region.name, minAlpha, maxAlpha, mapNormals, opNormals,
+			imgIndex+1, len(ctx.Images), th, []string{"Inner", "Off", "Outer"}[animThickness+1],
+			clampBorders, motion, region.name, minAlpha, maxAlpha, mapNormals, opNormals,
 		)
 		ctx.Renderer.Text(canvas, controls, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 		panels := "Top-left: source\nTop-right: MorphOutline\nBottom-right: JFMOutline"
