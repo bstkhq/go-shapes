@@ -1,3 +1,5 @@
+//go:build interactive
+
 package shapes
 
 import "github.com/hajimehoshi/ebiten/v2"
