@@ -282,7 +282,8 @@ var rectStrokeIndices = []uint32{
 	0, 4, 7,
 }
 
-// StrokeRect is the [image.Rectangle]-compatible equivalent of [Renderer.StrokeRect]().
+// StrokeIntRect is the [image.Rectangle]-compatible equivalent of
+// [Renderer.StrokeRect]().
 //
 // For rectangle creation, consider [image.Rect]() and [RectWithSize]().
 //
@@ -325,10 +326,12 @@ func (r *Renderer) strokeIntInnerRect(target *ebiten.Image, ox, oy, w, h, thickn
 	ofx, ofy := float32(ox+w), float32(oy+h)
 	r.setDstRectCoords(oox, ooy, ofx, ofy)
 
-	// add inner points
-	thickF32 := float32(thickness)
-	iox, ioy := oox+thickF32, ooy+thickF32
-	ifx, ify := ofx-thickF32, ofy-thickF32
+	// add inner points. thick strokes collapse the inner rect into a line or a
+	// point at the center, so the triangles never fold over each other
+	tx := min(float32(thickness), float32(w)/2)
+	ty := min(float32(thickness), float32(h)/2)
+	iox, ioy := oox+tx, ooy+ty
+	ifx, ify := ofx-tx, ofy-ty
 	r.vertices = append(r.vertices,
 		ebiten.Vertex{DstX: iox, DstY: ioy},
 		ebiten.Vertex{DstX: ifx, DstY: ioy},

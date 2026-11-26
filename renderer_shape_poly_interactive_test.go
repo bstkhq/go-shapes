@@ -542,14 +542,18 @@ func TestFillRectPrecise(t *testing.T) {
 // go test -tags interactive -run ^TestStrokeIntRect$ . -count 1
 func TestStrokeIntRect(t *testing.T) {
 	var flags flagList
-	colorSets := newTestColorSets(tcsVivid4, tcsPastel4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure))
+	colorSets := newTestColorSets(
+		tcsVivid4, tcsPastel4, tcsNoCrease4, tcsTTB("OrangeAzure", tcOrange, tcAzure),
+		tcsSingle("HalfWhite", ScaleAlphaF32A(tcWhite, 0.5)), // overlapping triangles would show brighter
+	)
 
-	w, h, thick := 80, 50, 8
+	w, h, inThick, outThick := 80, 48, 8, 8
 	updater := func(ctx TestAppCtx) {
 		flags.UpdateFlag(ColorIntrinsic, ebiten.KeyC)
-		w = updateParam(ctx, ebiten.KeyW, w, 16, 512, 8)
-		h = updateParam(ctx, ebiten.KeyH, h, 16, 256, 8)
-		thick = updateParam(ctx, ebiten.KeyT, thick, 0, 32, 2)
+		w = updateParam(ctx, ebiten.KeyW, w, -128, 512, 8)
+		h = updateParam(ctx, ebiten.KeyH, h, -128, 256, 8)
+		inThick = updateParam(ctx, ebiten.KeyI, inThick, 0, 64, 1)
+		outThick = updateParam(ctx, ebiten.KeyO, outThick, 0, 64, 1)
 		colorSets.Update(ebiten.KeyS)
 	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
@@ -557,8 +561,8 @@ func TestStrokeIntRect(t *testing.T) {
 
 		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf(
-			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nHalfThick: %d [T]\nColorSet: %s [S]",
-			flags.Has(ColorIntrinsic), w, h, thick, colorSets.Info(),
+			"ColorIntrinsic: %t [C]\nWidth/Height: %d/%d [W/H]\nThickness in/out: %d/%d [I/O]\nColorSet: %s [S]",
+			flags.Has(ColorIntrinsic), w, h, inThick, outThick, colorSets.Info(),
 		)
 		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
 
@@ -580,9 +584,9 @@ func TestStrokeIntRect(t *testing.T) {
 
 		colorSets.Apply(ctx.Renderer)
 		if ctx.SpacePressed {
-			ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx-thick, rcy-thick, w+thick*2, h+thick*2), 0)
+			ctx.Renderer.FillIntRect(canvas, RectWithSize(lcx, rcy, w, h).Inset(-outThick), 0)
 		} else {
-			ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, w, h), thick, thick, flags...)
+			ctx.Renderer.StrokeIntRect(canvas, RectWithSize(lcx, rcy, w, h), inThick, outThick, flags...)
 		}
 	}
 
