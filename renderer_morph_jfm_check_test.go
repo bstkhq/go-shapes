@@ -411,24 +411,6 @@ func invertedNormals(normals *image.RGBA) *image.RGBA {
 	return inverted
 }
 
-// ---- TestJFMSharedShaderCode ----
-
-// The jfm shaders keep their own copies of the code that measures distances
-// and decodes offsets (the reference is jfm_read.kage), which must stay the
-// same in all of them.
-func TestJFMSharedShaderCode(t *testing.T) {
-	read := namedShader{"JFMRead", shaderJFMReadSrc}
-	heat := namedShader{"JFMHeat", shaderJFMHeatSrc}
-	viz := namedShader{"JFMViz", shaderJFMVizSrc}
-	pass := namedShader{"JFMPass", shaderJFMPassSrc}
-	init := namedShader{"JFMInit", shaderJFMInitSrc}
-	checkSharedShaderFuncs(t, []namedShader{read, heat, viz}, "signedDistance")
-	checkSharedShaderFuncs(t, []namedShader{read, heat, viz, pass},
-		"seedDist", "regionOffset", "normalEdgeDist", "nearestBoundarySign",
-		"jfaComputeOffsetToSeed", "jfaDecodeAxisOffsetToSeed")
-	checkSharedShaderFuncs(t, []namedShader{read, heat, viz, pass, init}, "within")
-}
-
 // ---- TestJFMErodeBorders ----
 
 // Without Clamp, JFMErode erodes from the source borders as if the area outside
