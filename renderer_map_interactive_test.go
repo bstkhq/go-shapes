@@ -1,0 +1,282 @@
+//go:build interactive
+
+package shapes
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"math"
+	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+// go test -tags interactive -run ^TestMap$ . -count 1
+func TestMap(t *testing.T) {
+	const CardWidth, CardHeight = 128, 164
+	card := newCardWaver(CardWidth, CardHeight)
+
+	anisotropic := false
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(fmt.Sprintf("%s [anisotropic = %t]", ctx.Title(), anisotropic))
+		card.Update()
+		if inpututil.IsKeyJustPressed(ebiten.KeyA) {
+			anisotropic = !anisotropic
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		ctx.Renderer.SetColorF32A(tcWhite)
+		ox, oy, w, h := rectOriginSize(canvas.Bounds())
+		c1x, c1y := float32(ox+w/4), float32(oy+h/4)
+		c2x, c2y := float32(ox+3*w/4), float32(oy+h/4)
+		c3x, c3y := float32(ox+w/4), float32(oy+3*h/4)
+		c4x, c4y := float32(ox+3*w/4), float32(oy+3*h/4)
+
+		ctx.Renderer.mapQuad2(canvas, ctx.Images[0], card.Quad(c1x, c1y))
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y), MapOptions{})
+		ctx.Renderer.SetColorF32A(tcWhite)
+		ctx.Renderer.SetTint(0)
+		if (ctx.Ticks/180)&1 == 1 {
+			setColorsTB(ctx.Renderer, tcWhite, tcClear)
+			ctx.Renderer.SetTint(1)
+		}
+		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), MapOptions{Anisotropic: anisotropic})
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y), MapOptions{})
+	}
+
+	app := NewTestApp(updater, drawer)
+	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
+	app.Renderer.FillRect(img, 1, 1, CardWidth, CardHeight, -6.0)
+
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
+	app.Renderer.SetColorF32(0, 0, 0, 0.1)
+	app.Renderer.TileDotsHex(img, 4.0, 12.0, 0, 0)
+	app.Renderer.SetColorF32A(tcAzure)
+	app.Renderer.StrokeRect(img, 1+8, 1+8, CardWidth-8*2, CardHeight-8*2, 8.0, 0, 6.0)
+	app.Renderer.opts.Blend = ebiten.BlendClear
+	app.Renderer.FillRect(img, 8, 0, 32, 64, 0)
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
+	app.Renderer.SetColorF32A(tcWhite)
+
+	app.Images = append(app.Images, img)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -tags interactive -run ^TestMapQuad$ . -count 1
+func TestMapQuad(t *testing.T) {
+	testMapQuad(t, (*Renderer).MapQuad)
+}
+
+// go test -tags interactive -run ^TestMapQuad4$ . -count 1
+func TestMapQuad4(t *testing.T) {
+	testMapQuad(t, (*Renderer).MapQuad4)
+}
+
+func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.Image, [4]PointF32, MapOptions)) {
+	t.Helper()
+	const CardWidth, CardHeight = 256, 328
+
+	tilt, shear := 0.0, 0.0
+	zoomPercent := 100
+	widthPercent, heightPercent := 100, 100
+	smoothMovement := false
+	var options MapOptions
+	updater := func(ctx TestAppCtx) {
+		options.Anisotropic = updateToggle(ctx, ebiten.KeyA, options.Anisotropic)
+		options.DstSampling = updateToggle(ctx, ebiten.KeyD, options.DstSampling)
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+		zoomPercent = updateParam(ctx, ebiten.KeyZ, zoomPercent, 25, 400, 25)
+		widthPercent = updateParam(ctx, ebiten.KeyX, widthPercent, 10, 200, 5)
+		heightPercent = updateParam(ctx, ebiten.KeyY, heightPercent, 10, 200, 5)
+
+		shift := 0.1
+		if ebiten.IsKeyPressed(ebiten.KeyShift) {
+			shift /= 10.0
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyControl) {
+			shift /= 100.0
+		}
+
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft):
+			tilt = max(tilt-shift, -0.99)
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowRight):
+			tilt = min(tilt+shift, 0.99)
+		}
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowDown):
+			shear = max(shear-shift, -1.0)
+		case inpututil.IsKeyJustPressed(ebiten.KeyArrowUp):
+			shear = min(shear+shift, 1.0)
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(backTestColor)
+		bounds := canvas.Bounds()
+		cx, cy := float32(bounds.Dx()/2), float32(bounds.Dy()/2)
+		if smoothMovement {
+			cx += float32(ctx.DistAnim(4, 0.7)) - 2
+			cy += float32(ctx.DistAnim(4, 1.0)) - 2
+		}
+		zoom := float32(zoomPercent) / 100
+		xScale := zoom * float32(widthPercent) / 100
+		yScale := zoom * float32(heightPercent) / 100
+		xOff := float32(-CardWidth/2+math.Abs(tilt)*CardWidth/2) * xScale
+		lcx, rcx := cx+xOff, cx-xOff
+		ty, by := cy-CardHeight/2*yScale, cy+CardHeight/2*yScale
+		pts := [4]PointF32{{lcx, ty}, {rcx, ty}, {rcx, by}, {lcx, by}}
+
+		yOff := float32(tilt) * 15.0 * yScale
+		pts[0].Y -= yOff
+		pts[3].Y += yOff
+		pts[1].Y += yOff
+		pts[2].Y -= yOff
+		for i := range pts {
+			pts[i].X -= float32(shear) * (pts[i].Y - cy)
+		}
+
+		drawQuad(ctx.Renderer, canvas, ctx.Images[0], pts, options)
+
+		// controls
+		ctx.Renderer.SetColorF32A(tcWhite)
+		info := fmt.Sprintf("Anisotropic x2: %t [A]  DstSampling: %t [D]\nTilt: %+.04f [Left / Right]  Shear: %+.04f [Up / Down]\nShift: fine, Ctrl: fine+ for tilt and shear\nWidth: %d%% [X / Shift+X]  Height: %d%% [Y / Shift+Y]\nZoom: %d%% [Z / Shift+Z]  Smooth movement: %t [M]",
+			options.Anisotropic, options.DstSampling, tilt, shear, widthPercent, heightPercent, zoomPercent, smoothMovement)
+		ctx.Renderer.Text(canvas, info, float32(bounds.Min.X+8), float32(bounds.Min.Y+8), TextOpts(1, TopLeft.Snap(CapLine)))
+	}
+
+	app := NewTestApp(updater, drawer)
+	img := ebiten.NewImage(CardWidth, CardHeight)
+	app.Renderer.FillRect(img, 2, 2, CardWidth-4, CardHeight-4, -6.0)
+
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
+	gradientOpts := GradientOpts(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, true)
+	app.Renderer.Gradient(img, gradientOpts, DirRadsTTB)
+	app.Renderer.SetColorF32A(tcBlue)
+	sr, er := RadsSpan(DirRadsTTB, 0.15)
+	app.Renderer.FillRadialSector(img, CardWidth/2, CardHeight/2-32, 0, 64, sr, er, 0)
+	const PatternPitch, ShapeRadius = 12, 4
+	topHalf := img.SubImage(image.Rect(0, 0, CardWidth, CardHeight/2)).(*ebiten.Image)
+	bottomHalf := img.SubImage(image.Rect(0, CardHeight/2, CardWidth, CardHeight)).(*ebiten.Image)
+	app.Renderer.SetColorF32(0, 0, 0, 0.65)
+	app.Renderer.TileDotsGrid(topHalf, ShapeRadius, PatternPitch, 2, 4)
+	app.Renderer.TileRectsGrid(bottomHalf, 2*ShapeRadius, 2*ShapeRadius, PatternPitch, PatternPitch, 2, 4)
+
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
+	app.Renderer.SetColorF32A(tcWhite)
+	app.Images = append(app.Images, img)
+	ebiten.SetWindowSize(700, 500)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -tags interactive -run ^TestMapProjectiveStress$ . -count 1
+func TestMapProjectiveStress(t *testing.T) {
+	const CardWidth, CardHeight = 32, 48
+	const NumRows = 9
+	const NumCols = 18
+
+	ebiten.SetVsyncEnabled(false)
+
+	cardWavers := make([]*cardWaver, NumRows*NumCols)
+	for i := range cardWavers {
+		cardWavers[i] = newCardWaver(CardWidth, CardHeight)
+	}
+
+	updater := func(TestAppCtx) {
+		for _, cardWaver := range cardWavers {
+			cardWaver.Update()
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		ox, oy, w, h := rectOriginSize(canvas.Bounds())
+		dx, dy := float32(w)/(NumCols+1), float32(h)/(NumRows+1)
+		waverIdx := 0
+		cy := float32(oy) + dy
+		for range NumRows {
+			cx := float32(ox) + dx
+			for range NumCols {
+				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), MapOptions{})
+				cx += dx
+				waverIdx += 1
+			}
+			cy += dy
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	img := ebiten.NewImage(CardWidth+2, CardHeight+2)
+	img2 := ebiten.NewImage(CardWidth+2, CardHeight+2)
+	app.Renderer.FillIntRect(img, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
+	app.Renderer.SetColorF32(1, 0.3, 1, 1)
+	app.Renderer.FillIntRect(img2, image.Rect(1, 1, CardWidth+1, CardHeight+1), -6.0)
+
+	app.Renderer.opts.Blend = ebiten.BlendSourceAtop
+	app.Renderer.SetColorF32(0, 0, 0, 0.1)
+	app.Renderer.TileDotsHex(img, CardWidth/18, CardWidth/8, 0, 0)
+	app.Renderer.SetColorF32(1, 0, 0, 0.1)
+	app.Renderer.TileDotsHex(img2, CardWidth/18, CardWidth/8, 0, 0)
+
+	app.Renderer.opts.Blend = ebiten.BlendSourceOver
+	app.Renderer.SetColorF32A(tcWhite)
+
+	app.Images = append(app.Images, img, img2)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type cardWaver struct {
+	w, h  float64
+	xTilt float64
+	yTilt float64
+	rads  float64
+}
+
+func newCardWaver(w, h float64) *cardWaver {
+	var waver cardWaver
+	waver.w, waver.h = w, h
+	return &waver
+}
+
+func (cw *cardWaver) Update() {
+	cw.rads += 0.02
+	if cw.rads > 2*math.Pi {
+		cw.rads -= 2 * math.Pi
+	}
+	cw.xTilt = math.Cos(cw.rads) * -0.15
+	cw.yTilt = math.Sin(cw.rads) * 0.11
+}
+
+func (cw *cardWaver) Quad(cx, cy float32) [4]PointF32 {
+	const DepthStrength = 1.0 / 3.0
+
+	xTiltSin, xTiltCos := math.Sincos(cw.xTilt)
+	yTiltSin, yTiltCos := math.Sincos(cw.yTilt)
+
+	xCosSigns := [4]float64{-1, 1, 1, -1}
+	yCosSigns := [4]float64{-1, -1, 1, 1}
+	xzSinSigns := [4]float64{-1, 1, -1, 1}
+	yzSinSigns := [4]float64{-1, 1, -1, 1}
+	var pts [4]PointF32
+	for i := range pts {
+		xOffset := xTiltCos * xCosSigns[i] * cw.w / 2.0
+		yOffset := yTiltCos * yCosSigns[i] * cw.h / 2.0
+
+		xzOffset := xTiltSin * xzSinSigns[i] * (cw.w / 2.0) * DepthStrength
+		yzOffset := yTiltSin * yzSinSigns[i] * (cw.h / 2.0) * DepthStrength
+
+		pts[i].X = cx + float32(xOffset+yzOffset)
+		pts[i].Y = cy + float32(yOffset+xzOffset)
+	}
+
+	return pts
+}

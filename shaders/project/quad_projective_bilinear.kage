@@ -1,0 +1,72 @@
+//kage:unit pixels
+package main
+
+// notice: when no translation nor rotation is used, it's typically
+// possible to omit 2 or 3 elements from the homography matrix, which
+// would make viable passing it without uniforms
+
+var Homography mat3
+var DstSampling int
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	relCoords := targetCoords.xy - imageDstOrigin()
+	uvw := Homography * vec3(relCoords, 1.0)
+
+	sourceOffset := (uvw.xy/uvw.z) * imageSrc0Size()
+	coords := imageSrc0Origin() + sourceOffset
+	var out vec4
+	if DstSampling == 1 {
+		dstPixSize := abs(dfdx(sourceOffset)) + abs(dfdy(sourceOffset))
+		filterWidth := clamp(dstPixSize, vec2(0.001), vec2(1))
+		out = clampedDstBilinear0(coords, filterWidth)
+	} else {
+		out = clampedSrcBilinear0(coords)
+	}
+	return mix(out, color*out, customVAs[0])
+}
+
+func clampedSrcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
+	return clampedRawBilinear0(loPixIndex, hiPixIndex, blend)
+}
+
+func clampedDstBilinear0(coords, filterWidth vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, filterWidth)
+	return clampedRawBilinear0(loPixIndex, hiPixIndex, blend)
+}
+
+func clampedRawBilinear0(loPixIndex, hiPixIndex, blend vec2) vec4 {
+	loPixIndex, hiPixIndex = clampSourcePixelIndices(loPixIndex, hiPixIndex)
+	tl := imageSrc0UnsafeAt(loPixIndex)
+	tr := imageSrc0UnsafeAt(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc0UnsafeAt(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc0UnsafeAt(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)
+	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
+}
+
+// precondition: 0 < filterWidth <= 1 on each axis, in source pixels
+func dstBilinearIndicesAndBlend(coords, filterWidth vec2) (vec2, vec2, vec2) {
+	pixel := floor(coords)
+	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
+	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // weight of the pixel past nearestEdge
+	return nearestEdge - vec2(1), nearestEdge, blend
+}
+
+func clampSourcePixelIndices(loPixIndex, hiPixIndex vec2) (vec2, vec2) {
+	minIndex := imageSrc0Origin()
+	maxIndex := minIndex + imageSrc0Size() - vec2(1)
+	return clamp(loPixIndex, minIndex, maxIndex), clamp(hiPixIndex, minIndex, maxIndex)
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}

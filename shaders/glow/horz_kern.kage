@@ -1,0 +1,30 @@
+//kage:unit pixels
+package main
+
+var Radius int
+var Kernel [16]float // 1D kernel, center and one side, since gaussian kernels are symmetrical
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const MaxRadius = 15
+
+	startThreshold := customVAs[0]
+	endThreshold := customVAs[1]
+
+	var accColor vec4
+	offset := MaxRadius - Radius
+	for d := -MaxRadius; d <= MaxRadius; d += 1 {
+		radius := d + offset
+		if radius > Radius {
+			break
+		}
+		clr := imageSrc0At(sourceCoords + vec2(float(radius), 0))
+		accColor += multByLight(clr, startThreshold, endThreshold) * Kernel[abs(radius)]
+	}
+
+	return mix(accColor*color.a, color*accColor.a, customVAs[2])
+}
+
+func multByLight(clr vec4, startThreshold, endThreshold float) vec4 {
+	luminance := dot(clr.rgb, vec3(0.299, 0.587, 0.114)) // NOTE: this only works on gamma-encoded sRGB
+	return clr * smoothstep(startThreshold, endThreshold, luminance)
+}

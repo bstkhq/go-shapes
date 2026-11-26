@@ -1,0 +1,127 @@
+//kage:unit pixels
+package main
+
+// Computes, for each pixel, the alpha descent direction (where alpha decreases
+// fastest) and the boundary offset (signed distance from the pixel center to
+// the estimated boundary, positive on the low side). Encoded as:
+//   - R, G: descent direction, mapped from [-1, 1] to [0, 1].
+//   - B: boundary offset, mapped from [-0.75, 0.75] to [0, 1].
+//   - A: 1 if the pixel has data, 0 if alpha changes too little around it
+//     (see "small alpha changes") or the direction isn't reliable (see the
+//     "unreliable case" block).
+//
+// The boundary is estimated as a straight line crossing the pixel, assuming
+// alpha forms a sharp step softened by antialiasing. See 'coverage' comments.
+//
+// Precision trap: R and G are stored with 8 bits each, so the decoded direction
+// must be normalized again before use, or distances measured along it drift by
+// up to ~0.5% of their length.
+//
+// Small alpha changes: alpha is stored with 8 bits too, so the smaller the
+// alpha change N around a pixel (hi-lo in 1/255 steps), the more its rounding
+// shows. The direction can be off by up to ~50/N degrees, and the boundary
+// offset by up to ~1/sqrt(N) pixels. On faint shapes with sharp edges, that's
+// still better than estimating the boundary from the alpha alone, like jf maps
+// do without normals. On smooth fades, though, the errors change from pixel to
+// pixel, and leave holes in jf map expansions and outlines. Pixels where alpha
+// changes by 3 steps or less get no data, to avoid them.
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	// reads past the borders are clamped
+	clampBorders := customVAs[0] // 0.0 = false, 1.0 = true
+	inset := clampBorders - 0.5
+	minCoords := imageSrc0Origin() + inset
+	maxCoords := imageSrc0Origin() + imageSrc0Size() - inset
+
+	alpha := imageSrc0At(sourceCoords).a
+
+	// isotropic sobel gradient, pointing towards higher alpha.
+	// this computes the alpha ascent direction
+	tl := imageSrc0At(clamp(sourceCoords+vec2(-1, -1), minCoords, maxCoords)).a
+	tc := imageSrc0At(clamp(sourceCoords+vec2(0, -1), minCoords, maxCoords)).a
+	tr := imageSrc0At(clamp(sourceCoords+vec2(1, -1), minCoords, maxCoords)).a
+	cl := imageSrc0At(clamp(sourceCoords+vec2(-1, 0), minCoords, maxCoords)).a
+	cr := imageSrc0At(clamp(sourceCoords+vec2(1, 0), minCoords, maxCoords)).a
+	bl := imageSrc0At(clamp(sourceCoords+vec2(-1, 1), minCoords, maxCoords)).a
+	bc := imageSrc0At(clamp(sourceCoords+vec2(0, 1), minCoords, maxCoords)).a
+	br := imageSrc0At(clamp(sourceCoords+vec2(1, 1), minCoords, maxCoords)).a
+	const Sqrt2 = 1.41421356
+	gradient := vec2((tr+Sqrt2*cr+br)-(tl+Sqrt2*cl+bl), (bl+Sqrt2*bc+br)-(tl+Sqrt2*tc+tr))
+	if length(gradient) < 0.0001 {
+		return vec4(0)
+	}
+
+	// if the shape was solid, here we would compute pixel coverage = alpha.
+	// instead, we compute pixel coverage based on the min and max alpha values
+	// in the local 3x3 window we sampled. this can lose precision for very
+	// thin features (up to ~0.2 px extra error for 1px lines), but it
+	// generally supports translucent shapes and backgrounds better
+	lo := min(min(min(tl, tc), min(tr, cl)), min(min(cr, bl), min(min(bc, br), alpha)))
+	hi := max(max(max(tl, tc), max(tr, cl)), max(max(cr, bl), max(max(bc, br), alpha)))
+	// small alpha changes (see the header)
+	if hi-lo < 0.0128 { // 3/255 + epsilon
+		return vec4(0)
+	}
+	coverage := (alpha - lo) / (hi - lo)
+
+	// convert the alpha ascent gradient to a normalized alpha descent, and
+	// compute the edge offset from the estimated coverage
+	descent := -normalize(gradient)
+	offset := clamp(edgeOffset(descent, coverage), -0.75, 0.75)
+
+	// unreliable case: the pixel is a peak or a dip. Unlike a normal edge,
+	// where the pixel alpha falls within the alpha of its neighbors, for a
+	// very thin line no gradient direction can represent both edges at once.
+	// here, returning no data generally lowers error on readers like jfmap,
+	// where otherwise 1px lines worsen (median ~0.13 px, against ~0.05)
+	const Epsilon = 1.0 / 255.0  // ignores differences from 8-bit rounding
+	step := floor(descent + 0.5) // neighbor in the descent direction, rounded
+	// next fetches should hit texture cache
+	loSide := imageSrc0At(clamp(sourceCoords+step, minCoords, maxCoords)).a
+	hiSide := imageSrc0At(clamp(sourceCoords-step, minCoords, maxCoords)).a
+	if alpha > hiSide+Epsilon || alpha < loSide-Epsilon {
+		return vec4(0)
+	}
+
+	// encode the descent into RG, offset into B, and signal the presence with A = 1
+	return vec4(descent*0.5+0.5, offset/1.5+0.5, 1)
+}
+
+// edgeOffset returns the signed distance from the center of a pixel, treated
+// as a unit square, to a straight boundary crossing it, given the boundary's
+// gradient and the fraction of the pixel's area on the high side. Positive
+// when the center is on the low side.
+//
+// Precondition: direction must be the gradient normalized, and non-zero. Its
+// sign doesn't matter, so the descent direction can be passed directly.
+//
+// By symmetry, the unit gradient g is folded so that gx >= gy >= 0. For a line
+// at distance t from the center along g, the high side is:
+//   - A corner triangle with area (tmax-t)^2 / (2*gx*gy), tmax = (gx+gy)/2,
+//     while the area is below a1 = gy/(2*gx).
+//   - A trapezoid with area 0.5 - t/gx in between.
+//   - The mirrored triangle above 1-a1.
+//
+// Solving each case for t gives the three branches. This matches edgedf() in
+// Gustavson & Strand (2011), "Anti-aliased Euclidean distance transform".
+func edgeOffset(direction vec2, coverage float) float {
+	// the original edgedf() also accepts zero and unnormalized gradients:
+	//   if gradient.x == 0 || gradient.y == 0 {
+	//       return 0.5 - coverage
+	//   }
+	//   g := abs(normalize(gradient))
+	// with the precondition, this isn't needed. axis aligned directions are
+	// still handled exactly by the branches below, as then a1 = 0
+	g := abs(direction)
+	if g.x < g.y {
+		g = g.yx
+	}
+	a1 := 0.5 * g.y / g.x
+	if coverage < a1 {
+		return 0.5*(g.x+g.y) - sqrt(2.0*g.x*g.y*coverage)
+	}
+	if coverage < 1.0-a1 {
+		return (0.5 - coverage) * g.x
+	}
+	return -0.5*(g.x+g.y) + sqrt(2.0*g.x*g.y*(1.0-coverage))
+}

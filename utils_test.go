@@ -1,113 +1,141 @@
 package shapes
 
 import (
-	"fmt"
 	"image"
-	"math"
+	"regexp"
+	"strings"
+	"testing"
 
+	"github.com/bstkhq/go-shapes/internal/pixcheck"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
-type BaseTestApp struct{}
-
-func (*BaseTestApp) Layout(w, h int) (int, int) {
-	return w, h
-}
-func (*BaseTestApp) Update() error {
-	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-		return ebiten.Termination
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyF11) {
-		ebiten.SetFullscreen(!ebiten.IsFullscreen())
-	}
-	return nil
-}
-func (*BaseTestApp) Draw(*ebiten.Image) {}
-
-type TestAppCtx struct {
-	Renderer   *Renderer
-	Images     []*ebiten.Image
-	Ticks      uint64
-	LeftClick  image.Point
-	RightClick image.Point
+// testShape is a small named source image for numerical tests, usually written
+// by hand with pixcheck.ParseAlpha. The name is used in failure labels.
+type testShape struct {
+	name string
+	img  *image.RGBA
 }
 
-func (ctx *TestAppCtx) LeftClickF32() (x, y float32) {
-	return float32(ctx.LeftClick.X), float32(ctx.LeftClick.Y)
-}
-func (ctx *TestAppCtx) RightClickF32() (x, y float32) {
-	return float32(ctx.RightClick.X), float32(ctx.RightClick.Y)
-}
-func (ctx *TestAppCtx) LeftClickF64() (x, y float64) {
-	return float64(ctx.LeftClick.X), float64(ctx.LeftClick.Y)
-}
-func (ctx *TestAppCtx) RightClickF64() (x, y float64) {
-	return float64(ctx.RightClick.X), float64(ctx.RightClick.Y)
-}
-func (ctx *TestAppCtx) RadsAnim(speedFactor float64) float64 {
-	return math.Pi * math.Sin(float64(ctx.Ticks)*0.01*speedFactor)
-}
-func (ctx *TestAppCtx) ModAnim(maxValue, speedFactor float64) float64 {
-	return math.Mod((float64(ctx.Ticks) * 0.02 * speedFactor), maxValue)
-}
-func (ctx *TestAppCtx) DistAnim(maxDist, speedFactor float64) float64 {
-	value := maxDist * (math.Sin(float64(ctx.Ticks)*0.02*speedFactor) + 1.0) / 2.0
-	return snapEdges(value, 0.0, maxDist, 0.001)
-}
-func (ctx *TestAppCtx) Title() string {
-	return fmt.Sprintf(
-		"LeftClick (%d, %d), RightClick (%d, %d) [%.02f FPS]",
-		ctx.LeftClick.X, ctx.LeftClick.Y, ctx.RightClick.X, ctx.RightClick.Y, ebiten.ActualFPS(),
-	)
+// blobShape is an antialiased blob with a transparent margin.
+var blobShape = testShape{"blob", pixcheck.ParseAlpha(`
+	000 000 000 000 000 000 000 000 000 000
+	000 000 032 128 192 192 128 032 000 000
+	000 032 224 255 255 255 255 224 032 000
+	000 128 255 255 255 255 255 255 128 000
+	000 192 255 255 255 255 255 255 192 000
+	000 192 255 255 255 255 255 255 192 000
+	000 128 255 255 255 255 255 255 128 000
+	000 032 224 255 255 255 255 224 032 000
+	000 000 032 128 192 192 128 032 000 000
+	000 000 000 000 000 000 000 000 000 000
+`)}
+
+// bandShape is an antialiased vertical band cut by the top and bottom borders.
+var bandShape = testShape{"band", pixcheck.ParseAlpha(`
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+	000 064 255 255 255 255 255 192 000 000
+`)}
+
+// fadeShape fades out towards the right, with a transparent margin.
+var fadeShape = testShape{"fade", pixcheck.ParseAlpha(`
+	000 000 000 000 000 000 000 000 000 000
+	000 255 255 224 160 096 048 016 000 000
+	000 255 255 224 160 096 048 016 000 000
+	000 255 255 224 160 096 048 016 000 000
+	000 255 255 224 160 096 048 016 000 000
+	000 000 000 000 000 000 000 000 000 000
+`)}
+
+// cornerShape is an antialiased quarter disc cut by the top and left borders.
+var cornerShape = testShape{"corner", pixcheck.ParseAlpha(`
+	255 255 255 255 192 064 000 000
+	255 255 255 240 160 032 000 000
+	255 255 240 192 096 000 000 000
+	255 240 192 112 016 000 000 000
+	192 160 096 016 000 000 000 000
+	064 032 000 000 000 000 000 000
+	000 000 000 000 000 000 000 000
+	000 000 000 000 000 000 000 000
+`)}
+
+// jfmRegions are the regions for jumping flood map tests: the default one, and
+// custom ones whose boundaries behave differently. A threshold leaves the faint
+// pixels out, a band also has an upper boundary, and the low side is the low
+// alpha side of the shapes.
+var jfmRegions = []struct {
+	name               string
+	minAlpha, maxAlpha float32
+}{
+	{"default", 0, 0},
+	{"threshold", 0.5, 1},
+	{"band", 0.2, 0.8},
+	{"low side", 0, 0.5},
 }
 
-func (ctx *TestAppCtx) DrawAtF32(target, image *ebiten.Image, ox, oy float32) {
+// alphaNormals returns the alpha normals of img, computed with the given flags.
+func alphaNormals(r *Renderer, img *ebiten.Image, flags ...Flag) *ebiten.Image {
+	normals := ebiten.NewImage(img.Bounds().Dx(), img.Bounds().Dy())
+	r.AlphaNormalsCompute(normals, img, flags...)
+	return normals
+}
+
+// padded returns a copy of img with transparent padding around it.
+func padded(img *ebiten.Image, padding int) *ebiten.Image {
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	out := ebiten.NewImage(w+2*padding, h+2*padding)
 	var opts ebiten.DrawImageOptions
-	opts.GeoM.Translate(float64(ox), float64(oy))
-	target.DrawImage(image, &opts)
+	opts.Blend = ebiten.BlendCopy
+	opts.GeoM.Translate(float64(padding), float64(padding))
+	out.DrawImage(img, &opts)
+	return out
 }
 
-func (ctx *TestAppCtx) DrawWithAlphaAtF32(target, image *ebiten.Image, alpha, ox, oy float32) {
-	var opts ebiten.DrawImageOptions
-	opts.GeoM.Translate(float64(ox), float64(oy))
-	opts.ColorScale.ScaleAlpha(alpha)
-	target.DrawImage(image, &opts)
+// namedShader is a shader source with a name for test messages.
+type namedShader struct {
+	name string
+	src  []byte
 }
 
-type TestApp struct {
-	BaseTestApp
-	TestAppCtx
-	drawer func(canvas *ebiten.Image, ctx TestAppCtx)
-}
-
-func NewTestApp(drawer func(canvas *ebiten.Image, ctx TestAppCtx), images ...*ebiten.Image) *TestApp {
-	//ebiten.SetVsyncEnabled(false)
-	var app TestApp
-	app.Images = images
-	app.LeftClick = image.Pt((128*4)/3, 128)
-	app.RightClick = image.Pt((320*4)/3, 320)
-	app.Renderer = NewRenderer()
-	app.drawer = drawer
-	return &app
-}
-
-func (app *TestApp) Update() error {
-	app.Ticks += 1
-	left := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
-	right := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
-	if left || right {
-		x, y := ebiten.CursorPosition()
-		if left {
-			app.LeftClick = image.Pt(x, y)
-		} else {
-			app.RightClick = image.Pt(x, y)
+// checkSharedShaderFuncs checks that each of the given functions is defined in
+// all the given shaders, and is the same as in the first one. Comments,
+// whitespace and image indices are ignored, as copies can leave out comments
+// and bind their images in a different order.
+func checkSharedShaderFuncs(t *testing.T, shaders []namedShader, funcs ...string) {
+	t.Helper()
+	for _, name := range funcs {
+		reference, found := shaderFunc(shaders[0].src, name)
+		if !found {
+			t.Errorf("%s isn't defined in %s", name, shaders[0].name)
+			continue
+		}
+		for _, shader := range shaders[1:] {
+			code, found := shaderFunc(shader.src, name)
+			if !found {
+				t.Errorf("%s isn't defined in %s", name, shader.name)
+			} else if code != reference {
+				t.Errorf("%s in %s isn't the same as in %s", name, shader.name, shaders[0].name)
+			}
 		}
 	}
-	ebiten.SetWindowTitle(app.Title())
-	return app.BaseTestApp.Update()
 }
 
-func (app *TestApp) Draw(canvas *ebiten.Image) {
-	app.drawer(canvas, app.TestAppCtx)
+// shaderFunc returns the code of the named function in a shader source, without
+// comments, whitespace or image indices, for checkSharedShaderFuncs.
+func shaderFunc(src []byte, name string) (string, bool) {
+	code := regexp.MustCompile(`(?ms)^func ` + regexp.QuoteMeta(name) + `\(.*?^}`).Find(src)
+	if code == nil {
+		return "", false
+	}
+	code = regexp.MustCompile(`//[^\n]*`).ReplaceAll(code, nil)
+	code = regexp.MustCompile(`imageSrc\d`).ReplaceAll(code, []byte("imageSrcN"))
+	return strings.Join(strings.Fields(string(code)), " "), true
 }

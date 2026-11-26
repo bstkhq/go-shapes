@@ -1,0 +1,35 @@
+//kage:unit pixels
+package main
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	alpha := dstBilinearAlpha0(sourceCoords, customVAs.xy)
+	alpha = pow(alpha, 1.0/2.2)
+	return color * alpha
+}
+
+func dstBilinearAlpha0(coords, dstPixSize vec2) float {
+	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, min(dstPixSize, vec2(1)))
+	tl := imageSrc0UnsafeAt(loPixIndex).a
+	tr := imageSrc0UnsafeAt(vec2(hiPixIndex.x, loPixIndex.y)).a
+	bl := imageSrc0UnsafeAt(vec2(loPixIndex.x, hiPixIndex.y)).a
+	br := imageSrc0UnsafeAt(hiPixIndex).a
+
+	// Hermite filtering is sharper, but less smooth in motion.
+	// blend = smoothstep(vec2(0), vec2(1), blend)
+	return bilinearAlphaMix(tl, tr, bl, br, blend)
+}
+
+// precondition: 0 < filterWidth <= 1 on each axis, in source pixels
+func dstBilinearIndicesAndBlend(coords, filterWidth vec2) (vec2, vec2, vec2) {
+	pixel := floor(coords)
+	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
+	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // weight of the pixel past nearestEdge
+	return nearestEdge - vec2(1), nearestEdge, blend
+}
+
+func bilinearAlphaMix(tl, tr, bl, br float, delta vec2) float {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}

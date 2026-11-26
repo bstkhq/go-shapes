@@ -1,0 +1,134 @@
+//kage:unit pixels
+package main
+
+// see jfm_read.kage for how distances are measured, and jfm_pass.kage for
+// further context on JFA and offsets decoding
+
+// this shader draws the signed distances in a jf map in the style of Iñigo
+// Quilez's signed distance field shaders: orange outside the region and blue
+// inside, fading towards maxDist, with darker lines every 8 pixels of distance
+// and a white line along the boundary
+
+// imageSrc0 = source, imageSrc1 = jf map, imageSrc2 = alpha normals (optional)
+
+var HasNormals float
+
+func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
+	const LineSpacing = 8.0
+	maxDist := max(customVAs[0], 0.5) // 0 would divide by zero
+	region := customVAs.zw // [minAlpha, maxAlpha], inclusive
+
+	pixel := clamp(floor(sourceCoords), imageSrc0Origin(), imageSrc0Origin()+imageSrc0Size()-1)
+	center := pixel + 0.5
+	alpha := imageSrc0UnsafeAt(center).a
+	s := signedDistance(sourceCoords, center, alpha, within(alpha, region), region)
+
+	if abs(s) > 60000 {
+		return vec4(0) // no seed within the map range
+	}
+	t := max(1.0-abs(s)/maxDist, 0)
+	clr := vec3(1.0, 0.6, 0.25)
+	if s < 0 {
+		clr = vec3(0.3, 0.65, 1.0)
+	}
+	clr *= (0.15 + 0.85*t) * (0.85 + 0.15*cos(6.2831853*s/LineSpacing))
+	return color * vec4(mix(clr, vec3(1), clamp(1.0-abs(s), 0, 1)), 1)
+}
+
+// ---- shared code, see jfm_read.kage ----
+
+func signedDistance(from, center vec2, alpha float, inside bool, region vec2) float {
+	fromSign := 1.0 // like SDFs, positive outside the region
+	if inside {
+		fromSign = -1.0
+	}
+	encoded := imageSrc1UnsafeAt(center)
+	if encoded == vec4(1) {
+		return fromSign * 65536.0 // no seed within the map range
+	}
+	offset := vec2(jfaComputeOffsetToSeed(encoded))
+	if offset != vec2(0) {
+		return fromSign * seedDist(from, center+offset, fromSign, region)
+	}
+
+	// the pixel is a seed itself, so the boundary crosses it. it's measured
+	// from the exact sample point, without the side check, as the pixel can
+	// be on both sides of its own boundary
+	if HasNormals == 1.0 {
+		normal := imageSrc2UnsafeAt(center)
+		if normal.a != 0 {
+			return nearestBoundarySign(alpha, region) * normalEdgeDist(from, center, normal)
+		}
+	}
+	return regionOffset(alpha, region)
+}
+
+func seedDist(from, seed vec2, fromSign float, region vec2) float {
+	// estimate from alpha: the boundary is regionOffset away from the seed's
+	// center, towards from
+	alpha := imageSrc0UnsafeAt(seed).a
+	fromAlpha := length(from-seed) + fromSign*regionOffset(alpha, region)
+	if HasNormals != 1.0 {
+		return fromAlpha
+	}
+
+	// estimate with normals, when provided
+	normal := imageSrc2UnsafeAt(seed)
+	if normal.a == 0 {
+		return fromAlpha // no normals data for this seed
+	}
+	// normalEdgeDist is positive on the low alpha side, which is outside the
+	// region at the low alpha boundary, and inside it at the high one
+	dist := fromSign * nearestBoundarySign(alpha, region) * normalEdgeDist(from, seed, normal)
+	if dist < 0 {
+		// the edge places from on the wrong side of the boundary, so it can't
+		// be right for from (e.g., on features too thin for a reliable
+		// direction)
+		return fromAlpha
+	}
+	return dist
+}
+
+func regionOffset(alpha float, region vec2) float {
+	return nearestBoundarySign(alpha, region) * (0.5 - alpha)
+}
+
+func normalEdgeDist(from, normalOrigin vec2, normal vec4) float {
+	descent := normalize(normal.rg*2.0 - 1.0) // 8-bit components, normalize again
+	boundaryOffset := (normal.b - 0.5) * 1.5
+	fromEdge := from - (normalOrigin - descent*boundaryOffset)
+	across := dot(fromEdge, descent)
+	// the edge is a segment one pixel long, so corners stay round
+	pastEnd := max(abs(dot(fromEdge, vec2(-descent.y, descent.x)))-0.5, 0)
+	return sign(across) * sqrt(across*across+pastEnd*pastEnd)
+}
+
+func nearestBoundarySign(alpha float, region vec2) float {
+	if region[1] >= 1.0 {
+		return 1.0 // no high alpha boundary
+	}
+	if region[0] <= 0.0 {
+		return -1.0 // no low alpha boundary
+	}
+	if abs(alpha-region[0]) <= abs(alpha-region[1]) {
+		return 1.0
+	}
+	return -1.0
+}
+
+func within(alpha float, region vec2) bool {
+	return region[0] <= alpha && alpha <= region[1]
+}
+
+func jfaComputeOffsetToSeed(pix vec4) ivec2 {
+	return ivec2(jfaDecodeAxisOffsetToSeed(pix.xy), jfaDecodeAxisOffsetToSeed(pix.zw))
+}
+
+func jfaDecodeAxisOffsetToSeed(pq vec2) int {
+	const epsilon = 0.001
+	hi := int((pq[0] + epsilon) * 255.0)
+	lo := int((pq[1] + epsilon) * 255.0)
+	magnitude := ((hi & 0x7F) << 8) | lo
+	sign := 1 - ((hi >> 7) << 1)
+	return sign * magnitude
+}

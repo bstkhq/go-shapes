@@ -1,0 +1,73 @@
+//kage:unit pixels
+package main
+
+var Bilinear int
+var Dither int
+
+func Fragment(targetCoords vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
+	dstPixSize := customVAs.xy
+	relCoords := sourceCoords - imageSrc0Origin()
+	maskCoords := relCoords*dstPixSize + imageSrc0Origin()
+
+	var srcColor vec4
+	var maskAlpha float
+	if Bilinear == 1 {
+		srcColor = srcBilinear0(sourceCoords)
+		maskAlpha = dstBilinear1(maskCoords, dstPixSize).a
+	} else {
+		srcColor = imageSrc0UnsafeAt(sourceCoords)
+		// floor to reduce precision issues before ebitengine v2.11, see github.com/hajimehoshi/ebiten/issues/3865
+		maskAlpha = imageSrc1At(floor(maskCoords)).a
+	}
+
+	out := srcColor * maskAlpha
+	if Dither == 1 {
+		relCoords := targetCoords.xy - imageDstOrigin()
+		noise := imageSrc2UnsafeAt(mod(relCoords, vec2(64)) + imageSrc0Origin()).r
+		out.rgb += vec3((noise - 0.5) / 255.0)
+		out.rgb = clamp(out.rgb, vec3(0.0), vec3(out.a))
+	}
+
+	return out
+}
+
+func srcBilinear0(coords vec2) vec4 {
+	loPixIndex, hiPixIndex, blend := srcBilinearIndicesAndBlend(coords)
+	tl := imageSrc0At(loPixIndex)
+	tr := imageSrc0At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc0At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc0At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func dstBilinear1(coords, dstPixSize vec2) vec4 {
+	// TODO: check whether fitted masks should clamp at the edges. Sampling
+	// outside the mask can fade the source edge even with a fully opaque mask.
+	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, min(dstPixSize, vec2(1)))
+	tl := imageSrc1At(loPixIndex)
+	tr := imageSrc1At(vec2(hiPixIndex.x, loPixIndex.y))
+	bl := imageSrc1At(vec2(loPixIndex.x, hiPixIndex.y))
+	br := imageSrc1At(hiPixIndex)
+	return bilinearMix(tl, tr, bl, br, blend)
+}
+
+func srcBilinearIndicesAndBlend(coords vec2) (vec2, vec2, vec2) {
+	lower := coords - vec2(0.5)
+	loPixIndex := floor(lower)
+	return loPixIndex, loPixIndex + vec2(1), lower - loPixIndex
+}
+
+// precondition: 0 < filterWidth <= 1 on each axis, in source pixels
+func dstBilinearIndicesAndBlend(coords, filterWidth vec2) (vec2, vec2, vec2) {
+	pixel := floor(coords)
+	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
+	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // weight of the pixel past nearestEdge
+	return nearestEdge - vec2(1), nearestEdge, blend
+}
+
+func bilinearMix(tl, tr, bl, br vec4, delta vec2) vec4 {
+	top := mix(tl, tr, delta.x)
+	bottom := mix(bl, br, delta.x)
+	return mix(top, bottom, delta.y)
+}

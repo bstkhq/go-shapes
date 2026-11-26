@@ -1,0 +1,130 @@
+//go:build interactive
+
+package shapes
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+// go test -tags interactive -run ^TestNoise$ . -count 1
+func TestNoise(t *testing.T) {
+	move := true
+	updater := func(TestAppCtx) {
+		if inpututil.IsKeyJustPressed(ebiten.KeyControl) {
+			move = !move
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		sub := canvas
+		if move {
+			const PosShift = 96
+			_, _, w, h := rectOriginSize(canvas.Bounds())
+			xShift, yShift := ctx.DistAnim(PosShift, 1.0)-PosShift/2.0, ctx.DistAnim(PosShift, 0.75)-PosShift/2.0
+			ixShift, iyShift := int(xShift), int(yShift)
+			var bounds image.Rectangle
+			bounds.Min.X = PosShift + ixShift
+			bounds.Min.Y = PosShift + iyShift
+			bounds.Max.X = bounds.Min.X + w - PosShift*2
+			bounds.Max.Y = bounds.Min.Y + h - PosShift*2
+			sub = canvas.SubImage(bounds).(*ebiten.Image)
+		}
+
+		anim := float32(ctx.ModAnim(1.0, 0.5))
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			sub.Fill(color.White)
+		} else {
+			ctx.Renderer.Noise(sub, 0.8, 0.26, anim)
+		}
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -tags interactive -run ^TestNoiseAspectRatio$ . -count 1
+func TestNoiseAspectRatio(t *testing.T) {
+	const SubWidth, SubHeight = 96 * 3, 96
+	sub := ebiten.NewImage(SubWidth, SubHeight)
+
+	updater := func(TestAppCtx) {}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		anim := float32(ctx.ModAnim(1.0, 0.5))
+		sub.Clear()
+		ctx.Renderer.Noise(sub, 0.8, 0.26, anim)
+
+		var opts ebiten.DrawImageOptions
+		_, _, w, h := rectOriginSize(canvas.Bounds())
+		wF64, hF64 := float64(w), float64(h)
+		opts.GeoM.Translate(-SubWidth/2, -SubHeight/2)
+		scale := min(wF64/SubWidth, hF64/SubHeight)
+		opts.GeoM.Scale(scale, scale)
+		opts.GeoM.Translate(wF64/2, hF64/2)
+		canvas.DrawImage(sub, &opts)
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// go test -tags interactive -run ^TestNoiseGolden$ . -count 1
+func TestNoiseGolden(t *testing.T) {
+	scale := float32(1.0)
+	move := true
+	updater := func(ctx TestAppCtx) {
+		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" - scale: %.02f", scale))
+		shift := ebiten.IsKeyPressed(ebiten.KeyShift)
+		up := inpututil.IsKeyJustPressed(ebiten.KeyArrowUp)
+		down := inpututil.IsKeyJustPressed(ebiten.KeyArrowDown)
+		switch {
+		case inpututil.IsKeyJustPressed(ebiten.KeyControl):
+			move = !move
+		case up && shift:
+			scale += 1.0
+		case down && shift:
+			scale -= 1.0
+		case up:
+			scale *= 2.0
+		case down:
+			scale /= 2.0
+		}
+	}
+	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
+		canvas.Fill(color.Black)
+
+		sub := canvas
+		if move {
+			const PosShift = 96
+			_, _, w, h := rectOriginSize(canvas.Bounds())
+			xShift, yShift := ctx.DistAnim(PosShift, 1.0)-PosShift/2.0, ctx.DistAnim(PosShift, 0.75)-PosShift/2.0
+			ixShift, iyShift := int(xShift), int(yShift)
+			var bounds image.Rectangle
+			bounds.Min.X = PosShift + ixShift
+			bounds.Min.Y = PosShift + iyShift
+			bounds.Max.X = bounds.Min.X + w - PosShift*2
+			bounds.Max.Y = bounds.Min.Y + h - PosShift*2
+			sub = canvas.SubImage(bounds).(*ebiten.Image)
+		}
+
+		anim := float64(ctx.Ticks) / 60.0
+		ctx.Renderer.NoiseGolden(sub, scale, 1.0, float32(anim))
+	}
+
+	app := NewTestApp(updater, drawer)
+	if err := ebiten.RunGame(app); err != nil {
+		t.Fatal(err)
+	}
+}

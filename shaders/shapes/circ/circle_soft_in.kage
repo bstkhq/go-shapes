@@ -1,0 +1,14 @@
+//kage:unit pixels
+package main
+
+func Fragment(targetCoords vec4, _ vec2, color vec4, customVAs vec4) vec4 {
+	center := customVAs.xy
+	radius := customVAs.z   // NOTICE: radius can be negative for soft edge collapse animation
+	softEdge := customVAs.w // can be zero or positive (inwards softening)
+
+	dist := max(distance(targetCoords.xy-imageDstOrigin(), center)-radius, 0)
+	sigma := abs(softEdge) / 3.0
+	sigma2 := max(2.0*sigma*sigma, 0.001) // max required to avoid /0
+	alpha := clamp(exp(-(dist*dist)/sigma2), 0, 1)
+	return color * alpha
+}

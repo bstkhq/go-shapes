@@ -4,6 +4,21 @@ import (
 	"image"
 )
 
+// RectWithSize is a helper for [image.Rectangle] initialization which receives
+// the rect origin and size (unlike [image.Rect], which takes origin and end).
+func RectWithSize(ox, oy int, w, h int) image.Rectangle {
+	return image.Rect(ox, oy, ox+w, oy+h)
+}
+
+// RectPointsF32 returns the min and max points of the given rectangle as [PointF32] values.
+func RectPointsF32(bounds image.Rectangle) (min, max PointF32) {
+	return PtF32(bounds.Min.X, bounds.Min.Y), PtF32(bounds.Max.X, bounds.Max.Y)
+}
+
+func rectSize(bounds image.Rectangle) (w, h int) {
+	return bounds.Dx(), bounds.Dy()
+}
+
 func rectOriginSize(bounds image.Rectangle) (ox, oy, w, h int) {
 	return bounds.Min.X, bounds.Min.Y, bounds.Dx(), bounds.Dy()
 }
@@ -20,13 +35,8 @@ func rectSizeF32(bounds image.Rectangle) (w, h float32) {
 	return float32(bounds.Dx()), float32(bounds.Dy())
 }
 
-func rectPointsF32(bounds image.Rectangle) (minX, minY, maxX, maxY float32) {
-	return float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Max.X), float32(bounds.Max.Y)
-}
-
-func topBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
-	bounds.Max.Y = bounds.Min.Y + borderSize
-	return bounds
+func rectSizeF64(bounds image.Rectangle) (w, h float64) {
+	return float64(bounds.Dx()), float64(bounds.Dy())
 }
 
 func rightBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
@@ -39,35 +49,9 @@ func bottomBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
 	return bounds
 }
 
-func leftBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
-	bounds.Max.X = bounds.Min.X + borderSize
-	return bounds
-}
-
-// top border without overlapping the right border
-func clockwiseTopBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
-	bounds = topBorder(bounds, borderSize)
-	bounds.Max.X -= borderSize
-	return bounds
-}
-
 // right border without overlapping the bottom
 func clockwiseRightBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
 	bounds = rightBorder(bounds, borderSize)
 	bounds.Max.Y -= borderSize
-	return bounds
-}
-
-// bottom border without overlapping the left border
-func clockwiseBottomBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
-	bounds = bottomBorder(bounds, borderSize)
-	bounds.Min.X += borderSize
-	return bounds
-}
-
-// left border without overlapping the top border
-func clockwiseLeftBorder(bounds image.Rectangle, borderSize int) image.Rectangle {
-	bounds = bottomBorder(bounds, borderSize)
-	bounds.Min.Y += borderSize
 	return bounds
 }
