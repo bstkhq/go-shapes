@@ -52,8 +52,8 @@ func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 //
 // Only the mask's alpha is used; colors are taken from the renderer.
 //
-// This function uses one internal offscreen (#0), and target and mask can be on
-// the same internal atlas.
+// This function uses internal offscreen #0. Target and mask can be on the same
+// image.
 func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)

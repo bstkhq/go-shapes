@@ -114,10 +114,9 @@ func jfmRegion(minAlpha, maxAlpha float32) (float32, float32) {
 //   - For expansion, it's not intended to be used, as there's no meaningful
 //     geometric interpretation.
 //
-// This function uses one internal offscreen (#0). target is always overwritten
-// and doesn't need to be cleared before operation. It can't be a subimage of
-// the same image as source or opts.Normals, as they're read while the map is
-// written.
+// This function uses internal offscreen #0. target is always overwritten and
+// doesn't need to be cleared before operation, but it can't be on the same
+// image as source or opts.Normals, as they're read while the map is written.
 func (r *Renderer) JFMapCompute(target, source *ebiten.Image, opts JFMapComputeOptions, flags ...Flag) JFMap {
 	jfmap := JFMap{Offsets: target, Normals: opts.Normals, MinAlpha: opts.MinAlpha, MaxAlpha: opts.MaxAlpha}
 	if source == nil {
@@ -227,8 +226,8 @@ func (r *Renderer) JFMapCompute(target, source *ebiten.Image, opts JFMapComputeO
 // onto the given target. Pixels inside the region keep their own coverage plus
 // the distance, which also preserves fades.
 //   - distance must be in [0, 32k].
-//   - If jfmap.Offsets is nil, it is generated using [Renderer.JFMapCompute]().
-//     This uses internal offscreens (#0, #1, #3, and #2 with normals).
+//   - If jfmap.Offsets is nil, it's generated with [Renderer.JFMapCompute](),
+//     using internal offscreens #0, #1 and #2, plus #3 with normals.
 //   - With precomputed jfmap.Offsets, the expansion stops at the source borders
 //     (see [JFMap] for how to make room for it).
 //
@@ -244,8 +243,8 @@ func (r *Renderer) JFMExpand(target, source *ebiten.Image, ox, oy, distance floa
 // JFMErode performs morphological erosion of the given source and draws it onto
 // the given target, keeping the source colors.
 //   - distance must be in [0, 32k].
-//   - If jfmap.Offsets is nil, it is generated using [Renderer.JFMapCompute]().
-//     This uses internal offscreens (#0, #3).
+//   - If jfmap.Offsets is nil, it's generated with [Renderer.JFMapCompute](),
+//     using internal offscreens #0 and #2.
 //
 // Supported flags: [Clamp], which only applies to internal jumping flood map
 // computation when jfmap.Offsets is nil. Clamping prevents erosion from
@@ -264,8 +263,8 @@ func (r *Renderer) JFMErode(target, source *ebiten.Image, ox, oy, distance float
 // thickness > 0, the outline is centered on the region boundary, with a total
 // width of thickness. If thickness < 0, it extends inwards by -thickness.
 //   - thickness must be in [-32k, 32k].
-//   - If jfmap.Offsets is nil, it is generated using [Renderer.JFMapCompute]().
-//     This uses internal offscreens (#0, #1, #3, and #2 with normals).
+//   - If jfmap.Offsets is nil, it's generated with [Renderer.JFMapCompute](),
+//     using internal offscreens #0, #1 and #2, plus #3 with normals.
 //   - With precomputed jfmap.Offsets, the outline stops at the source borders
 //     (see [JFMap] for how to make room for it), and the map needs a
 //     MaxDistance of at least thickness/2 + 2, or -thickness + 2 for inner
@@ -361,11 +360,11 @@ func (r *Renderer) jfmRead(target, source *ebiten.Image, ox, oy, amount, reach f
 		if padding > 0 {
 			source = r.UnsafeTempCopy(1, source, padding, false)
 			if jfmap.Normals != nil {
-				jfmap.Normals = r.UnsafeTempCopy(2, jfmap.Normals, padding, false)
+				jfmap.Normals = r.UnsafeTempCopy(3, jfmap.Normals, padding, false)
 			}
 		}
 		sw, sh := rectSize(source.Bounds())
-		temp, _ := r.getTemp(3, sw, sh, false)
+		temp, _ := r.getTemp(2, sw, sh, false)
 		// with Clamp, the inset skips the padding so that clamping happens at
 		// the original borders
 		opts := JFMapComputeOptions{

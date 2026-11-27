@@ -43,15 +43,15 @@ func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius
 	r.opts.Images[0] = nil
 }
 
-// Blur2 is similar to [Renderer.Blur](), but uses two 1D passes instead of a single 2D
-// pass. This greatly reduces the amount of sampled pixels for the shader, and despite
-// breaking batching tends to be much more efficient than [Renderer.Blur](). Radiuses
-// can't exceed 32.
+// Blur2 is similar to [Renderer.Blur](), but uses two 1D passes instead of a
+// single 2D pass. This greatly reduces the amount of sampled pixels for the
+// shader, and despite breaking batching tends to be much more efficient than
+// [Renderer.Blur](). Radiuses can't exceed 32.
 //
 // This operation is affected by [Renderer.Tint].
 //
-// This function uses one internal offscreen (#0), and target and mask can be on the same
-// internal atlas.
+// This function uses internal offscreen #0. Target and mask can be on the same
+// image.
 //
 // See also [Renderer.BlurK]() if fixed radiuses are acceptable.
 func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius float32) {
@@ -109,13 +109,13 @@ func (r *Renderer) blurHorz(target *ebiten.Image, mask *ebiten.Image, ox, oy, ra
 	r.opts.Images[0] = nil
 }
 
-// BlurK is the fixed kernel version of [Renderer.Blur2](). See [KernelOptions] for more
-// details.
+// BlurK is the fixed kernel version of [Renderer.Blur2](). See [KernelOptions]
+// for more details.
 //
 // This operation is affected by [Renderer.Tint].
 //
-// This function uses the internal offscreen (#0), and if downscaling also (#1).
-// Target and mask can be on the same internal atlas.
+// This function uses internal offscreen #0, plus #1 with downscaling. Target
+// and mask can be on the same image.
 func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions) {
 	invokeShader := func(downHorzTarget *ebiten.Image) {
 		r.setFlatCustomVA0(r.tint)
@@ -139,8 +139,8 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 // This operation is affected by [Renderer.Tint].
 //
 // If downscaling is used:
-//   - The function will use internal offscreens (#0, #1). In this case, target and mask
-//     can be on the same internal atlas.
+//   - The function uses internal offscreens #0 and #1. Target and mask can be
+//     on the same image.
 //   - The radius will be applied 'as is' to a downscaled version of mask before upscaling
 //     back to draw on target. For example: if radius 16 and [DownscaleX4] are used, the
 //     resulting radius will be closer to 16*4 = 64.

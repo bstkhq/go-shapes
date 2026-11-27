@@ -99,18 +99,19 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 // TODO: consider samplePosMultiplier float32 for KernelOptions
 // func KernelOptsAuto(downscaling Downscaling, radius float32) KernelOptions {}
 
-// Internal function used by BlurK, GlowK and GlowColorK. It downscales the mask,
-// applies a custom horizontal kernel shader, then a standard vertical blur shader, and
-// upscales the result back, optionally with a custom blend.
+// Internal function used by BlurK, GlowK and GlowColorK. It downscales the
+// mask, applies a custom horizontal kernel shader, then a standard vertical
+// blur shader, and upscales the result back, optionally with a custom blend.
 //
 // At invokeShader:
-//   - KernelLen and Kernel uniforms have been set, as well as the downscaled source image
-//     as Image[0], but other uniforms and custom VAs have to be set during invocation.
-//   - The blend is BlendCopy. It can be changed, but then opts.clearOffscreen might need
-//     to be set to true.
+//   - KernelLen and Kernel uniforms have been set, as well as the downscaled
+//     source image as Image[0], but other uniforms and custom VAs have to be
+//     set during invocation.
+//   - The blend is BlendCopy. It can be changed, but then opts.clearOffscreen
+//     might need to be set to true.
 //
-// This function uses the internal offscreen (#0), and if downscaling also (#1).
-// Target and mask can be on the same internal atlas.
+// This function uses internal offscreen #0, plus #1 with downscaling. Target
+// and mask can be on the same image.
 func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, opts KernelOptions, invokeShader func(downHorzTarget *ebiten.Image), blend *ebiten.Blend) {
 	if !opts.Downscaling.valid() {
 		panic("invalid downscaling value")

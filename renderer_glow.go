@@ -61,8 +61,8 @@ func (r *Renderer) glowHorz(shader *ebiten.Shader, target *ebiten.Image, mask *e
 // This operation is affected by [Renderer.Tint], but the renderer's current alpha is
 // always applied as an effect intensity factor even if the tint is 0.
 //
-// This function uses an internal offscreen (#0), and target and mask can be on the same
-// internal atlas.
+// This function uses internal offscreen #0. Target and mask can be on the same
+// image.
 //
 // See also [Renderer.GlowK]() if fixed radiuses are acceptable.
 func (r *Renderer) Glow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius, threshStart, threshEnd float32) {
@@ -107,8 +107,8 @@ func (r *Renderer) Glow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzR
 // This operation is affected by [Renderer.Tint], but the renderer's current alpha is
 // always applied as an effect intensity factor even if the tint is 0.
 //
-// This function uses the internal offscreen (#0), and if downscaling also (#1).
-// Target and mask can be on the same internal atlas.
+// This function uses internal offscreen #0, plus #1 with downscaling. Target
+// and mask can be on the same image.
 func (r *Renderer) GlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -130,8 +130,8 @@ func (r *Renderer) GlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 // always applied as an effect intensity factor even if the tint is 0. The effect is
 // always applied with 'source over' blend.
 //
-// This function uses an internal offscreen (#0), and target and mask can be on the same
-// internal atlas.
+// This function uses internal offscreen #0. Target and mask can be on the same
+// image.
 //
 // See also [Renderer.GlowDarkK]() if fixed radiuses are acceptable.
 func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzRadius, vertRadius, threshStart, threshEnd float32) {
@@ -175,8 +175,8 @@ func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy fl
 // This operation is affected by [Renderer.Tint], but the renderer's current alpha is
 // always applied as an effect intensity factor even if the tint is 0.
 //
-// This function uses the internal offscreen (#0), and if downscaling also (#1).
-// Target and mask can be on the same internal atlas.
+// This function uses internal offscreen #0, plus #1 with downscaling. Target
+// and mask can be on the same image.
 func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart < threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
@@ -197,8 +197,8 @@ func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, t
 // always applied as an effect intensity factor even if the tint is 0. The effect is
 // always applied with 'source over' blend.
 //
-// This function uses an internal offscreen (#0), and target and mask can be on the same
-// internal atlas.
+// This function uses internal offscreen #0. Target and mask can be on the same
+// image.
 //
 // See also [Renderer.GlowColorK]() if fixed radiuses are acceptable.
 func (r *Renderer) GlowColor2(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzRadius, vertRadius float32, rgb [3]float32, threshStart, threshEnd float32) {
@@ -241,14 +241,14 @@ func (r *Renderer) GlowColor2(target *ebiten.Image, mask *ebiten.Image, ox, oy f
 	r.tint = memo
 }
 
-// GlowColorK is the fixed kernel version of [Renderer.GlowColor2](). See [KernelOptions]
-// for more details.
+// GlowColorK is the fixed kernel version of [Renderer.GlowColor2](). See
+// [KernelOptions] for more details.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
 //
-// This function uses the internal offscreen (#0), and if downscaling also (#1).
-// Target and mask can be on the same internal atlas.
+// This function uses internal offscreen #0, plus #1 with downscaling. Target
+// and mask can be on the same image.
 func (r *Renderer) GlowColorK(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, rgb [3]float32, threshStart, threshEnd float32, opts KernelOptions) {
 	if threshStart > threshEnd {
 		r.Warnings.report(WarnInconsistentRangeOpSkipped, [2]float32{threshStart, threshEnd})
