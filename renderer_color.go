@@ -105,19 +105,7 @@ func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alph
 		return
 	}
 
-	var dither, bilinear bool
-	for _, flag := range flags {
-		switch flag {
-		case noFlag:
-			// ignore
-		case Dithered:
-			dither = true
-		case Bilinear:
-			bilinear = true
-		default:
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
+	bilinear, dither := r.readRenderFlags(flags...)
 
 	r.opts.Images[1] = over
 	if dither {

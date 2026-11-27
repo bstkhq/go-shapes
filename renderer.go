@@ -441,45 +441,55 @@ func blendOnlyAffectsNonZeroSourceArea(blend ebiten.Blend) bool {
 		blend == BlendSubtract
 }
 
-// read Bilinear and Dithered flags
-func (r *Renderer) readRenderFlags(flags ...Flag) (bilinear, dither bool) {
-	bilinearFlag, ditherFlag := r.readOptInFlagPair(Bilinear, Dithered, flags...)
-	return bilinearFlag == Bilinear, ditherFlag == Dithered
+// flagSet is a set of flags, as one bit per flag.
+type flagSet uint32
+
+func newFlagSet(flags ...Flag) flagSet {
+	var set flagSet
+	for _, flag := range flags {
+		set |= 1 << flag
+	}
+	return set
+}
+
+func (s flagSet) Has(flag Flag) bool {
+	return flag >= 0 && flag < 32 && s&(1<<flag) != 0
+}
+
+// readOptInFlagSet returns which of the optIns flags are given, warning about
+// unsupported and repeated ones.
+func (r *Renderer) readOptInFlagSet(optIns flagSet, flags ...Flag) flagSet {
+	var given flagSet
+	for _, flag := range flags {
+		if flag == noFlag {
+			continue
+		}
+		if !optIns.Has(flag) {
+			r.Warnings.report(WarnInvalidFlag, flag)
+			continue
+		}
+		if given.Has(flag) {
+			r.Warnings.report(WarnRepeatedFlag, flag)
+		}
+		given |= 1 << flag
+	}
+	return given
 }
 
 // read two independent opt-in flags. absent flags are returned as noFlag,
 // and a suitable fallback should be executed
 func (r *Renderer) readOptInFlagPair(optInA, optInB Flag, flags ...Flag) (a Flag, b Flag) {
-	a, b = noFlag, noFlag
-	for _, flag := range flags {
-		if flag == optInA {
-			if a != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			a = optInA
-		} else if flag == optInB {
-			if b != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			b = optInB
-		} else if flag != noFlag {
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-	return a, b
+	given := r.readOptInFlagSet(newFlagSet(optInA, optInB), flags...)
+	return mapBool(given.Has(optInA), noFlag, optInA), mapBool(given.Has(optInB), noFlag, optInB)
 }
 
 func (r *Renderer) readOptInFlag(optInFlag Flag, flags ...Flag) (optIn Flag) {
-	optIn = noFlag
-	for _, flag := range flags {
-		if flag == optInFlag {
-			if optIn != noFlag {
-				r.Warnings.report(WarnRepeatedFlag, flag)
-			}
-			optIn = optInFlag
-		} else if flag != noFlag {
-			r.Warnings.report(WarnInvalidFlag, flag)
-		}
-	}
-	return optIn
+	given := r.readOptInFlagSet(newFlagSet(optInFlag), flags...)
+	return mapBool(given.Has(optInFlag), noFlag, optInFlag)
+}
+
+// read Bilinear and Dithered flags
+func (r *Renderer) readRenderFlags(flags ...Flag) (bilinear, dither bool) {
+	bilinearFlag, ditherFlag := r.readOptInFlagPair(Bilinear, Dithered, flags...)
+	return bilinearFlag == Bilinear, ditherFlag == Dithered
 }
