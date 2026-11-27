@@ -418,7 +418,7 @@ func (r *Renderer) getTemp(offscreenIndex int, w, h int, clear bool) (*ebiten.Im
 		growth := offscreenIndex + 1 - len(r.temps)
 		r.temps = slices.Grow(r.temps, growth)
 		r.temps = r.temps[:offscreenIndex+1]
-		r.temps[offscreenIndex] = newOffscreen(0, 0, 64)
+		r.temps[offscreenIndex] = newOffscreen(0, 0)
 	}
 	return r.temps[offscreenIndex].WithSize(w, h, clear)
 }

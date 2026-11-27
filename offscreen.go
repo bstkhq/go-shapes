@@ -3,6 +3,7 @@ package shapes
 import (
 	"fmt"
 	"image"
+	"math/bits"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -11,23 +12,18 @@ type offscreen struct {
 	image  *ebiten.Image
 	parent *ebiten.Image
 
-	maxWidth    int // none if <= 0
-	maxHeight   int // none if <= 0
-	extraMargin int
+	maxWidth  int // none if <= 0
+	maxHeight int // none if <= 0
 }
 
 // maxWidth and maxHeight <= 0 indicate no size limit
-func newOffscreen(maxWidth, maxHeight, extraMargin int) offscreen {
-	if extraMargin < 0 {
-		panic("extraMargin < 0")
-	}
+func newOffscreen(maxWidth, maxHeight int) offscreen {
 	if (maxWidth <= 0) != (maxHeight <= 0) {
 		panic("both maxWidth and maxHeight must be either > 0 (both limited) or <= 0 (both unlimited)")
 	}
 	return offscreen{
-		maxWidth:    maxWidth,
-		maxHeight:   maxHeight,
-		extraMargin: extraMargin,
+		maxWidth:  maxWidth,
+		maxHeight: maxHeight,
 	}
 }
 
@@ -41,7 +37,9 @@ func (off *offscreen) WithSize(w, h int, clear bool) (*ebiten.Image, bool) {
 		panic(fmt.Sprintf("requested offscreen of size %dx%d, but maxWidth/maxHeight are %dx%d", w, h, off.maxWidth, off.maxHeight))
 	}
 
-	nw, nh := w+off.extraMargin, h+off.extraMargin
+	// Ebitengine allocates power of 2 textures, so we have to use the same
+	// for optimal texture usage in case of later resize/growth
+	nw, nh := textureSize(w), textureSize(h)
 	if hasSizeLimits {
 		nw, nh = min(nw, off.maxWidth), min(nh, off.maxHeight)
 	}
@@ -81,6 +79,15 @@ func (off *offscreen) WithSize(w, h int, clear bool) (*ebiten.Image, bool) {
 func (off *offscreen) clearParentFor(w, h int) {
 	clearRect := off.parent.Bounds().Intersect(image.Rect(0, 0, w+1, h+1))
 	Clear(off.parent, clearRect)
+}
+
+// textureSize mimics Ebitengine's behavior: min size or next power of two.
+// See github.com/hajimehoshi/ebiten/blob/v2.9.0/internal/graphics/math.go
+func textureSize(n int) int {
+	if n <= 16 {
+		return 16
+	}
+	return 1 << bits.Len(uint(n-1))
 }
 
 func newUnmanagedImage(w, h int) *ebiten.Image {
