@@ -6,6 +6,8 @@ import (
 	"math/bits"
 	"os"
 	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // Warning represents an operation warning. Warnings can be checked through
@@ -130,6 +132,21 @@ func warnZeroNegativeValue[Num ~float32 | ~float64 | ~int](r *Renderer, value Nu
 		return 0
 	}
 	return value
+}
+
+// skipSource returns true if the source is missing or empty. If missing, it
+// also issues a warning
+func (r *Renderer) skipSource(source *ebiten.Image) bool {
+	return r.missingSource(source) || source.Bounds().Empty()
+}
+
+// missingSource issues a warning and returns true if source is nil
+func (r *Renderer) missingSource(source *ebiten.Image) bool {
+	if source == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, source)
+		return true
+	}
+	return false
 }
 
 // Warnings is a register of problems detected by the renderer during

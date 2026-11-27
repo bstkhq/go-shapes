@@ -32,6 +32,9 @@ import (
 //	x, y = shapes.CTR.Adjust(src, x, y) // adjust coordinates to CTR (center)
 //	r.DrawAt(target, source, x, y, alpha, shapes.Dithered) // draw with dithering
 func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float32, alpha float32, flags ...Flag) {
+	if r.skipSource(source) {
+		return
+	}
 	if alpha < 0.0 || alpha > 1.0 {
 		r.Warnings.report(WarnInvalidAlphaClamped, alpha)
 		alpha = clamp(alpha, 0, 1)
@@ -78,6 +81,9 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 //
 // This is a low level method mostly used by other higher level renderer calls.
 func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, margins Margins, regionMode ShaderRegionMode, shader *ebiten.Shader) {
+	if r.skipSource(source) {
+		return
+	}
 	srcOX, srcOY, srcWidth, srcHeight := rectOriginSizeF32(source.Bounds())
 	dstRegionOX, dstRegionOY := ox-margins.Left, oy-margins.Top
 	dstRegionFX, dstRegionFY := ox+srcWidth+margins.Right, oy+srcHeight+margins.Bottom

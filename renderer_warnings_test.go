@@ -1,9 +1,15 @@
 package shapes
 
 import (
+	"fmt"
+	"image"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
+
+	"github.com/bstkhq/go-shapes/internal/pixcheck"
 )
 
 func TestWarnings(t *testing.T) {
@@ -130,4 +136,125 @@ func TestReadOptInFlagPair(t *testing.T) {
 type flagWarning struct {
 	warning Warning
 	flag    Flag
+}
+
+// Operations skip missing (nil) and empty source images: nil ones report
+// WarnMissingSourceOpSkipped, and empty ones return quietly, without drawing.
+// Operations that compute data for later use panic on nil sources instead, as
+// skipping would leave their target with stale data.
+func TestSkippedSources(t *testing.T) {
+	quad := [4]PointF32{{0, 0}, {20, 0}, {20, 20}, {0, 20}}
+	dither := []float32{0, 0, 0, 1, 1, 1, 1, 1}
+	// each call draws onto target, with img in the position being checked.
+	// operations that require matching sizes get a target of img's size
+	ops := []struct {
+		name string
+		draw func(r *Renderer, target, img, full *ebiten.Image)
+	}{
+		{"Scale", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Scale(tg, img, 0, 0, 1, nil) }},
+		{"DrawAt", func(r *Renderer, tg, img, _ *ebiten.Image) { r.DrawAt(tg, img, 0, 0, 1) }},
+		{"DrawImgShader", func(r *Renderer, tg, img, _ *ebiten.Image) {
+			r.DrawImgShader(tg, img, 0, 0, NoMargins, RegionExact, shaderDefault.Load())
+		}},
+		{"AlphaNormalsCompute", func(r *Renderer, tg, img, _ *ebiten.Image) { r.AlphaNormalsCompute(sizedLike(tg, img), img) }},
+		{"AlphaNormalsViz", func(r *Renderer, tg, img, _ *ebiten.Image) { r.AlphaNormalsViz(tg, img, 0, 0) }},
+		{"OklabShift", func(r *Renderer, tg, img, _ *ebiten.Image) { r.OklabShift(tg, img, 0, 0, 0, 0, 0) }},
+		{"ColorizeByLightness", func(r *Renderer, tg, img, _ *ebiten.Image) {
+			r.ColorizeByLightness(tg, img, GradientOptions{}, 0, 0, 0, 1)
+		}},
+		{"ColorMix base", func(r *Renderer, tg, img, full *ebiten.Image) {
+			r.ColorMix(tg, img, sizedLike(full, img), 0, 0, 1, 0.5)
+		}},
+		{"ColorMix over", func(r *Renderer, tg, img, full *ebiten.Image) {
+			r.ColorMix(tg, sizedLike(full, img), img, 0, 0, 1, 0.5)
+		}},
+		{"DitherMat4", func(r *Renderer, tg, img, _ *ebiten.Image) {
+			r.DitherMat4(tg, img, 0, 0, 0, 0, dither, [16]float32{}, 0, 0)
+		}},
+		{"MapQuad4", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad4(tg, img, quad, MapOptions{}) }},
+		{"MapQuad", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad(tg, img, quad, MapOptions{}) }},
+		{"Mask source", func(r *Renderer, tg, img, full *ebiten.Image) { r.Mask(tg, img, full, 0, 0) }},
+		{"Mask mask", func(r *Renderer, tg, img, full *ebiten.Image) { r.Mask(tg, full, img, 0, 0) }},
+		{"MaskAt source", func(r *Renderer, tg, img, full *ebiten.Image) { r.MaskAt(tg, img, full, 0, 0, 0, 0) }},
+		{"MaskAt mask", func(r *Renderer, tg, img, full *ebiten.Image) { r.MaskAt(tg, full, img, 0, 0, 0, 0) }},
+		{"MaskThreshold source", func(r *Renderer, tg, img, full *ebiten.Image) { r.MaskThreshold(tg, img, full, 0.5, 0, 0) }},
+		{"MaskThreshold mask", func(r *Renderer, tg, img, full *ebiten.Image) { r.MaskThreshold(tg, full, img, 0.5, 0, 0) }},
+		{"MaskHorz", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MaskHorz(tg, img, 0, 0, 0, 10) }},
+		{"MaskCirc", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MaskCirc(tg, img, 0, 0, 10, 10, 5, 2) }},
+		{"HalftoneTri", func(r *Renderer, tg, img, _ *ebiten.Image) { r.HalftoneTri(tg, img, 0, 0, 8, 1, 4, 0, 0) }},
+		{"WarpBarrel", func(r *Renderer, tg, img, _ *ebiten.Image) { r.WarpBarrel(tg, img, 0, 0, 0.1, 0.1) }},
+		{"WarpArc", func(r *Renderer, tg, img, _ *ebiten.Image) { r.WarpArc(tg, img, 16, 16, 10, 1, 2) }},
+		{"Blur", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Blur(tg, img, 0, 0, 2) }},
+		{"Blur2", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Blur2(tg, img, 0, 0, 2, 2) }},
+		{"BlurK", func(r *Renderer, tg, img, _ *ebiten.Image) {
+			r.BlurK(tg, img, 0, 0, KernelOptions{Downscaling: DownscaleX2})
+		}},
+		{"BlurVogel", func(r *Renderer, tg, img, _ *ebiten.Image) { r.BlurVogel(tg, img, 0, 0, 2, 16, DownscaleNone, 0) }},
+		{"Glow2", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Glow2(tg, img, 0, 0, 2, 2, 0, 1) }},
+		{"MorphExpansionRect", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MorphExpansionRect(tg, img, 0, 0, 2) }},
+		{"MorphErosion", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MorphErosion(tg, img, 0, 0, 2, 0) }},
+		{"JFMapCompute", func(r *Renderer, tg, img, _ *ebiten.Image) {
+			r.JFMapCompute(sizedLike(tg, img), img, JFMapComputeOptions{MaxDistance: 4})
+		}},
+		{"JFMExpand", func(r *Renderer, tg, img, _ *ebiten.Image) { r.JFMExpand(tg, img, 0, 0, 2, JFMap{}) }},
+		{"JFMErode", func(r *Renderer, tg, img, _ *ebiten.Image) { r.JFMErode(tg, img, 0, 0, 2, JFMap{}) }},
+	}
+
+	panicsOnNil := map[string]bool{"AlphaNormalsCompute": true, "JFMapCompute": true}
+
+	pixcheck.Run(t, func() {
+		full := ebiten.NewImage(32, 32)
+		full.Fill(image.White)
+		empty := full.SubImage(image.Rect(4, 4, 4, 10)).(*ebiten.Image)
+		for _, op := range ops {
+			for _, img := range []*ebiten.Image{nil, empty} {
+				r := NewRenderer()
+				target := ebiten.NewImage(32, 32)
+				label := fmt.Sprintf("%s, %s", op.name, map[bool]string{true: "nil", false: "empty"}[img == nil])
+				panicked := drawRecovering(func() { op.draw(r, target, img, full) })
+				if img == nil && panicsOnNil[op.name] {
+					if panicked == "" {
+						t.Errorf("%s: didn't panic", label)
+					}
+					continue
+				}
+				if panicked != "" {
+					t.Errorf("%s: %s", label, panicked)
+					continue
+				}
+				warnings := slices.Collect(r.Warnings.All())
+				wantWarnings := []Warning{}
+				if img == nil {
+					wantWarnings = []Warning{WarnMissingSourceOpSkipped}
+				}
+				if !slices.Equal(warnings, wantWarnings) {
+					t.Errorf("%s: warnings %v, want %v", label, warnings, wantWarnings)
+				}
+				if pixcheck.AlphaSum(pixcheck.Read(target)) != 0 {
+					t.Errorf("%s: drew on the target", label)
+				}
+			}
+		}
+	})
+}
+
+// sizedLike is a helper for TestSkippedSources. It returns img, or an empty
+// image if like is empty, for operations that require matching sizes.
+func sizedLike(img, like *ebiten.Image) *ebiten.Image {
+	if like != nil && like.Bounds().Empty() {
+		return img.SubImage(image.Rectangle{}).(*ebiten.Image)
+	}
+	return img
+}
+
+// drawRecovering is a helper for TestSkippedSources. It returns the panic
+// message of draw, if any.
+func drawRecovering(draw func()) (panicked string) {
+	defer func() {
+		if err := recover(); err != nil {
+			panicked = fmt.Sprint(err)
+		}
+	}()
+	draw()
+	return ""
 }

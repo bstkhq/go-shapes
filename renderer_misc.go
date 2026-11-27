@@ -19,6 +19,9 @@ import (
 // Notice that only the triangles are drawn and there's no explicit color for
 // the background.
 func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, triBaseSize, loSize, hiSize, xOffset, yOffset float32) {
+	if r.skipSource(source) {
+		return
+	}
 	hasOffsets := (xOffset != 0 || yOffset != 0)
 	if hasOffsets {
 		r.opts.Uniforms["Offsets"] = [2]float32{xOffset, yOffset}

@@ -232,6 +232,9 @@ type ScaleOptions struct {
 // nil, but in that case there's no advantage over Ebitengine's default
 // functions.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, opts *ScaleOptions) {
+	if r.skipSource(source) {
+		return
+	}
 	if scale <= 0 {
 		if scale < 0 {
 			r.Warnings.report(WarnNegativeValueOpSkipped, scale)

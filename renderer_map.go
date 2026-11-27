@@ -44,6 +44,9 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 //
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32, opts MapOptions) {
+	if r.skipSource(source) {
+		return
+	}
 	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
 		r.vertices[i].DstX = pt.X + tox
@@ -116,6 +119,9 @@ func quadCenter(quad [4]PointF32) PointF32 {
 //
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, opts MapOptions) {
+	if r.skipSource(source) {
+		return
+	}
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)
 

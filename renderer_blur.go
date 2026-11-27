@@ -21,8 +21,7 @@ import (
 // its high cost (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most
 // use-cases should rely on [Renderer.Blur2]() instead.
 func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	radius = r.warnClampNonNegArgF32(radius, 16, WarnRadiusClamped)
@@ -56,8 +55,7 @@ func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius
 //
 // See also [Renderer.BlurK]() if fixed radiuses are acceptable.
 func (r *Renderer) Blur2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	horzRadius = r.warnClampNonNegArgF32(horzRadius, 32, WarnRadiusClamped)
@@ -147,8 +145,7 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 //     upscaling back to draw on target. For example: if radius 16 and
 //     [DownscaleX4] are used, the resulting radius will be closer to 16*4 = 64.
 func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	if !downscaling.valid() {

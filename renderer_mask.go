@@ -10,6 +10,9 @@ import (
 //
 // Supported flags: [Bilinear] (in destination space for mask), [Dithered].
 func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flags ...Flag) {
+	if r.skipSource(source) || r.skipSource(mask) {
+		return
+	}
 	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
@@ -39,6 +42,9 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32, flags ...Flag) {
+	if r.skipSource(source) || r.skipSource(mask) {
+		return
+	}
 	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
@@ -72,6 +78,9 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 //
 // Supported flags: [Bilinear] (in destination space for mask).
 func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox, oy float32, flags ...Flag) {
+	if r.skipSource(source) || r.skipSource(mask) {
+		return
+	}
 	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	if dither {
@@ -97,6 +106,9 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX float32, flags ...Flag) {
+	if r.skipSource(source) {
+		return
+	}
 	bilinear, dither := r.readRenderFlags(flags...)
 	r.opts.Uniforms["Bilinear"] = mapBool(bilinear, 0, 1)
 	r.opts.Uniforms["Dither"] = mapBool(dither, 0, 1)
@@ -128,6 +140,9 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskCirc(target, source *ebiten.Image, ox, oy, circCX, circCY, hardRadius, softEdge float32, flags ...Flag) {
+	if r.skipSource(source) {
+		return
+	}
 	if softEdge < 0.0 {
 		hardRadius += softEdge
 		softEdge = min(-softEdge, hardRadius-softEdge)

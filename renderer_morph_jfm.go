@@ -119,10 +119,6 @@ func jfmRegion(minAlpha, maxAlpha float32) (float32, float32) {
 // image as source or opts.Normals, as they're read while the map is written.
 func (r *Renderer) JFMapCompute(target, source *ebiten.Image, opts JFMapComputeOptions, flags ...Flag) JFMap {
 	jfmap := JFMap{Offsets: target, Normals: opts.Normals, MinAlpha: opts.MinAlpha, MaxAlpha: opts.MaxAlpha}
-	if source == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, source)
-		return jfmap
-	}
 	clampBorders := r.readOptInFlag(Clamp, flags...)
 	if target == nil {
 		panic("target is nil")
@@ -139,6 +135,9 @@ func (r *Renderer) JFMapCompute(target, source *ebiten.Image, opts JFMapComputeO
 		panic(fmt.Sprintf("source size != target size (%dx%d != %dx%d)", sw, sh, mw, mh))
 	}
 	checkNormalsSize(source, opts.Normals)
+	if source.Bounds().Empty() {
+		return jfmap
+	}
 	minAlpha, maxAlpha, valid := r.checkJFMRegion(opts.MinAlpha, opts.MaxAlpha)
 	jfmap.MinAlpha, jfmap.MaxAlpha = minAlpha, maxAlpha
 	inset := warnZeroNegativeValue(r, opts.Inset)
@@ -337,8 +336,7 @@ const (
 // is generated. extra is the tint for erosion, and 1 to show the inside for
 // heatmaps.
 func (r *Renderer) jfmRead(target, source *ebiten.Image, ox, oy, amount, reach float32, outside bool, jfmap JFMap, shader *ebiten.Shader, op int, extra float32, flags ...Flag) {
-	if source == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, source)
+	if r.missingSource(source) {
 		return
 	}
 	clampBorders := r.readOptInFlag(Clamp, flags...)
@@ -351,6 +349,15 @@ func (r *Renderer) jfmRead(target, source *ebiten.Image, ox, oy, amount, reach f
 		return
 	}
 	checkNormalsSize(source, jfmap.Normals)
+	if jfmap.Offsets != nil {
+		sw, sh := rectSize(source.Bounds())
+		if mw, mh := rectSize(jfmap.Offsets.Bounds()); sw != mw || sh != mh {
+			panic(fmt.Sprintf("source size != jfmap size (%dx%d != %dx%d)", sw, sh, mw, mh))
+		}
+	}
+	if source.Bounds().Empty() {
+		return
+	}
 
 	if jfmap.Offsets == nil {
 		// boundaries can be up to ~1.5 pixels away from the seed centers, so
@@ -377,11 +384,6 @@ func (r *Renderer) jfmRead(target, source *ebiten.Image, ox, oy, amount, reach f
 		jfmap = r.JFMapCompute(temp, source, opts, clampBorders)
 		ox -= float32(padding)
 		oy -= float32(padding)
-	} else {
-		sw, sh := rectSize(source.Bounds())
-		if mw, mh := rectSize(jfmap.Offsets.Bounds()); sw != mw || sh != mh {
-			panic(fmt.Sprintf("source size != jfmap size (%dx%d != %dx%d)", sw, sh, mw, mh))
-		}
 	}
 
 	r.opts.Uniforms["HasNormals"] = mapBool[float32](jfmap.Normals != nil, 0, 1)

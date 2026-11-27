@@ -24,6 +24,9 @@ import (
 // of the most useful values to tweak. Other more effective tools might be
 // exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
+	if r.skipSource(source) {
+		return
+	}
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
 	r.DrawImgShader(target, source, x, y, NoMargins, RegionExact, shaderOklabShift.Load())
 }
@@ -38,6 +41,9 @@ func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift
 //   - toLightness: pixels after this threshold take 'to' color.
 //     Expected range: [0.0, 1.0].
 func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts GradientOptions, x, y, fromLightness, toLightness float32) {
+	if r.skipSource(source) {
+		return
+	}
 	if fromLightness > 1.0 || fromLightness < 0.0 {
 		r.Warnings.report(WarnInvalidRateClamped, fromLightness)
 		fromLightness = clamp(fromLightness, 0.0, 1.0)
@@ -85,12 +91,18 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) ColorMix(target, base, over *ebiten.Image, x, y float32, alpha, mixLevel float32, flags ...Flag) {
+	if r.missingSource(base) || r.missingSource(over) {
+		return
+	}
 	baseBounds, overBounds := base.Bounds(), over.Bounds()
 	if baseBounds.Dx() != overBounds.Dx() || baseBounds.Dy() != overBounds.Dy() {
 		panic(fmt.Sprintf(
 			"base and over sizes must match (found %dx%d vs %dx%d)",
 			baseBounds.Dx(), baseBounds.Dy(), overBounds.Dx(), overBounds.Dy(),
 		))
+	}
+	if baseBounds.Empty() {
+		return
 	}
 
 	var dither, bilinear bool
@@ -204,6 +216,9 @@ var (
 //     (like GLSL), where the values indicate the thresholds of the pattern in
 //     0...1 range. See [DitherBayes] and others for predefined matrices.
 func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffset, yOffset int, rgbaColors []float32, ditherMatrix [16]float32, rendererClrMix, maskColorMix float32) {
+	if r.skipSource(mask) {
+		return
+	}
 	if len(rgbaColors)%4 != 0 {
 		panic("rgbaColors must have length multiple of 4")
 	}

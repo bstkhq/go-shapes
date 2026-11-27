@@ -121,8 +121,7 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	if !opts.HorzKernel.valid() || !opts.VertKernel.valid() {
 		panic("invalid GaussKernel value")
 	}
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 

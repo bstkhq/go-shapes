@@ -27,8 +27,7 @@ const (
 //
 // Only the mask's alpha is used; colors are taken from the renderer.
 func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
@@ -55,8 +54,7 @@ func (r *Renderer) MorphExpansion(target *ebiten.Image, mask *ebiten.Image, ox, 
 // This function uses internal offscreen #0. Target and mask can be on the same
 // image.
 func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 32, WarnThicknessClamped)
@@ -110,8 +108,7 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 //
 // This operation is affected by [Renderer.Tint].
 func (r *Renderer) MorphErosion(target *ebiten.Image, source *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
-	if source == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, source)
+	if r.skipSource(source) {
 		return
 	}
 	clampBorders := r.readOptInFlag(Clamp, flags...)
@@ -140,8 +137,7 @@ func (r *Renderer) MorphErosion(target *ebiten.Image, source *ebiten.Image, ox, 
 //
 // Only the mask's alpha is used; colors are taken from the renderer.
 func (r *Renderer) MorphOutline(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	clampBorders := r.readOptInFlag(Clamp, flags...)

@@ -38,6 +38,9 @@ func (r *Renderer) AlphaNormalsCompute(target, source *ebiten.Image, flags ...Fl
 	if sw != tw || sh != th {
 		panic(fmt.Sprintf("source size != target size (%.0fx%.0f != %.0fx%.0f)", sw, sh, tw, th))
 	}
+	if source.Bounds().Empty() {
+		return
+	}
 
 	r.setDstRectCoords(tx, ty, tx+tw, ty+th)
 	r.setSrcRectCoords(sx, sy, sx+sw, sy+sh)
@@ -56,5 +59,8 @@ func (r *Renderer) AlphaNormalsCompute(target, source *ebiten.Image, flags ...Fl
 // high alpha side, dim on the low one). Pixels without data are left
 // transparent.
 func (r *Renderer) AlphaNormalsViz(target, normals *ebiten.Image, ox, oy float32) {
+	if r.skipSource(normals) {
+		return
+	}
 	r.DrawImgShader(target, normals, ox, oy, NoMargins, RegionExact, shaderAlphaNormalsViz.Load())
 }

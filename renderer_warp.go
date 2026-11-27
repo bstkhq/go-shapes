@@ -25,6 +25,9 @@ import (
 //
 // Warps of different signs will panic.
 func (r *Renderer) WarpBarrel(target, source *ebiten.Image, ox, oy float32, horzWarp, vertWarp float32) {
+	if r.skipSource(source) {
+		return
+	}
 	if horzWarp == 0 && vertWarp == 0 {
 		return
 	}
@@ -65,6 +68,9 @@ func (r *Renderer) warpPincushionQuad(target, source *ebiten.Image, ox, oy float
 //
 // See [RadsRight] constants for angle conventions and docs.
 func (r *Renderer) WarpArc(target, source *ebiten.Image, cx, cy, outRadius float32, rads float64, taps int) {
+	if r.skipSource(source) {
+		return
+	}
 	if outRadius < 0 {
 		return // nothing to draw
 	}

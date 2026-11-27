@@ -66,8 +66,7 @@ func (r *Renderer) glowHorz(shader *ebiten.Shader, target *ebiten.Image, mask *e
 //
 // See also [Renderer.GlowK]() if fixed radiuses are acceptable.
 func (r *Renderer) Glow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzRadius, vertRadius, threshStart, threshEnd float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	if threshStart > threshEnd {
@@ -135,8 +134,7 @@ func (r *Renderer) GlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 //
 // See also [Renderer.GlowDarkK]() if fixed radiuses are acceptable.
 func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzRadius, vertRadius, threshStart, threshEnd float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	if threshStart < threshEnd {
@@ -202,8 +200,7 @@ func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, t
 //
 // See also [Renderer.GlowColorK]() if fixed radiuses are acceptable.
 func (r *Renderer) GlowColor2(target *ebiten.Image, mask *ebiten.Image, ox, oy float32, horzRadius, vertRadius float32, rgb [3]float32, threshStart, threshEnd float32) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+	if r.skipSource(mask) {
 		return
 	}
 	if threshStart > threshEnd {
