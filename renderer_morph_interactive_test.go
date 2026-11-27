@@ -94,16 +94,33 @@ func TestMorphExpansionRect(t *testing.T) {
 	const Radius = 64.0
 	const Expansion = 32.0
 
-	updater := func(TestAppCtx) {}
+	smoothMovement := false
+	updater := func(ctx TestAppCtx) {
+		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
+	}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
-		canvas.Fill(color.Black)
+		canvas.Fill(backTestColor)
 
-		lc := ctx.LeftClickF32()
-		rc := ctx.RightClickF32()
-		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		expansion := float32(ctx.DistAnim(Expansion, 1.0))
+		shiftX, shiftY := float32(0), float32(0)
+		if smoothMovement {
+			shiftX = float32(-4.0 + ctx.DistAnim(8.0, 0.777))
+			shiftY = float32(-4.0 + ctx.DistAnim(8.0, 0.5))
+		}
+
+		ctx.Renderer.SetColor(color.White)
+		info := fmt.Sprintf("Thickness: %.2f\nSmooth movement: %t [M]", expansion, smoothMovement)
+		ctx.Renderer.Text(canvas, info, 8, 8, TextOpts(1.0, TopLeft.Snap(CapLine)))
+
+		lc := ctx.LeftClickF32().AddXY(shiftX, shiftY)
+		rc := ctx.RightClickF32().AddXY(shiftX, shiftY)
+		if ctx.SpacePressed {
+			ctx.Renderer.Options().Blend = ebiten.BlendCopy
+		}
+		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[0], lc.X-Radius, lc.Y-Radius, expansion)
 		ctx.Renderer.MorphExpansionRect(canvas, ctx.Images[1], rc.X-Radius, rc.Y-Radius, expansion)
+		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 
 		ctx.Renderer.SetColor(color.RGBA{255, 0, 0, 255})
 		ctx.DrawWithAlphaAtF32(canvas, ctx.Images[0], 0.5, lc.X-Radius, lc.Y-Radius)

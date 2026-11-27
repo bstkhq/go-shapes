@@ -1,8 +1,6 @@
 package shapes
 
 import (
-	"math"
-
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -63,15 +61,24 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	}
 	thickness = r.warnClampNonNegArgF32(thickness, 32, WarnThicknessClamped)
 
-	// first pass (vert)
-	thickCeil := float32(math.Ceil(float64(thickness)))
+	// the first pass is shifted by oyFract so it lines up when drawn from
+	// the temp to the final target on the second pass
+	oyWhole := floorF32(oy)
+	oyFract := oy - oyWhole
+
+	hmargin := thickness + 0.5        // reaches >= the center of the last affected pixel
+	vmargin := ceilF32(thickness) + 1 // upper bound, exact would be ±ceil(thickness ± oyFract)
+
 	sx, sy, sw, sh := rectOriginSize(mask.Bounds())
-	temp, _ := r.getTemp(0, sw, sh+int(thickCeil)*2.0, false)
 	sx32, sy32, sw32, sh32 := float32(sx), float32(sy), float32(sw), float32(sh)
+	tempH := sh32 + vmargin*2
+	temp, _ := r.getTemp(0, sw, int(tempH), false)
+
+	// first pass (vert)
 	memoBlend := r.opts.Blend
 	r.opts.Blend = ebiten.BlendCopy
-	r.setSrcRectCoords(sx32, sy32-thickCeil, sx32+sw32, sy32+sh32+thickCeil)
-	r.setDstRectCoords(0, 0, sw32, sh32+thickCeil*2)
+	r.setSrcRectCoords(sx32, sy32-vmargin-oyFract, sx32+sw32, sy32-vmargin-oyFract+tempH)
+	r.setDstRectCoords(0, 0, sw32, tempH)
 	r.setFlatCustomVA0(thickness)
 	r.opts.Images[0] = mask
 	temp.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMorphExpansionRectVert.Load(), &r.opts)
@@ -79,8 +86,8 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 
 	// second pass (horz)
 	r.opts.Blend = memoBlend
-	r.setSrcRectCoords(-thickCeil, 0, sw32+thickCeil, sh32+thickCeil*2.0)
-	r.setDstRectCoords(ox-thickCeil, oy-thickCeil, ox+sw32+thickCeil, oy+sh32+thickCeil)
+	r.setSrcRectCoords(-hmargin, 0, sw32+hmargin, tempH)
+	r.setDstRectCoords(ox-hmargin, oyWhole-vmargin, ox+sw32+hmargin, oyWhole-vmargin+tempH)
 	r.opts.Images[0] = temp
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shaderMorphExpansionRectHorz.Load(), &r.opts)
 	r.opts.Images[0] = nil

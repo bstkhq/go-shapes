@@ -1,27 +1,42 @@
 //kage:unit pixels
 package main
 
+// Second pass of MorphExpansionRect, horizontal: the same as the first pass,
+// but over the x axis  and applying vertex colors at the end. See the vertical
+// pass shader for docs and algorithm details, they are symmetrical.
+
 func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 	const MaxThickness = 32.0
+	const MaxSamples = MaxThickness*2.0 + 3.0
 
 	thickness := customVAs[0]
-	alpha := imageSrc0At(sourceCoords).a
-	for x := 0.0; x <= MaxThickness; x += 1.0 {
-		if x >= thickness {
+	y := sourceCoords.y
+	windowStart, windowEnd := sourceCoords.x-thickness, sourceCoords.x+thickness
+
+	beforeStart := floor(windowStart - 0.5)
+	afterEnd := floor(windowEnd-0.5) + 1.0
+
+	startInterp := windowStart - (beforeStart + 0.5)
+	endInterp := windowEnd - (afterEnd - 0.5)
+
+	maxAlpha := 0.0
+	prevAlpha := 0.0
+	for i := 0.0; i < MaxSamples; i += 1.0 {
+		pixel := beforeStart + i
+		if pixel > afterEnd {
 			break
 		}
+		pixAlpha := imageSrc0At(vec2(pixel+0.5, y)).a
 
-		shift := x + 1.0
-		sampleLeft := sourceCoords + vec2(-shift, 0)
-		alphaLeft := imageSrc0At(sampleLeft).a
-		sampleRight := sourceCoords + vec2(shift, 0)
-		alphaRight := imageSrc0At(sampleRight).a
-		alphaAround := max(alphaLeft, alphaRight)
-
-		contrib := 1.0 - max(shift-thickness, 0)
-		alpha = max(alpha, alphaAround*contrib)
+		if pixel == beforeStart+1.0 {
+			maxAlpha = max(maxAlpha, mix(prevAlpha, pixAlpha, startInterp))
+		}
+		if pixel == afterEnd {
+			maxAlpha = max(maxAlpha, mix(prevAlpha, pixAlpha, endInterp))
+		} else if pixel > beforeStart {
+			maxAlpha = max(maxAlpha, pixAlpha)
+		}
+		prevAlpha = pixAlpha
 	}
-
-	alpha = pow(alpha, 1.0/2.2)
-	return color * alpha
+	return color * maxAlpha
 }
