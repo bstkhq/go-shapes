@@ -4,14 +4,13 @@ package main
 func Fragment(_ vec4, sourceCoords vec2, _ vec4, customVAs vec4) vec4 {
 	dstPixSize := customVAs.xy
 	clamping := customVAs.z == 1.0
-	xIndices, yIndices, blend := dstBicubicIndicesAndBlend(sourceCoords, min(dstPixSize, vec2(1)))
+	xIndices, yIndices, blend := dstBicubicIndicesAndBlend(sourceCoords, clamp(dstPixSize, vec2(1e-30), vec2(1)))
 	return bicubicSampling0(xIndices, yIndices, blend, clamping)
 }
 
 // precondition: 0 < filterWidth <= 1 on each axis, in source pixels
 func dstBicubicIndicesAndBlend(coords, filterWidth vec2) (vec4, vec4, vec2) {
-	pixel := floor(coords)
-	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	nearestEdge := floor(coords + vec2(0.5))                 // can round up to the next edge, which blend's clamp absorbs
 	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
 	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // blend toward the pixel past nearestEdge
 	taps := vec4(-2, -1, 0, 1)

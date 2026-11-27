@@ -8,7 +8,7 @@ func Fragment(_ vec4, sourceCoords vec2, color vec4, customVAs vec4) vec4 {
 }
 
 func dstBilinearAlpha0(coords, dstPixSize vec2) float {
-	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, min(dstPixSize, vec2(1)))
+	loPixIndex, hiPixIndex, blend := dstBilinearIndicesAndBlend(coords, clamp(dstPixSize, vec2(1e-30), vec2(1)))
 	tl := imageSrc0UnsafeAt(loPixIndex).a
 	tr := imageSrc0UnsafeAt(vec2(hiPixIndex.x, loPixIndex.y)).a
 	bl := imageSrc0UnsafeAt(vec2(loPixIndex.x, hiPixIndex.y)).a
@@ -21,8 +21,7 @@ func dstBilinearAlpha0(coords, dstPixSize vec2) float {
 
 // precondition: 0 < filterWidth <= 1 on each axis, in source pixels
 func dstBilinearIndicesAndBlend(coords, filterWidth vec2) (vec2, vec2, vec2) {
-	pixel := floor(coords)
-	nearestEdge := pixel + step(pixel+vec2(0.5), coords)     // nearestEdge of pix containing coords
+	nearestEdge := floor(coords + vec2(0.5))                 // can round up to the next edge, which blend's clamp absorbs
 	edgeDistInWidths := (coords - nearestEdge) / filterWidth // signed distance
 	blend := clamp(vec2(0.5)+edgeDistInWidths, 0, 1)         // weight of the pixel past nearestEdge
 	return nearestEdge - vec2(1), nearestEdge, blend
