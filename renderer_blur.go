@@ -144,7 +144,14 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 //   - The radius will be applied 'as is' to a downscaled version of mask before
 //     upscaling back to draw on target. For example: if radius 16 and
 //     [DownscaleX4] are used, the resulting radius will be closer to 16*4 = 64.
-func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
+//   - Upscaling is [Bicubic] at [DownscaleX2], and [Bilinear] above that
+//     unless the flag is explicitly given. This is the opposite of kernel
+//     blurs, but at low downscaling vogel looks grainy and noisy, which often
+//     benefits from bicubic smoothing, while at higher downscaling the grains
+//     have already become blurrier blobs.
+//
+// Supported flags: [Bilinear] or [Bicubic], for the upscaling.
+func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32, flags ...Flag) {
 	if r.skipSource(mask) {
 		return
 	}
@@ -170,10 +177,21 @@ func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32,
 	}
 	r.vogelMemo.Refresh(numSamples, 1.0)
 	df := downscaling.Factor()
+	scaling := mapBool(df < 4, Bilinear, Bicubic)
+	bilinear, bicubic := r.readOptInFlagPair(Bilinear, Bicubic, flags...)
+	switch {
+	case bilinear != noFlag && bicubic != noFlag:
+		r.Warnings.report(WarnIncompatibleFlag, Bicubic)
+	case bilinear != noFlag:
+		scaling = Bilinear
+	case bicubic != noFlag:
+		scaling = Bicubic
+	}
+
 	if df == 1 {
 		r.blurVogelDirect(target, mask, ox, oy, radius, numSamples, seed, 0.0)
 	} else {
-		r.blurVogelDownscaled(target, mask, ox, oy, radius, numSamples, df, seed)
+		r.blurVogelDownscaled(target, mask, ox, oy, radius, numSamples, df, seed, scaling)
 	}
 }
 
@@ -203,7 +221,7 @@ func (r *Renderer) blurVogelDirect(target, mask *ebiten.Image, ox, oy, radius fl
 // and downscale is an strictly positive even number
 //
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) blurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscale int, seed float32) {
+func (r *Renderer) blurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscale int, seed float32, scaling Flag) {
 	_, _, sw, sh := rectOriginSize(mask.Bounds())
 	ds := 1.0 / float64(downscale)
 	tw := float64(sw) * ds
@@ -237,11 +255,7 @@ func (r *Renderer) blurVogelDownscaled(target, mask *ebiten.Image, ox, oy, radiu
 	oy -= scaledShift
 
 	// upscale
-	var scaleOpts ScaleOptions
-	if downscale < 4 {
-		scaleOpts.Bicubic = true
-	}
-	r.Scale(target, mid, ox, oy, float32(downscale), &scaleOpts)
+	r.Scale(target, mid, ox, oy, float32(downscale), scaling)
 }
 
 // vogelMemory is a helper for vogel disks data

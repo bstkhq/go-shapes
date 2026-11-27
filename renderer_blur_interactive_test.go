@@ -155,7 +155,7 @@ func TestBlurK(t *testing.T) {
 			ctx.Renderer.Blur2(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, 16.0, 16.0)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: GaussK17, VertKernel: GaussK5}
-			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
+			kOpts.Scaling = mapBool(bicubic, Bilinear, Bicubic)
 			ctx.Renderer.BlurK(canvas, ctx.Images[0], lc.X-radius, lc.Y-radius, kOpts)
 		}
 		ctx.Renderer.SetColor(color.RGBA{128, 0, 128, 128})
@@ -169,7 +169,7 @@ func TestBlurK(t *testing.T) {
 			ctx.Renderer.Blur2(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, r, r)
 		} else {
 			kOpts := KernelOptions{Downscaling: dscale, HorzKernel: k, VertKernel: k}
-			kOpts.Scaling = &ScaleOptions{Bicubic: bicubic}
+			kOpts.Scaling = mapBool(bicubic, Bilinear, Bicubic)
 			ctx.Renderer.BlurK(canvas, ctx.Images[0], rc.X-radius, rc.Y-radius, kOpts)
 		}
 

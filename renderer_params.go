@@ -207,6 +207,21 @@ const (
 	// The exact interpretation depends on the primitive.
 	ColorIntrinsic
 
+	// Interpolates samples in destination rather than source space.
+	// Minification is capped to 1.0 scale, same as regular filtering.
+	//
+	// This kind of interpolation is similar to Ebitengine's FilterPixelated,
+	// which keeps source pixels sharper when magnified.
+	DstSampling
+
+	// Use bicubic filtering, which can be smoother than bilinear, but is also
+	// significantly more expensive.
+	Bicubic
+
+	// Reduce artifacts when textures are drawn in perspective or warped, by
+	// taking extra samples along the direction where they are most compressed.
+	Anisotropic
+
 	// sentinel
 	numFlags
 )
@@ -227,6 +242,12 @@ func (f Flag) String() string {
 		return "ColorAABB"
 	case ColorIntrinsic:
 		return "ColorIntrinsic"
+	case DstSampling:
+		return "DstSampling"
+	case Bicubic:
+		return "Bicubic"
+	case Anisotropic:
+		return "Anisotropic"
 	default:
 		return "Flag#" + strconv.Itoa(int(f))
 	}

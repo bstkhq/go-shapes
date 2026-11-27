@@ -28,13 +28,17 @@ func TestScale(t *testing.T) {
 		canvas.DrawImage(ctx.Images[0], &opts)
 
 		size := float32(3 * scale)
-		var scOpts ScaleOptions
-		scOpts.Clamp = ebiten.IsKeyPressed(ebiten.KeyC)
-		scOpts.DstSampling = ebiten.IsKeyPressed(ebiten.KeyD)
+		var flags []Flag
+		if ebiten.IsKeyPressed(ebiten.KeyC) {
+			flags = append(flags, Clamp)
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyD) {
+			flags = append(flags, DstSampling)
+		}
 
-		ctx.Renderer.Scale(canvas, ctx.Images[0], 0, float32(h)-size, float32(scale), &scOpts)
-		scOpts.Bicubic = true
-		ctx.Renderer.Scale(canvas, ctx.Images[0], float32(w)-size, float32(h)-size, float32(scale), &scOpts)
+		ctx.Renderer.Scale(canvas, ctx.Images[0], 0, float32(h)-size, float32(scale), flags...)
+		flags = append(flags, Bicubic)
+		ctx.Renderer.Scale(canvas, ctx.Images[0], float32(w)-size, float32(h)-size, float32(scale), flags...)
 
 		ctx.Renderer.SetColorF32A(tcWhite)
 		info := "Top: Ebitengine nearest / linear\nBottom: go-shapes bilinear / bicubic\nHold [C] to clamp, hold [D] for DstSampling"
@@ -58,14 +62,14 @@ func TestScale(t *testing.T) {
 func TestScaleFiltering(t *testing.T) {
 	const W, H = 192, 128
 	const MinScalePercent, MaxScalePercent = 10, 500
-	var opts ScaleOptions
+	var flags flagList
 	scalePercent := 100
 	texIndex := 0
 	texNames := []string{"Checkerboard", "Vertical stripes", "Text", "Opaque edges"}
 	smoothMovement, smoothScaling := false, false
 	updater := func(ctx TestAppCtx) {
-		opts.Bicubic = updateToggle(ctx, ebiten.KeyB, opts.Bicubic)
-		opts.DstSampling = updateToggle(ctx, ebiten.KeyD, opts.DstSampling)
+		flags.UpdateFlag(Bicubic, ebiten.KeyB)
+		flags.UpdateFlag(DstSampling, ebiten.KeyD)
 		texIndex = updateParam(ctx, ebiten.KeyT, texIndex, 0, len(ctx.Images)-1, 1)
 		scalePercent = updateParam(ctx, ebiten.KeyZ, scalePercent, MinScalePercent, MaxScalePercent, 5)
 		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
@@ -90,12 +94,16 @@ func TestScaleFiltering(t *testing.T) {
 			y += float32(ctx.DistAnim(4, 1.0)) - 2
 		}
 
-		opts.Clamp = ebiten.IsKeyPressed(ebiten.KeyC)
+		if ebiten.IsKeyPressed(ebiten.KeyC) {
+			flags.Set(Clamp)
+		} else {
+			flags.Unset(Clamp)
+		}
 		blend := ebiten.BlendSourceOver
 		if ctx.SpacePressed {
 			blend = ebiten.BlendCopy
 		}
-		filter := mapBool(opts.Bicubic, "go-shapes bilinear", "go-shapes bicubic")
+		filter := mapBool(flags.Has(Bicubic), "go-shapes bilinear", "go-shapes bicubic")
 		if ebiten.IsKeyPressed(ebiten.KeyE) {
 			drawOpts := ebiten.DrawImageOptions{Filter: ebiten.FilterLinear, Blend: blend}
 			drawOpts.GeoM.Scale(float64(scale), float64(scale))
@@ -104,7 +112,7 @@ func TestScaleFiltering(t *testing.T) {
 			filter = "Ebitengine bilinear"
 		} else {
 			ctx.Renderer.Options().Blend = blend
-			ctx.Renderer.Scale(canvas, src, x, y, scale, &opts)
+			ctx.Renderer.Scale(canvas, src, x, y, scale, flags...)
 			ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
 		}
 
@@ -112,7 +120,7 @@ func TestScaleFiltering(t *testing.T) {
 			"Scale: %.1f%% [Z / Shift+Z]  Smooth scaling: %t [A]\n"+
 			"Filter: %s [B: bilinear/bicubic, hold E: Ebitengine]\n"+
 			"Clamp: %t [hold C]  DstSampling: %t [D]  Smooth movement: %t [M]",
-			texNames[texIndex], currentScalePercent, smoothScaling, filter, opts.Clamp, opts.DstSampling, smoothMovement)
+			texNames[texIndex], currentScalePercent, smoothScaling, filter, flags.Has(Clamp), flags.Has(DstSampling), smoothMovement)
 		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.Text(canvas, info, ox+8, oy+8, TextOpts(1, TopLeft.Snap(CapLine)))
 	}

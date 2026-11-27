@@ -210,28 +210,14 @@ func (r *Renderer) applyOffsetColor(start int, offset int, color [4]float32) {
 	}
 }
 
-// ScaleOptions are used in [Renderer.Scale]().
-type ScaleOptions struct {
-	// When true, samples outside bounds will be clamped to the image limits.
-	// When false, samples outside bounds will be considered transparent
-	// (0, 0, 0, 0).
-	Clamp bool
+var scaleFlags = newFlagSet(Clamp, DstSampling, Bilinear, Bicubic)
 
-	// When true, sampling is done in destination space (1.0/scale px spacing,
-	// capped at 1.0 for minification).
-	// When false, sampling is done in source space (1.0 px spacing).
-	//
-	// DstSampling = true is similar to Ebitengine's v2.9.0 FilterPixelated.
-	DstSampling bool
-
-	// When true, bicubic algorithm will be used instead of bilinear.
-	Bicubic bool
-}
-
-// Scale draws source into target with the specified parameters. opts can be
-// nil, but in that case there's no advantage over Ebitengine's default
+// Scale draws source into target with the specified parameters.
+//
+// Supported flags: [Clamp], [DstSampling], and [Bilinear] (the default) or
+// [Bicubic]. Without flags, there's no advantage over Ebitengine's default
 // functions.
-func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, opts *ScaleOptions) {
+func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, flags ...Flag) {
 	if r.skipSource(source) {
 		return
 	}
@@ -251,24 +237,18 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, op
 	r.setSrcRectCoords(minX, minY, minX+srcWidthF32, minY+srcHeightF32)
 	r.opts.Images[0] = source
 
-	var clamp, sampling float32 = 0.0, 1.0
-	var shader *ebiten.Shader
-	if opts != nil {
-		if opts.Clamp {
-			clamp = 1.0
-		}
-		if opts.DstSampling {
-			sampling /= scale
-		}
-		if opts.Bicubic {
+	given := r.readOptInFlagSet(scaleFlags, flags...)
+	shader := shaderBilinear.Load()
+	if given.Has(Bicubic) {
+		if given.Has(Bilinear) {
+			r.Warnings.report(WarnIncompatibleFlag, Bicubic)
+		} else {
 			shader = shaderBicubic.Load()
 		}
 	}
-	if shader == nil {
-		shader = shaderBilinear.Load()
-	}
 
-	r.setFlatCustomVAs(sampling, sampling, clamp, 0)
+	sampling := mapBool[float32](given.Has(DstSampling), 1, 1/scale)
+	r.setFlatCustomVAs(sampling, sampling, mapBool[float32](given.Has(Clamp), 0, 1), 0)
 	target.DrawTrianglesShader32(r.vertices[:], r.indices[:], shader, &r.opts)
 	r.opts.Images[0] = nil
 }

@@ -74,19 +74,19 @@ var gaussKernels = gaussSig3Kernels
 
 // KernelOptions are used in kernel-based blurs and glows. These are multi-pass
 // operations with fixed radiuses and configurable [Downscaling].
-//
-// Scaling is optional and can be nil, but for downscaling factors of
-// [DownscaleX8] and above using bicubic scaling is heavily recommended. At
-// [DownscaleX4] the decision depends more on the desired quality, effect and
-// performance constraints.
 type KernelOptions struct {
 	Downscaling    Downscaling
 	HorzKernel     GaussKernel
 	VertKernel     GaussKernel
 	clearOffscreen bool
 
-	// Scaling options can be provided if defaults need to be overridden.
-	Scaling *ScaleOptions
+	// Scaling selects the filter for the scaling steps. It can only be set to
+	// [Bilinear] or [Bicubic]. If unset, it's automatically chosen based on
+	// Downscaling: Bicubic at [DownscaleX8] and above, Bilinear otherwise.
+	//
+	// For [DownscaleX4], the decision depends a lot on the effect, performance
+	// constraints and the user's desired quality.
+	Scaling Flag
 }
 
 // KernelOpts creates KernelOptions with the same kernel for both axes.
@@ -100,6 +100,22 @@ func KernelOpts(downscaling Downscaling, kernel GaussKernel) KernelOptions {
 
 // TODO: consider samplePosMultiplier float32 for KernelOptions
 // func KernelOptsAuto(downscaling Downscaling, radius float32) KernelOptions {}
+
+// scaling returns the scaling flag, chosen automatically if unset or invalid,
+// and also warning in that latter case if warnings is given
+func (opts KernelOptions) scaling(warnings *Warnings) Flag {
+	// explicit cases
+	if opts.Scaling == Bilinear || opts.Scaling == Bicubic {
+		return opts.Scaling
+	}
+
+	// automatic and invalid cases
+	if opts.Scaling != noFlag && warnings != nil {
+		warnings.report(WarnInvalidFlag, opts.Scaling)
+	}
+
+	return mapBool(opts.Downscaling.Factor() >= 8, Bilinear, Bicubic)
+}
 
 // Internal function used by BlurK, GlowK and GlowColorK. It downscales the
 // mask, applies a custom horizontal kernel shader, then a standard vertical
@@ -158,7 +174,8 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 	// downscaling
 	r.opts.Blend = ebiten.BlendCopy
 	df32 := float32(df)
-	r.Scale(down, mask, 1, 1, 1.0/df32, opts.Scaling)
+	scaling := opts.scaling(&r.Warnings)
+	r.Scale(down, mask, 1, 1, 1.0/df32, scaling)
 
 	// apply effect
 	r.applyKernelOp(down, dkern, dkernHorz, dkernW64, dkernH64, downW64, downH64, opts, invokeShader)
@@ -170,7 +187,7 @@ func (r *Renderer) applyKernel(target *ebiten.Image, mask *ebiten.Image, ox, oy 
 		r.opts.Blend = preBlend
 	}
 	fx, fy := ox+-df32-float32(halfHorzMargin)*df32, oy+-df32-float32(halfVertMargin)*df32
-	r.Scale(target, dkern, fx, fy, df32, opts.Scaling)
+	r.Scale(target, dkern, fx, fy, df32, scaling)
 	if blend != nil {
 		r.opts.Blend = preBlend
 	}

@@ -151,7 +151,7 @@ func TestSkippedSources(t *testing.T) {
 		name string
 		draw func(r *Renderer, target, img, full *ebiten.Image)
 	}{
-		{"Scale", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Scale(tg, img, 0, 0, 1, nil) }},
+		{"Scale", func(r *Renderer, tg, img, _ *ebiten.Image) { r.Scale(tg, img, 0, 0, 1) }},
 		{"DrawAt", func(r *Renderer, tg, img, _ *ebiten.Image) { r.DrawAt(tg, img, 0, 0, 1) }},
 		{"DrawImgShader", func(r *Renderer, tg, img, _ *ebiten.Image) {
 			r.DrawImgShader(tg, img, 0, 0, NoMargins, RegionExact, shaderDefault.Load())
@@ -171,8 +171,8 @@ func TestSkippedSources(t *testing.T) {
 		{"DitherMat4", func(r *Renderer, tg, img, _ *ebiten.Image) {
 			r.DitherMat4(tg, img, 0, 0, 0, 0, dither, [16]float32{}, 0, 0)
 		}},
-		{"MapQuad4", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad4(tg, img, quad, MapOptions{}) }},
-		{"MapQuad", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad(tg, img, quad, MapOptions{}) }},
+		{"MapQuad4", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad4(tg, img, quad) }},
+		{"MapQuad", func(r *Renderer, tg, img, _ *ebiten.Image) { r.MapQuad(tg, img, quad) }},
 		{"Mask source", func(r *Renderer, tg, img, full *ebiten.Image) { r.Mask(tg, img, full, 0, 0) }},
 		{"Mask mask", func(r *Renderer, tg, img, full *ebiten.Image) { r.Mask(tg, full, img, 0, 0) }},
 		{"MaskAt source", func(r *Renderer, tg, img, full *ebiten.Image) { r.MaskAt(tg, img, full, 0, 0, 0, 0) }},

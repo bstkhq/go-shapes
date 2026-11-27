@@ -6,19 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// MapOptions controls texture filtering in [Renderer.MapQuad] and
-// [Renderer.MapQuad4]. The zero value is plain bilinear filtering.
-type MapOptions struct {
-	// DstSampling uses destination-space sampling, similar to [ScaleOptions],
-	// but adapts to the shape of the quad instead of using a single scale.
-	DstSampling bool
-
-	// Anisotropic reduces texture artifacts where the texture is compressed
-	// more in one direction than the other. It averages two bilinear lookups
-	// along the direction of greatest compression.
-	Anisotropic bool
-}
-
 // quad must be given in clockwise order starting from top-left.
 func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 	tox, toy := rectOriginF32(target.Bounds())
@@ -42,11 +29,15 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 //
 // quad must be given in clockwise order starting from top-left.
 //
+// Supported flags: [DstSampling], adapting to the shape of the quad, and
+// [Anisotropic].
+//
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32, opts MapOptions) {
+func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32, flags ...Flag) {
 	if r.skipSource(source) {
 		return
 	}
+	dstSampling, anisotropic := r.readOptInFlagPair(DstSampling, Anisotropic, flags...)
 	tox, toy := rectOriginF32(target.Bounds())
 	for i, pt := range quad {
 		r.vertices[i].DstX = pt.X + tox
@@ -80,18 +71,18 @@ func (r *Renderer) MapQuad4(target, source *ebiten.Image, quad [4]PointF32, opts
 	r.indices[9] = 3
 	r.indices[10] = 0
 	r.indices[11] = 4
-	if opts.DstSampling {
+	if dstSampling == DstSampling {
 		r.opts.Uniforms["DstSampling"] = 1
 	}
 	shader := &shaderMapBilinear
-	if opts.Anisotropic {
+	if anisotropic == Anisotropic {
 		shader = &shaderMapAffineAnisotropic
 	}
 	target.DrawTrianglesShader32(r.vertices[:], r.indices, shader.Load(), &r.opts)
 	r.restoreIndices()
 	r.opts.Images[0] = nil
 	r.vertices = r.vertices[:4]
-	if opts.DstSampling {
+	if dstSampling == DstSampling {
 		delete(r.opts.Uniforms, "DstSampling")
 	}
 }
@@ -117,11 +108,15 @@ func quadCenter(quad [4]PointF32) PointF32 {
 // pixels of transparent padding in the source texture (the more extreme the
 // quad projection, the more padding might be needed).
 //
+// Supported flags: [DstSampling], adapting to the shape of the quad, and
+// [Anisotropic].
+//
 // This operation is affected by [Renderer.Tint].
-func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, opts MapOptions) {
+func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, flags ...Flag) {
 	if r.skipSource(source) {
 		return
 	}
+	dstSampling, anisotropic := r.readOptInFlagPair(DstSampling, Anisotropic, flags...)
 	uvQuad := [4]PointF32{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}}
 	homography := computeHomography(quad, uvQuad)
 
@@ -138,11 +133,11 @@ func (r *Renderer) MapQuad(target, source *ebiten.Image, quad [4]PointF32, opts 
 		homography[1], homography[4], homography[7],
 		homography[2], homography[5], homography[8],
 	}
-	r.opts.Uniforms["DstSampling"] = mapBool(opts.DstSampling, 0, 1)
+	r.opts.Uniforms["DstSampling"] = mapBool(dstSampling == DstSampling, 0, 1)
 	r.setFlatCustomVA0(r.tint)
 	r.opts.Images[0] = source
 	var shader *ebiten.Shader
-	if opts.Anisotropic {
+	if anisotropic == Anisotropic {
 		shader = shaderMapQuadAnisotropic.Load()
 	} else {
 		shader = shaderMapQuadBilinear.Load()

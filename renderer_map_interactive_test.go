@@ -37,15 +37,15 @@ func TestMap(t *testing.T) {
 		c4x, c4y := float32(ox+3*w/4), float32(oy+3*h/4)
 
 		ctx.Renderer.mapQuad2(canvas, ctx.Images[0], card.Quad(c1x, c1y))
-		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y), MapOptions{})
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c2x, c2y))
 		ctx.Renderer.SetColorF32A(tcWhite)
 		ctx.Renderer.SetTint(0)
 		if (ctx.Ticks/180)&1 == 1 {
 			setColorsTB(ctx.Renderer, tcWhite, tcClear)
 			ctx.Renderer.SetTint(1)
 		}
-		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), MapOptions{Anisotropic: anisotropic})
-		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y), MapOptions{})
+		ctx.Renderer.MapQuad(canvas, ctx.Images[0], card.Quad(c3x, c3y), mapBool(anisotropic, noFlag, Anisotropic))
+		ctx.Renderer.MapQuad4(canvas, ctx.Images[0], card.Quad(c4x, c4y))
 	}
 
 	app := NewTestApp(updater, drawer)
@@ -78,7 +78,7 @@ func TestMapQuad4(t *testing.T) {
 	testMapQuad(t, (*Renderer).MapQuad4)
 }
 
-func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.Image, [4]PointF32, MapOptions)) {
+func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.Image, [4]PointF32, ...Flag)) {
 	t.Helper()
 	const CardWidth, CardHeight = 256, 328
 
@@ -86,10 +86,10 @@ func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.I
 	zoomPercent := 100
 	widthPercent, heightPercent := 100, 100
 	smoothMovement := false
-	var options MapOptions
+	var flags flagList
 	updater := func(ctx TestAppCtx) {
-		options.Anisotropic = updateToggle(ctx, ebiten.KeyA, options.Anisotropic)
-		options.DstSampling = updateToggle(ctx, ebiten.KeyD, options.DstSampling)
+		flags.UpdateFlag(Anisotropic, ebiten.KeyA)
+		flags.UpdateFlag(DstSampling, ebiten.KeyD)
 		smoothMovement = updateToggle(ctx, ebiten.KeyM, smoothMovement)
 		zoomPercent = updateParam(ctx, ebiten.KeyZ, zoomPercent, 25, 400, 25)
 		widthPercent = updateParam(ctx, ebiten.KeyX, widthPercent, 10, 200, 5)
@@ -141,12 +141,12 @@ func testMapQuad(t *testing.T, drawQuad func(*Renderer, *ebiten.Image, *ebiten.I
 			pts[i].X -= float32(shear) * (pts[i].Y - cy)
 		}
 
-		drawQuad(ctx.Renderer, canvas, ctx.Images[0], pts, options)
+		drawQuad(ctx.Renderer, canvas, ctx.Images[0], pts, flags...)
 
 		// controls
 		ctx.Renderer.SetColorF32A(tcWhite)
 		info := fmt.Sprintf("Anisotropic x2: %t [A]  DstSampling: %t [D]\nTilt: %+.04f [Left / Right]  Shear: %+.04f [Up / Down]\nShift: fine, Ctrl: fine+ for tilt and shear\nWidth: %d%% [X / Shift+X]  Height: %d%% [Y / Shift+Y]\nZoom: %d%% [Z / Shift+Z]  Smooth movement: %t [M]",
-			options.Anisotropic, options.DstSampling, tilt, shear, widthPercent, heightPercent, zoomPercent, smoothMovement)
+			flags.Has(Anisotropic), flags.Has(DstSampling), tilt, shear, widthPercent, heightPercent, zoomPercent, smoothMovement)
 		ctx.Renderer.Text(canvas, info, float32(bounds.Min.X+8), float32(bounds.Min.Y+8), TextOpts(1, TopLeft.Snap(CapLine)))
 	}
 
@@ -204,7 +204,7 @@ func TestMapProjectiveStress(t *testing.T) {
 		for range NumRows {
 			cx := float32(ox) + dx
 			for range NumCols {
-				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy), MapOptions{})
+				ctx.Renderer.MapQuad(canvas, ctx.Images[waverIdx&1], cardWavers[waverIdx].Quad(cx, cy))
 				cx += dx
 				waverIdx += 1
 			}
