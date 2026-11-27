@@ -202,12 +202,14 @@ func updateParamMult[T float32 | float64 | ~int](ctx TestAppCtx, key ebiten.Key,
 
 func (ctx *TestAppCtx) DrawAtF32(target, image *ebiten.Image, ox, oy float32) {
 	var opts ebiten.DrawImageOptions
+	opts.Filter = ebiten.FilterLinear
 	opts.GeoM.Translate(float64(ox), float64(oy))
 	target.DrawImage(image, &opts)
 }
 
 func (ctx *TestAppCtx) DrawWithAlphaAtF32(target, image *ebiten.Image, alpha, ox, oy float32) {
 	var opts ebiten.DrawImageOptions
+	opts.Filter = ebiten.FilterLinear
 	opts.GeoM.Translate(float64(ox), float64(oy))
 	opts.ColorScale.ScaleAlpha(alpha)
 	target.DrawImage(image, &opts)

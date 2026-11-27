@@ -34,9 +34,9 @@ func TestAlphaNormals(t *testing.T) {
 		source := ctx.Images[imgIndex]
 		w, h := rectSizeF32(source.Bounds())
 		cw, ch := rectSizeF32(canvas.Bounds())
-		y := (ch - h) / 2
-		ctx.DrawAtF32(canvas, source, cw/2-w-Margin, y)
-		ctx.DrawAtF32(canvas, viz[imgIndex], cw/2+Margin, y)
+		y := floorF32((ch - h) / 2) // whole pixels, so linear filtering doesn't blur
+		ctx.DrawAtF32(canvas, source, floorF32(cw/2-w-Margin), y)
+		ctx.DrawAtF32(canvas, viz[imgIndex], floorF32(cw/2+Margin), y)
 
 		ctx.Renderer.SetColor(color.RGBA{255, 255, 255, 255})
 		info := fmt.Sprintf(

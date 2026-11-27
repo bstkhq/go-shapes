@@ -35,6 +35,9 @@ func TestJFMExpand(t *testing.T) {
 		bw, bh := rectSizeF32(canvas.Bounds())
 		img := ctx.Images[imgIndex]
 		w, h := rectSizeF32(img.Bounds())
+		// panel positions, on whole pixels so linear filtering doesn't blur
+		left, right := floorF32(bw/4-w/2), floorF32(bw-bw/4-w/2)
+		top, bottom := floorF32(bh/4-h/2), floorF32(bh-bh/4-h/2)
 		r := dist
 		if animDist {
 			r = float32(ctx.DistAnim(MaxDist, 1.0))
@@ -44,22 +47,22 @@ func TestJFMExpand(t *testing.T) {
 			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
 		}
 
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
+		ctx.DrawAtF32(canvas, img, left, top)
 		if imgIndex == 2 {
 			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, right+w/2, top+h/2, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, right+w/2, bottom+h/2, w/2+16.0)
 		}
 
 		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
-		ctx.Renderer.MorphExpansion(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, r, 1.333)
+		ctx.Renderer.MorphExpansion(canvas, img, right+mx, top+my, r, 1.333)
 
 		normals := cache.alphaNormals(ctx.Renderer, img, false)
 		region := jfmRegions[regionIndex]
 		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
 		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, false)
 		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ox, oy := bw-bw/4-w/2-MapRange+mx, bh-bh/4-h/2-MapRange+my
+		ox, oy := right-MapRange+mx, bottom-MapRange+my
 		ctx.Renderer.JFMExpand(canvas, cache.source(img), ox, oy, r, jfmap)
 
 		ctx.Renderer.SetColor(color.White)
@@ -110,6 +113,9 @@ func TestJFMOutline(t *testing.T) {
 		bw, bh := rectSizeF32(canvas.Bounds())
 		img := ctx.Images[imgIndex]
 		w, h := rectSizeF32(img.Bounds())
+		// panel positions, on whole pixels so linear filtering doesn't blur
+		left, right := floorF32(bw/4-w/2), floorF32(bw-bw/4-w/2)
+		top, bottom := floorF32(bh/4-h/2), floorF32(bh-bh/4-h/2)
 		th := thickness
 		switch animThickness {
 		case 1:
@@ -122,11 +128,11 @@ func TestJFMOutline(t *testing.T) {
 			mx, my = float32(-4.0+ctx.DistAnim(8.0, 1.0)), float32(-4.0+ctx.DistAnim(8.0, 0.777))
 		}
 
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
+		ctx.DrawAtF32(canvas, img, left, top)
 		if imgIndex == 2 {
 			ctx.Renderer.SetColorF32(0.75, 0.5, 1.0, 1.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh/4, w/2+16.0)
-			ctx.Renderer.FillCircle(canvas, bw-bw/4, bh-bh/4, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, right+w/2, top+h/2, w/2+16.0)
+			ctx.Renderer.FillCircle(canvas, right+w/2, bottom+h/2, w/2+16.0)
 		}
 
 		var flags []Flag
@@ -134,14 +140,14 @@ func TestJFMOutline(t *testing.T) {
 			flags = append(flags, Clamp)
 		}
 		ctx.Renderer.SetColorF32(0.5, 0.75, 1.0, 1.0)
-		ctx.Renderer.MorphOutline(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, th, 0.666, flags...)
+		ctx.Renderer.MorphOutline(canvas, img, right+mx, top+my, th, 0.666, flags...)
 
 		normals := cache.alphaNormals(ctx.Renderer, img, clampBorders)
 		region := jfmRegions[regionIndex]
 		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
 		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, clampBorders)
 		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ox, oy := bw-bw/4-w/2-MapRange+mx, bh-bh/4-h/2-MapRange+my
+		ox, oy := right-MapRange+mx, bottom-MapRange+my
 		ctx.Renderer.JFMOutline(canvas, cache.source(img), ox, oy, th, jfmap)
 
 		ctx.Renderer.SetColor(color.White)
@@ -192,7 +198,10 @@ func TestJFMErode(t *testing.T) {
 		bw, bh := rectSizeF32(canvas.Bounds())
 		img := ctx.Images[imgIndex]
 		w, h := rectSizeF32(img.Bounds())
-		ctx.DrawAtF32(canvas, img, bw/4-w/2, bh/4-h/2)
+		// panel positions, on whole pixels so linear filtering doesn't blur
+		left, right := floorF32(bw/4-w/2), floorF32(bw-bw/4-w/2)
+		top, bottom := floorF32(bh/4-h/2), floorF32(bh-bh/4-h/2)
+		ctx.DrawAtF32(canvas, img, left, top)
 		r := dist
 		if animDist {
 			r = float32(ctx.DistAnim(MaxDist, 1.0))
@@ -203,14 +212,14 @@ func TestJFMErode(t *testing.T) {
 		}
 		ctx.Renderer.SetTint(float32(ctx.DistAnim(1.0, 0.5)))
 
-		ctx.Renderer.MorphErosion(canvas, img, bw-bw/4-w/2+mx, bh/4-h/2+my, r, softEdge, flags...)
+		ctx.Renderer.MorphErosion(canvas, img, right+mx, top+my, r, softEdge, flags...)
 
 		normals := cache.alphaNormals(ctx.Renderer, img, flags.Has(Clamp))
 		region := jfmRegions[regionIndex]
 		computeOpts := JFMapComputeOptions{Normals: mapBool(mapNormals, nil, normals), MinAlpha: region.minAlpha, MaxAlpha: region.maxAlpha}
 		jfmap := cache.jfmap(ctx.Renderer, img, computeOpts, flags.Has(Clamp))
 		jfmap.Normals = mapBool(opNormals, nil, normals)
-		ctx.Renderer.JFMErode(canvas, cache.source(img), bw-bw/4-w/2+mx, bh-bh/4-h/2+my, r, jfmap)
+		ctx.Renderer.JFMErode(canvas, cache.source(img), right+mx, bottom+my, r, jfmap)
 		ctx.Renderer.SetTint(0)
 
 		ctx.Renderer.SetColor(color.White)
