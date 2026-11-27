@@ -193,6 +193,9 @@ func TestMorphErosion(t *testing.T) {
 		lc := ctx.LeftClickF32().AddXY(shiftX, shiftY)
 		rc := ctx.RightClickF32().AddXY(shiftX, shiftY)
 
+		// erosion is affected by tint
+		ctx.Renderer.SetTint(1)
+
 		// Standalone circle.
 		ctx.Renderer.Options().Blend = morphBlend
 		ctx.Renderer.SetColor(color.White)
@@ -215,6 +218,8 @@ func TestMorphErosion(t *testing.T) {
 		ctx.Renderer.SetColor(color.RGBA{172, 0, 224, 255})
 		ctx.Renderer.MorphErosion(canvas, triangle, rc.X-triW/2.0, rc.Y-triH/2.0, currentThickness, softEdge)
 		ctx.Renderer.Options().Blend = ebiten.BlendSourceOver
+
+		ctx.Renderer.SetTint(0)
 	}
 
 	app := NewTestApp(updater, drawer)

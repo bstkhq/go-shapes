@@ -93,7 +93,7 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 	r.opts.Images[0] = nil
 }
 
-// MorphErosion performs morphological erosion of the given mask and draws it
+// MorphErosion performs morphological erosion of the given source and draws it
 // onto the given target. Notice that this is a quadratic algorithm. For large
 // erosion operations, consider [Renderer.JFMErode]().
 //
@@ -108,17 +108,17 @@ func (r *Renderer) MorphExpansionRect(target *ebiten.Image, mask *ebiten.Image, 
 // Supported flags: [Clamp], which prevents erosion from starting at the
 // source borders.
 //
-// Only the mask's alpha is used; colors are taken from the renderer.
-func (r *Renderer) MorphErosion(target *ebiten.Image, mask *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
-	if mask == nil {
-		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
+// This operation is affected by [Renderer.Tint].
+func (r *Renderer) MorphErosion(target *ebiten.Image, source *ebiten.Image, ox, oy, thickness, softEdge float32, flags ...Flag) {
+	if source == nil {
+		r.Warnings.report(WarnMissingSourceOpSkipped, source)
 		return
 	}
 	clampBorders := r.readOptInFlag(Clamp, flags...)
 	thickness = r.warnClampNonNegArgF32(thickness, 16, WarnThicknessClamped)
 	softEdge = min(warnZeroNegativeValue(r, softEdge), thickness)
-	r.setFlatCustomVAs(thickness, softEdge, mapBool[float32](clampBorders == Clamp, 0, 1), 0)
-	r.DrawImgShader(target, mask, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
+	r.setFlatCustomVAs(thickness, softEdge, mapBool[float32](clampBorders == Clamp, 0, 1), r.tint)
+	r.DrawImgShader(target, source, ox, oy, NoMargins, RegionExact, shaderMorphErosion.Load())
 }
 
 // MorphOutline draws an outline of the mask into the given target. This

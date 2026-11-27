@@ -8,8 +8,10 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	const MaxSamples = MaxThickness*2.0 + 2.0
 
 	thickness := customVAs[0]
-	if thickness == 0.0 {
-		return color * imageSrc0At(sourceCoords).a
+	tint := customVAs[3]
+	clr := imageSrc0At(sourceCoords)
+	if thickness == 0.0 || clr.a == 0.0 {
+		return mix(clr, color*clr.a, tint)
 	}
 
 	softEdge := min(customVAs[1], thickness)
@@ -27,7 +29,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 	lastTexel := floor(upperBound + vec2(ScanEpsilon))
 
 	// erosion must preserve the original alpha
-	alpha := imageSrc0At(sourceCoords).a
+	alpha := clr.a
 
 	// with clampBorders, samples outside the source read the nearest border pixel.
 	// that pixel is closer and also scanned, so outside samples can't erode
@@ -65,5 +67,7 @@ func Fragment(targetCoords vec4, sourceCoords vec2, color vec4, customVAs vec4) 
 		}
 	}
 
-	return color * alpha
+	// keep the source colors, scaled by the remaining alpha
+	keep := alpha / clr.a
+	return mix(clr, color*clr.a, tint) * keep
 }
