@@ -9,16 +9,17 @@ import (
 // NOTE: see https://blog.frost.kiwi/dual-kawase/ for the best breakdown
 // of blur techniques
 
-// Blur applies a naive, quadratic gaussian blur to the given mask and draws it onto
-// the given target.
+// Blur applies a naive, quadratic gaussian blur to the given mask and draws it
+// onto the given target.
 //
-// Radius can't exceed 16. Internally, the gaussian's std deviation is σ = radius/3.
+// Radius can't exceed 16. Internally, the gaussian's std deviation is
+// σ = radius/3.
 //
 // This operation is affected by [Renderer.Tint].
 //
-// Notice that this method is designed mostly as a comparison baseline due to its high
-// cost (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most use-cases should rely
-// on [Renderer.Blur2]() instead.
+// Notice that this method is designed mostly as a comparison baseline due to
+// its high cost (a radius of 8 will sample (8*2)^2 = 256 pixels!). Most
+// use-cases should rely on [Renderer.Blur2]() instead.
 func (r *Renderer) Blur(target *ebiten.Image, mask *ebiten.Image, ox, oy, radius float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)
@@ -124,12 +125,13 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 	r.applyKernel(target, mask, ox, oy, opts, invokeShader, nil)
 }
 
-// BlurVogel applies a gaussian blur using numSamples distributed with a vogel disk.
+// BlurVogel applies a gaussian blur using numSamples distributed with a vogel
+// disk.
 //
-// In comparison to pure gaussian blurs, vogel blurs have a more grainy, frosted glass look.
-// This can look anywhere from artistic to noisy. It can be a reasonable way to implement
-// bokeh or depth of field effects. It works well on organic images, much less so for isolated
-// shapes with very few colors.
+// In comparison to pure gaussian blurs, vogel blurs have a more grainy, frosted
+// glass look. This can look anywhere from artistic to noisy. It can be a
+// reasonable way to implement bokeh or depth of field effects. It works well on
+// organic images, much less so for isolated shapes with very few colors.
 //
 // Common numSamples values:
 //   - 16: low quality and noisy, but fast and practical in certain scenarios.
@@ -141,9 +143,9 @@ func (r *Renderer) BlurK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 // If downscaling is used:
 //   - The function uses internal offscreens #0 and #1. Target and mask can be
 //     on the same image.
-//   - The radius will be applied 'as is' to a downscaled version of mask before upscaling
-//     back to draw on target. For example: if radius 16 and [DownscaleX4] are used, the
-//     resulting radius will be closer to 16*4 = 64.
+//   - The radius will be applied 'as is' to a downscaled version of mask before
+//     upscaling back to draw on target. For example: if radius 16 and
+//     [DownscaleX4] are used, the resulting radius will be closer to 16*4 = 64.
 func (r *Renderer) BlurVogel(target, mask *ebiten.Image, ox, oy, radius float32, numSamples int, downscaling Downscaling, seed float32) {
 	if mask == nil {
 		r.Warnings.report(WarnMissingSourceOpSkipped, mask)

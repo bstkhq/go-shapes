@@ -121,13 +121,15 @@ func (opts TextOptions) scale() float32 {
 	return 1.0
 }
 
-// Text is a utility method to draw ASCII and Latin-1 Supplement text with the proportional
-// 10px [Ark pixel font]. This is very similar to what ebiten/inpututil does, but this is
-// the proportional version and slightly smaller by default. [TextOptions] can be used to
-// control the text scale and align.
+// Text is a utility method to draw ASCII and Latin-1 Supplement text with the
+// proportional 10px [Ark pixel font]. This is very similar to what
+// ebiten/inpututil does, but this is the proportional version and slightly
+// smaller by default. [TextOptions] can be used to control the text scale and
+// align.
 //
-// Unknown glyphs are silently skipped. The text data is stored in binary format, and the
-// atlas image is not initialized unless text functions are used.
+// Unknown glyphs are silently skipped. The text data is stored in binary
+// format, and the atlas image is not initialized unless text functions are
+// used.
 //
 // [Ark pixel font]: https://ark-pixel-font.takwolf.com/
 func (r *Renderer) Text(target *ebiten.Image, text string, x, y float32, opts TextOptions) {

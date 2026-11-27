@@ -4,9 +4,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Mask draws 'source' over 'target' using 'mask' as an alpha mask. If the source
-// and mask sizes are different, the mask will be adjusted to fit the source.
-// For manual mask placement, see [Renderer.MaskAt]() instead.
+// Mask draws 'source' over 'target' using 'mask' as an alpha mask. If the
+// source and mask sizes are different, the mask will be adjusted to fit the
+// source. For manual mask placement, see [Renderer.MaskAt]() instead.
 //
 // Supported flags: [Bilinear] (in destination space for mask), [Dithered].
 func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flags ...Flag) {
@@ -32,9 +32,10 @@ func (r *Renderer) Mask(target, source, mask *ebiten.Image, ox, oy float32, flag
 	clear(r.opts.Uniforms)
 }
 
-// MaskAt draws 'source' over 'target' using 'mask' as an alpha mask at the given position.
-// If you want the mask to be fit to the source instead, see [Renderer.Mask](). For especialized
-// masking methods with predefined shapes, see [Renderer.MaskHorz]() and [Renderer.MaskCircle]().
+// MaskAt draws 'source' over 'target' using 'mask' as an alpha mask at the
+// given position. If you want the mask to be fit to the source instead, see
+// [Renderer.Mask](). For especialized masking methods with predefined shapes,
+// see [Renderer.MaskHorz]() and [Renderer.MaskCircle]().
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oyMask float32, flags ...Flag) {
@@ -59,13 +60,15 @@ func (r *Renderer) MaskAt(target, source, mask *ebiten.Image, ox, oy, oxMask, oy
 	clear(r.opts.Uniforms)
 }
 
-// MaskThreshold draws source into target at the given position, using mask to hide
-// the pixels where reveal < mask.alpha.
+// MaskThreshold draws source into target at the given position, using mask to
+// hide the pixels where reveal < mask.alpha.
 //
-// For example, if a mask goes from transparent to opaque, left to right, the source will
-// start appearing from left to right as the reveal threshold increases from 0 to 1.
+// For example, if a mask goes from transparent to opaque, left to right, the
+// source will start appearing from left to right as the reveal threshold
+// increases from 0 to 1.
 //
-// If source and mask sizes differ, the mask is adjusted like in [Renderer.Mask]().
+// If source and mask sizes differ, the mask is adjusted like in
+// [Renderer.Mask]().
 //
 // Supported flags: [Bilinear] (in destination space for mask).
 func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox, oy float32, flags ...Flag) {
@@ -89,8 +92,8 @@ func (r *Renderer) MaskThreshold(target, source, mask *ebiten.Image, reveal, ox,
 	clear(r.opts.Uniforms)
 }
 
-// MaskHorz is a specialized form of [Renderer.MaskAt]() that draws source over target
-// with an horizontal alpha fade between inX, outX.
+// MaskHorz is a specialized form of [Renderer.MaskAt]() that draws source over
+// target with an horizontal alpha fade between inX, outX.
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX float32, flags ...Flag) {
@@ -116,10 +119,12 @@ func (r *Renderer) MaskHorz(target, source *ebiten.Image, ox, oy, inX, outX floa
 	clear(r.opts.Uniforms)
 }
 
-// MaskCirc is a specialized form of [Renderer.MaskAt]() that draws source over target
-// with a circular alpha fade between hardRadius and hardRadius + softEdge.
+// MaskCirc is a specialized form of [Renderer.MaskAt]() that draws source over
+// target with a circular alpha fade between hardRadius and
+// hardRadius + softEdge.
 //
-// The source is drawn at (ox, oy), with the radial fade being centered at (circCX, circCY).
+// The source is drawn at (ox, oy), with the radial fade being centered at
+// (circCX, circCY).
 //
 // Supported flags: [Bilinear], [Dithered].
 func (r *Renderer) MaskCirc(target, source *ebiten.Image, ox, oy, circCX, circCY, hardRadius, softEdge float32, flags ...Flag) {
@@ -179,8 +184,8 @@ const (
 	maskPatternEndSentinel
 )
 
-// BakeAlphaMaskRadial renders a circular mask going from RGBA(0, 0, 0, 0) at cx, cy
-// to the renderer's color at >= dist.
+// BakeAlphaMaskRadial renders a circular mask going from RGBA(0, 0, 0, 0) at
+// cx, cy to the renderer's color at >= dist.
 //
 // Masks generated with this method can be used for [Renderer.Mask](),
 // [Renderer.MaskThreshold]() and others.

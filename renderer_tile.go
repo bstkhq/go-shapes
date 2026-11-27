@@ -84,12 +84,12 @@ func (r *Renderer) TileDotsGrid(target *ebiten.Image, radius, spacing, xOffset, 
 	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderTileDotsGrid.Load())
 }
 
-// TileTriUpGrid draws upwards equilateral triangles in a grid. The triangles have base inTriBase
-// and height inTriBase*[Sqrt3Div2]. The grid is divided in rectangles of width outTriBase and
-// height outTriBase*[Sqrt3Div2].
+// TileTriUpGrid draws upwards equilateral triangles in a grid. The triangles
+// have base inTriBase and height inTriBase*[Sqrt3Div2]. The grid is divided in
+// rectangles of width outTriBase and height outTriBase*[Sqrt3Div2].
 //
-// outTriBase and inTribase must be positive. outTriBase can be <= inTriBase, but triangles will
-// start overlapping.
+// outTriBase and inTribase must be positive. outTriBase can be <= inTriBase,
+// but triangles will start overlapping.
 //
 // The color of the triangles is determined by the renderer's current color.
 func (r *Renderer) TileTriUpGrid(target *ebiten.Image, inTriBase, outTriBase, xOffset, yOffset float32) {
@@ -107,12 +107,12 @@ func (r *Renderer) TileTriUpGrid(target *ebiten.Image, inTriBase, outTriBase, xO
 	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderTileTriUpGrid.Load())
 }
 
-// TileTriHex draws equilateral triangles alternating up and down in a hexagonal latice.
-// outTriBase defines the width of the lattice's triangular cells, and the row height is
-// outTriBase*[Sqrt3Div2].
+// TileTriHex draws equilateral triangles alternating up and down in a hexagonal
+// latice. outTriBase defines the width of the lattice's triangular cells, and
+// the row height is outTriBase*[Sqrt3Div2].
 //
-// inTriBase and outTriBase must be positive. outTriBase can be <= inTriBase, but triangles
-// will start overlapping.
+// inTriBase and outTriBase must be positive. outTriBase can be <= inTriBase,
+// but triangles will start overlapping.
 //
 // The color of the triangles is determined by the renderer's current color.
 func (r *Renderer) TileTriHex(target *ebiten.Image, inTriBase, outTriBase, xOffset, yOffset float32) {

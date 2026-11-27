@@ -6,15 +6,18 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// HalftoneTri renders source into target with a halftone effect based on equilateral triangles.
+// HalftoneTri renders source into target with a halftone effect based on
+// equilateral triangles.
 //   - triBaseSize defines the side of the triangles conforming the main grid.
-//   - loSize and hiSize defined the size of the triangle fill at minimum and maximum lightness,
-//     respectively. In most cases, it's more intuitive to use triBaseSize*0.2, triBaseSize*1.0
-//     or similar to control the "fill ratio".
+//   - loSize and hiSize defined the size of the triangle fill at minimum and
+//     maximum lightness, respectively. In most cases, it's more intuitive to
+//     use triBaseSize*0.2, triBaseSize*1.0 or similar to control the "fill
+//     ratio".
 //
 // This operation is affected by [Renderer.Tint].
 //
-// Notice that only the triangles are drawn and there's no explicit color for the background.
+// Notice that only the triangles are drawn and there's no explicit color for
+// the background.
 func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, triBaseSize, loSize, hiSize, xOffset, yOffset float32) {
 	hasOffsets := (xOffset != 0 || yOffset != 0)
 	if hasOffsets {
@@ -31,8 +34,8 @@ func (r *Renderer) HalftoneTri(target, source *ebiten.Image, ox, oy, triBaseSize
 
 // ScanlinesSharp is a miscellaneous effect that draws a simple scanline effect.
 //
-// Offset can be progressively increased to animate the scanlines, but notice that the
-// shader uses nearest sampling, not smooth interpolation.
+// Offset can be progressively increased to animate the scanlines, but notice
+// that the shader uses nearest sampling, not smooth interpolation.
 //
 // Consider also [Renderer.WaveLines]().
 func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick int, intensity, offset float32) {
@@ -41,11 +44,12 @@ func (r *Renderer) ScanlinesSharp(target *ebiten.Image, darkThick, clearThick in
 	r.DrawRectShader(target, tox, toy, tw, th, NoMargins, RegionExact, shaderScanlinesSharp.Load())
 }
 
-// WaveLines is a miscellaneous effect that draws a pattern of lines with oscillating widths.
+// WaveLines is a miscellaneous effect that draws a pattern of lines with
+// oscillating widths.
 //
-// dir defines the direction in which the lines advance if offset is used. The actual
-// line direction is perpendicular to dir. For common values, see [DirRadsLTR] and
-// related constants.
+// dir defines the direction in which the lines advance if offset is used. The
+// actual line direction is perpendicular to dir. For common values, see
+// [DirRadsLTR] and related constants.
 //
 // Consider also [Renderer.ScanlinesSharp]().
 func (r *Renderer) WaveLines(target *ebiten.Image, lineThick, minFillRate, maxFillRate, linesPerOsc, offset float32, dir float64) {

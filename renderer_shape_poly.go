@@ -18,7 +18,8 @@ func (r *Renderer) NewFilledRect(width, height int) *ebiten.Image {
 	return img
 }
 
-// FillIntRect is the [image.Rectangle]-compatible equivalent of [Renderer.FillRect]().
+// FillIntRect is the [image.Rectangle]-compatible equivalent of
+// [Renderer.FillRect]().
 //
 // For rectangle creation, consider [image.Rect]() and [RectWithSize]().
 func (r *Renderer) FillIntRect(target *ebiten.Image, rect image.Rectangle, rounding float32) {
@@ -72,8 +73,8 @@ func rectSDFMargins(w, h, q, support float32) (float32, float32, bool) {
 	return hmargin, vmargin, true
 }
 
-// FillRect draws a filled rectangle with the given properties. Rounding can be zero,
-// positive for outwards rounding, or negative for inwards rounding.
+// FillRect draws a filled rectangle with the given properties. Rounding can be
+// zero, positive for outwards rounding, or negative for inwards rounding.
 //
 // If you need shadows for rects or capsules drawn with this method, consider
 // [Renderer.FillRectSoft]().
@@ -700,15 +701,17 @@ func preprocessTriangle(points [3]PointF32, rounding float32) ([3]PointF32, shap
 // viceversa (apothem = radius*Sqrt3Div2).
 const Sqrt3Div2 = 0.86602540378443864676372317075293618347140262690519031402790348 // https://oeis.org/A010527
 
-// FillHexagon renders an hexagon that can be fully contained within the given radius.
+// FillHexagon renders an hexagon that can be fully contained within the given
+// radius.
 //
-// Roundness must be non-negative. When > 0, the sides of the hexagon will expand while
-// the radius of the shape is maintained, effectively rounding the vertices. Roundness
-// >= radius will turn the hexagon into a perfect circle and start increasing the
-// effective radius. For inwards/outwards rounding, see [Renderer.FillHexagonApothem]()
-// instead.
+// Roundness must be non-negative. When > 0, the sides of the hexagon will
+// expand while the radius of the shape is maintained, effectively rounding the
+// vertices. Roundness >= radius will turn the hexagon into a perfect circle and
+// start increasing the effective radius. For inwards/outwards rounding, see
+// [Renderer.FillHexagonApothem]() instead.
 //
-// Rads can be used to rotate the hexagon. See [RadsRight] constants for angle conventions and docs.
+// Rads can be used to rotate the hexagon. See [RadsRight] constants for angle
+// conventions and docs.
 func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, rads float32) {
 	roundness = warnZeroNegativeValue(r, roundness)
 	if radius == 0 {
@@ -733,12 +736,13 @@ func (r *Renderer) FillHexagon(target *ebiten.Image, cx, cy, radius, roundness, 
 	clear(r.opts.Uniforms)
 }
 
-// FillHexagonApothem is an alternative form to [Renderer.FillHexagon]() that defines the apothem
-// of the hexagon instead of its radius.
+// FillHexagonApothem is an alternative form to [Renderer.FillHexagon]() that
+// defines the apothem of the hexagon instead of its radius.
 //
-// Rounding values above 0 will increase the effective apothem by that amount while rounding corners
-// outwards. Values between 0 and -apothem will preserve the apothem while rounding corners inwards.
-// Values below -apothem collapse the shape into a circle.
+// Rounding values above 0 will increase the effective apothem by that amount
+// while rounding corners outwards. Values between 0 and -apothem will preserve
+// the apothem while rounding corners inwards. Values below -apothem collapse
+// the shape into a circle.
 func (r *Renderer) FillHexagonApothem(target *ebiten.Image, ox, oy, apothem, rounding, rads float32) {
 	if apothem == 0 {
 		return

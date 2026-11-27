@@ -54,8 +54,8 @@ func StepGradientOpts(from, to color.Color, steps int) GradientOptions {
 	}
 }
 
-// Gradient paints a gradient over the given target, interpolating in Oklab space.
-// For common dirRadians values, see [DirRadsLTR] and related constants.
+// Gradient paints a gradient over the given target, interpolating in Oklab
+// space. For common dirRadians values, see [DirRadsLTR] and related constants.
 //
 // If you need to apply the gradient over a mask, use [ebiten.BlendSourceIn]:
 //
@@ -102,12 +102,12 @@ func (r *Renderer) Gradient(target *ebiten.Image, opts GradientOptions, dirRadia
 // Three radiuses are necessary:
 //   - fromRadius: distances below this threshold take 'from' color. Use 0.0 if
 //     you don't need a solid central area.
-//   - transRadius: distances below this threshold but above fromRadius interpolate
-//     colors between 'from' and 'to'.
-//   - toRadius: distances below this threshold but above transRadius take 'to' color.
-//     Distances above this threshold are not painted. Use toRadius = transRadius for
-//     a gradient that ends at the given radius, or Float32Inf() if you want 'to'
-//     color to extend beyond the gradient radius.
+//   - transRadius: distances below this threshold but above fromRadius
+//     interpolate colors between 'from' and 'to'.
+//   - toRadius: distances below this threshold but above transRadius take 'to'
+//     color. Distances above this threshold are not painted. Use
+//     toRadius = transRadius for a gradient that ends at the given radius, or
+//     Float32Inf() if you want 'to' color to extend beyond the gradient radius.
 //
 // See also [Renderer.Gradient]().
 func (r *Renderer) GradientRadial(target *ebiten.Image, opts GradientOptions, cx, cy float32, fromRadius, transRadius, toRadius float32) {

@@ -6,10 +6,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// GaussKernel is a precomputed gaussian kernel used in certain blur and glow operations.
-// Kernels are unidimensional and always used in two passes. Multi-pass shaders are often
-// used to avoid quadratic sampling, but they also have more overhead due to breaking
-// batching, changing shaders, depending on previous results and so on.
+// GaussKernel is a precomputed gaussian kernel used in certain blur and glow
+// operations. Kernels are unidimensional and always used in two passes.
+// Multi-pass shaders are often used to avoid quadratic sampling, but they also
+// have more overhead due to breaking batching, changing shaders, depending on
+// previous results and so on.
 type GaussKernel uint8
 
 const (
@@ -71,12 +72,13 @@ var gaussSig3Kernels = [][16]float32{ // sigma = radius/3.0
 
 var gaussKernels = gaussSig3Kernels
 
-// KernelOptions are used in kernel-based blurs and glows. These are multi-pass operations
-// with fixed radiuses and configurable [Downscaling].
+// KernelOptions are used in kernel-based blurs and glows. These are multi-pass
+// operations with fixed radiuses and configurable [Downscaling].
 //
-// Scaling is optional and can be nil, but for downscaling factors of [DownscaleX8] and above
-// using bicubic scaling is heavily recommended. At [DownscaleX4] the decision depends more
-// on the desired quality, effect and performance constraints.
+// Scaling is optional and can be nil, but for downscaling factors of
+// [DownscaleX8] and above using bicubic scaling is heavily recommended. At
+// [DownscaleX4] the decision depends more on the desired quality, effect and
+// performance constraints.
 type KernelOptions struct {
 	Downscaling    Downscaling
 	HorzKernel     GaussKernel

@@ -8,23 +8,23 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Renderer is the heart of the go-shapes package and provides access to most of its
-// operations. It stores offscreens, vertices and other data reused across rendering
-// methods.
+// Renderer is the heart of the go-shapes package and provides access to most of
+// its operations. It stores offscreens, vertices and other data reused across
+// rendering methods.
 //
 // Valid renderers must be created through [NewRenderer](). Once created, most
 // users should consider setting a logger for warnings, e.g.:
 //
 //	renderer.Warnings.SetHandler(NewWarningLogOnceHandler()).
 //
-// Unless stated otherwise, renderer state management should respect the following
-// conventions:
+// Unless stated otherwise, renderer state management should respect the
+// following conventions:
 //
 //   - Renderer color should not be assumed; set it explicitly before operation.
-//   - If [Renderer.Options]() and [Renderer.Tint]() are modified during operation,
-//     they should be restored afterwards. Tint is assumed to be zero, and the only
-//     common modification to the renderer options is setting the blend, which is
-//     expected to be [ebiten.BlendSourceOver].
+//   - If [Renderer.Options]() and [Renderer.Tint]() are modified during
+//     operation, they should be restored afterwards. Tint is assumed to be
+//     zero, and the only common modification to the renderer options is setting
+//     the blend, which is expected to be [ebiten.BlendSourceOver].
 type Renderer struct {
 	vertices []ebiten.Vertex
 	indices  []uint32
@@ -73,21 +73,22 @@ func (r *Renderer) GetColorF32(vertexIndex int) [4]float32 {
 	return [4]float32{r.vertices[vertexIndex].ColorR, r.vertices[vertexIndex].ColorG, r.vertices[vertexIndex].ColorB, r.vertices[vertexIndex].ColorA}
 }
 
-// SetColor sets the color of the renderer vertices. If vertexIndices are not provided,
-// all 4 vertex colors are set; otherwise, only the specified vertices will have the
-// color applied.
+// SetColor sets the color of the renderer vertices. If vertexIndices are not
+// provided, all 4 vertex colors are set; otherwise, only the specified vertices
+// will have the color applied.
 //
-// Vertex indices start at top-left and follow in clockwise order: 0 = top-left, 1 = top-right,
-// 2 = bottom-right, 3 = bottom-left.
+// Vertex indices start at top-left and follow in clockwise order: 0 = top-left,
+// 1 = top-right, 2 = bottom-right, 3 = bottom-left.
 //
-// Colors are internally converted to float32. See also [Renderer.SetColorF32]().
+// Colors are internally converted to float32. See also
+// [Renderer.SetColorF32]().
 func (r *Renderer) SetColor(clr color.Color, vertexIndices ...int) {
 	clrF32 := RGBAF32(clr)
 	r.SetColorF32(clrF32[0], clrF32[1], clrF32[2], clrF32[3], vertexIndices...)
 }
 
-// SetColorF32 is the float32 version of [Renderer.SetColor](). Passing colors directly
-// as float32 values avoids conversions.
+// SetColorF32 is the float32 version of [Renderer.SetColor](). Passing colors
+// directly as float32 values avoids conversions.
 func (r *Renderer) SetColorF32(red, green, blue, alpha float32, vertexIndices ...int) {
 	if len(vertexIndices) == 0 {
 		r.singleClr = true
@@ -120,15 +121,16 @@ func (r *Renderer) ScaleAlphaBy(alphaFactor float32) {
 
 // SetTint sets the renderer's tint value, which controls the weight
 // of the renderer vertex colors on documented operations:
-//   - A value of 0 means only source image colors are used. This is the default.
+//   - A value of 0 means only source image colors are used. This is the
+//     default.
 //   - A value of 1 means only renderer colors are used.
 //   - Other values between 0..1 can be used to control the mix.
 //
 // Operations that can use tint are documented with "This operation is
 // affected by [Renderer.Tint]".
 //
-// Most workflows should only set tint locally during a sequence of operations and
-// restore it to zero afterwards.
+// Most workflows should only set tint locally during a sequence of operations
+// and restore it to zero afterwards.
 func (r *Renderer) SetTint(rendererColorWeight float32) {
 	if rendererColorWeight != r.tint {
 		if rendererColorWeight < 0 || rendererColorWeight > 1 {
@@ -211,7 +213,8 @@ func (r *Renderer) applyOffsetColor(start int, offset int, color [4]float32) {
 // ScaleOptions are used in [Renderer.Scale]().
 type ScaleOptions struct {
 	// When true, samples outside bounds will be clamped to the image limits.
-	// When false, samples outside bounds will be considered transparent (0, 0, 0, 0).
+	// When false, samples outside bounds will be considered transparent
+	// (0, 0, 0, 0).
 	Clamp bool
 
 	// When true, sampling is done in destination space (1.0/scale px spacing,
@@ -225,8 +228,9 @@ type ScaleOptions struct {
 	Bicubic bool
 }
 
-// Scale draws source into target with the specified parameters. opts can be nil,
-// but in that case there's no advantage over Ebitengine's default functions.
+// Scale draws source into target with the specified parameters. opts can be
+// nil, but in that case there's no advantage over Ebitengine's default
+// functions.
 func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, opts *ScaleOptions) {
 	if scale <= 0 {
 		if scale < 0 {
@@ -266,31 +270,33 @@ func (r *Renderer) Scale(target, source *ebiten.Image, ox, oy, scale float32, op
 	r.opts.Images[0] = nil
 }
 
-// UnsafeTemp allows requesting offscreens to the renderer. These offscreens might have
-// already been created while the renderer was doing complex operations, so reusing them
-// can prevent the creation of additional offscreens.
+// UnsafeTemp allows requesting offscreens to the renderer. These offscreens
+// might have already been created while the renderer was doing complex
+// operations, so reusing them can prevent the creation of additional
+// offscreens.
 //
-// The 'clear' argument allows specifying whether the image should be cleared or not
-// (this includes an extra 1px transparent margin if the returned offscreen is part of
-// a larger image).
+// The 'clear' argument allows specifying whether the image should be cleared or
+// not (this includes an extra 1px transparent margin if the returned offscreen
+// is part of a larger image).
 //
 // Returned offscreens always have origin (0, 0).
 //
-// The offscreens returned by this function should only be used for local operations, and
-// the offscreen must not be stored. Any renderer function documented to use an internal
-// offscreen can panic or fail in any other way if an offscreen returned by this function
-// is passed as an input parameter.
+// The offscreens returned by this function should only be used for local
+// operations, and the offscreen must not be stored. Any renderer function
+// documented to use an internal offscreen can panic or fail in any other way if
+// an offscreen returned by this function is passed as an input parameter.
 func (r *Renderer) UnsafeTemp(offscreenIndex int, w, h int, clear bool) *ebiten.Image {
 	temp, _ := r.getTemp(offscreenIndex, w, h, clear)
 	return temp
 }
 
-// UnsafeTempCopy calls [Renderer.UnsafeTemp]() and copies the contents of source into
-// the returned offscreen. See safety warnings and docs for UnsafeTemp. The 'clear'
-// argument allows specifying whether a 1 pixel clear margin is required or not.
+// UnsafeTempCopy calls [Renderer.UnsafeTemp]() and copies the contents of
+// source into the returned offscreen. See safety warnings and docs for
+// UnsafeTemp. The 'clear' argument allows specifying whether a 1 pixel clear
+// margin is required or not.
 //
-// If padding > 0 is given, the padding is always cleared and output images have width
-// and height 2*padding larger than source.
+// If padding > 0 is given, the padding is always cleared and output images have
+// width and height 2*padding larger than source.
 //
 // Returned offscreens always have origin (0, 0).
 func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, padding int, clear bool) *ebiten.Image {
@@ -312,13 +318,14 @@ func (r *Renderer) UnsafeTempCopy(offscreenIndex int, source *ebiten.Image, padd
 	return temp
 }
 
-// UnsafeTempDual calls [Renderer.UnsafeTemp](), copies the contents of source into the
-// specified offscreen, and returns both this copy and an extra image of the same size
-// on the same offscreen. This function is highly specific and meant to prepare images
-// for shaders that use two source images: an original source and variant or mask for it.
+// UnsafeTempDual calls [Renderer.UnsafeTemp](), copies the contents of source
+// into the specified offscreen, and returns both this copy and an extra image
+// of the same size on the same offscreen. This function is highly specific and
+// meant to prepare images for shaders that use two source images: an original
+// source and variant or mask for it.
 //
-// If padding > 0 is given, the padding is always cleared and output images have width
-// and height 2*padding larger than source.
+// If padding > 0 is given, the padding is always cleared and output images have
+// width and height 2*padding larger than source.
 //
 // See safety warnings and docs for UnsafeTemp.
 func (r *Renderer) UnsafeTempDual(offscreenIndex int, source *ebiten.Image, padding int, clear bool) (sourceTemp, variantTemp *ebiten.Image) {

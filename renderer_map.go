@@ -35,10 +35,10 @@ func (r *Renderer) mapQuad2(target, source *ebiten.Image, quad [4]PointF32) {
 	r.opts.Images[0] = nil
 }
 
-// MapQuad4 draws the given source texture into the given quad using 4 triangles. This
-// produces noticeable texture projection distortions, but it's not as bad as using just
-// two triangles and can work well enough in some cases. For higher quality projections,
-// see [Renderer.MapQuad]().
+// MapQuad4 draws the given source texture into the given quad using 4
+// triangles. This produces noticeable texture projection distortions, but it's
+// not as bad as using just two triangles and can work well enough in some
+// cases. For higher quality projections, see [Renderer.MapQuad]().
 //
 // quad must be given in clockwise order starting from top-left.
 //
@@ -101,9 +101,10 @@ func quadCenter(quad [4]PointF32) PointF32 {
 
 // MapQuad draws the given source texture into the given quad.
 //
-// This function computes the homography between the quad and the texture space, which
-// involves solving an 8x8 equation system. This can be somewhat CPU heavy, so avoid
-// drawing more than ~100 elements with it if you are not targeting powerful devices.
+// This function computes the homography between the quad and the texture space,
+// which involves solving an 8x8 equation system. This can be somewhat CPU
+// heavy, so avoid drawing more than ~100 elements with it if you are not
+// targeting powerful devices.
 //
 // quad must be given in clockwise order starting from top-left.
 //

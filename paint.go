@@ -25,12 +25,13 @@ func initWhiteImg() {
 var White [4]float32 = [4]float32{1, 1, 1, 1}
 var white [4]float32 = [4]float32{1, 1, 1, 1} // safer internal use, no one can modify
 
-// Paint is a utility method to draw rect over target using the given color and blend
-// mode. This is more flexible than ebiten.SubImage(rect).(*ebiten.Image).Fill and
-// avoids the subimage creation. See also [Clear].
+// Paint is a utility method to draw rect over target using the given color and
+// blend mode. This is more flexible than
+// ebiten.SubImage(rect).(*ebiten.Image).Fill and avoids the subimage creation.
+// See also [Clear].
 //
-// The rect coordinates are global; to draw the rect at the top left of target, rect.Min
-// must match target.Min.
+// The rect coordinates are global; to draw the rect at the top left of target,
+// rect.Min must match target.Min.
 func Paint(target *ebiten.Image, rect image.Rectangle, rgba [4]float32, blend ebiten.Blend) {
 	// Paint is implemented using DrawTriangles instead of DrawTrianglesShader due
 	// to DrawTriangles being generally friendlier for batching, even though that's
@@ -65,7 +66,8 @@ func Paint(target *ebiten.Image, rect image.Rectangle, rgba [4]float32, blend eb
 	}
 }
 
-// Clear is equivalent to [Paint](target, rect, [4]float32{1, 1, 1, 1}, ebiten.BlendClear)
+// Clear is equivalent to [Paint](target, rect, [4]float32{1, 1, 1, 1},
+// ebiten.BlendClear)
 func Clear(target *ebiten.Image, rect image.Rectangle) {
 	Paint(target, rect, white, ebiten.BlendClear)
 }

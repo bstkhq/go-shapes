@@ -244,8 +244,8 @@ func cleanStrokeRadiusThickness(radius, thickness float32) (float32, float32) {
 	return radius, thickness
 }
 
-// StrokeArc draws an arc of the given radius. For stroking full circles and rings,
-// consider [Renderer.StrokeCircle]() instead.
+// StrokeArc draws an arc of the given radius. For stroking full circles and
+// rings, consider [Renderer.StrokeCircle]() instead.
 func (r *Renderer) StrokeArc(target *ebiten.Image, cx, cy, radius, startRads, endRads, thickness float64) {
 	if thickness <= 0 {
 		if thickness < 0 {
@@ -401,11 +401,12 @@ func (r *Renderer) innerFillRadialWedge(target *ebiten.Image, cx, cy, inRadius, 
 //   - Use inRadius = 0 for pie shapes (circular sectors).
 //   - Use inRadius > 0 for rings (annular sectors).
 //
-// Rounding can be positive for outwards rounding, or negative for inwards rounding.
-// Notice that inwards rounding requires non-trivial CPU precalculations and different
-// shaders from outwards or no rounding.
+// Rounding can be positive for outwards rounding, or negative for inwards
+// rounding. Notice that inwards rounding requires non-trivial CPU
+// precalculations and different shaders from outwards or no rounding.
 //
-// Consider [RadsSpan]() if you need to derive (startRads, endRads) from a central direction.
+// Consider [RadsSpan]() if you need to derive (startRads, endRads) from a
+// central direction.
 //
 // See [RadsRight] constants for angle conventions and docs.
 func (r *Renderer) FillRadialSector(target *ebiten.Image, cx, cy, inRadius, outRadius float32, startRads, endRads float64, rounding float32) {
@@ -531,8 +532,8 @@ func (r *Renderer) innerRoundingFillAnnularSector(target *ebiten.Image, cx, cy, 
 
 // FillEllipse draws a smooth filled ellipse.
 //
-// Notice: ellipses don't have a perfect SDF, so approximations can be very slightly
-// bigger or smaller than the requested radiuses.
+// Notice: ellipses don't have a perfect SDF, so approximations can be very
+// slightly bigger or smaller than the requested radiuses.
 func (r *Renderer) FillEllipse(target *ebiten.Image, cx, cy, horzRadius, vertRadius float32, rads float64) {
 	if horzRadius < 0 {
 		r.Warnings.report(WarnNegativeValueOpSkipped, horzRadius)

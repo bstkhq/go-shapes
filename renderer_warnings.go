@@ -132,7 +132,8 @@ func warnZeroNegativeValue[Num ~float32 | ~float64 | ~int](r *Renderer, value Nu
 	return value
 }
 
-// Warnings is a register of problems detected by the renderer during operations.
+// Warnings is a register of problems detected by the renderer during
+// operations.
 //
 // Most users will only care about [Warnings.SetHandler]() to make warnings
 // fatal during debug or log them in production/release builds.
@@ -168,8 +169,8 @@ func logOnceHandlerFunc(warning Warning, value any, alreadySeen bool) {
 
 // SetHandler allows setting a custom handler for warnings.
 //
-// value is the exact value that triggered the warning. This is most often an int,
-// float32 or float64, but can also be nil or an array.
+// value is the exact value that triggered the warning. This is most often an
+// int, float32 or float64, but can also be nil or an array.
 //
 // See [NewWarningPanicHandler]() and [NewWarningLogOnceHandler]() for reference
 // implementations.
@@ -190,8 +191,8 @@ func (w *Warnings) HasAny() bool {
 	return w.reports != 0
 }
 
-// Has returns whether the given warning has been issued since creation or the last
-// [Warnings.Reset]().
+// Has returns whether the given warning has been issued since creation or the
+// last [Warnings.Reset]().
 func (w *Warnings) Has(warning Warning) bool {
 	return w.reports&warning != 0
 }

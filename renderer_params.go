@@ -54,15 +54,15 @@ const (
 	// margins.
 	//
 	// Source coordinates are extrapolated using the same source-to-destination
-	// scale. Unlike destination edges, they can move by more than one pixel when
-	// the source is being downscaled.
+	// scale. Unlike destination edges, they can move by more than one pixel
+	// when the source is being downscaled.
 	//
 	// Shaders used with RegionExpanded must use safe sampling, clamp
-	// coordinates to the relevant image bounds, or otherwise handle the extended
-	// area deliberately. Analytic shaders must likewise return the intended
-	// result outside their logical boundary. The active blend must also tolerate
-	// drawing the extended area: a transparent shader result can still modify
-	// the target with operations such as copy or clear.
+	// coordinates to the relevant image bounds, or otherwise handle the
+	// extended area deliberately. Analytic shaders must likewise return the
+	// intended result outside their logical boundary. The active blend must
+	// also tolerate drawing the extended area: a transparent shader result can
+	// still modify the target with operations such as copy or clear.
 	//
 	// Use RegionExpanded for effects whose visible support reaches a
 	// fractional boundary, such as filtering or outward soft edges. Do not
@@ -72,13 +72,15 @@ const (
 	RegionExpanded
 )
 
-// Downscaling is a common technique used in graphics where an effect is not applied at
-// full resolution, but on a smaller offscreen. This is done to reduce the amount of pixels
-// to process, but it has some downsides:
-//   - Non-trivial overhead due to the extra steps (downscale + effect + upscale back), which
-//     can be worse than paying for a full resolution operation if processing many small images.
-//   - The upscaled effects can look blocky. Different effects respond differently to downscaling,
-//     so each case needs to be assessed independently.
+// Downscaling is a common technique used in graphics where an effect is not
+// applied at full resolution, but on a smaller offscreen. This is done to
+// reduce the amount of pixels to process, but it has some downsides:
+//   - Non-trivial overhead due to the extra steps (downscale + effect + upscale
+//     back), which can be worse than paying for a full resolution operation if
+//     processing many small images.
+//   - The upscaled effects can look blocky. Different effects respond
+//     differently to downscaling, so each case needs to be assessed
+//     independently.
 type Downscaling uint8
 
 const (
@@ -93,7 +95,8 @@ func (d Downscaling) valid() bool {
 	return d >= DownscaleNone && d <= DownscaleX16
 }
 
-// Factor returns 1 for [DownscaleNone], 2 for [DownscaleX2], 4 for [DownscaleX4], etc.
+// Factor returns 1 for [DownscaleNone], 2 for [DownscaleX2], 4 for
+// [DownscaleX4], etc.
 func (d Downscaling) Factor() int {
 	return int(1 << d)
 }
@@ -119,11 +122,12 @@ var (
 	BR  = Origin{X: 1, Y: 1}     // bottom-right
 )
 
-// Adjust translates the given reference position from TL (top-left) origin to o. Common
-// argument types are [*ebiten.Image], [image.Rectangle] and [image.Image].
+// Adjust translates the given reference position from TL (top-left) origin to
+// o. Common argument types are [*ebiten.Image], [image.Rectangle] and
+// [image.Image].
 //
-// For example, if we want to draw the bottom-right corner of an image at X=60, Y=40, we
-// adjust the coordinates like this:
+// For example, if we want to draw the bottom-right corner of an image at X=60,
+// Y=40, we adjust the coordinates like this:
 //
 //	x, y := shapes.BR.Adjust(src, shapes.PtF32(60, 40))
 //
@@ -142,7 +146,8 @@ func (o Origin) AdjustXY(bounded Bounded, x, y float32) PointF32 {
 	return PtF32(x-w*o.X, y-h*o.Y)
 }
 
-// Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered], etc.
+// Flags for operations like [Renderer.DrawAt](). See [Bilinear], [Dithered],
+// etc.
 type Flag int
 
 // Operation flags, read the descriptions for details.

@@ -50,16 +50,16 @@ func (r *Renderer) glowHorz(shader *ebiten.Shader, target *ebiten.Image, mask *e
 
 // Glow2 draws a separable two-pass glow effect. Radiuses can't exceed 32.
 //
-// threshStart and threshEnd indicate the start luminosity threshold at which the glow
-// effect kicks in and the point at which it's fully active. threshStart must be <=
-// threshEnd, and the values must be in [0, 1] range. For reference, 0.4 to 0.7 is
-// typically a good starting range.
+// threshStart and threshEnd indicate the start luminosity threshold at which
+// the glow effect kicks in and the point at which it's fully active.
+// threshStart must be <= threshEnd, and the values must be in [0, 1] range. For
+// reference, 0.4 to 0.7 is typically a good starting range.
 //
-// Unlike blurs, glows require you to draw the original image first, and then apply the
-// glow effect on top. Glow is always applied with source over blend.
+// Unlike blurs, glows require you to draw the original image first, and then
+// apply the glow effect on top. Glow is always applied with source over blend.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
 //
 // This function uses internal offscreen #0. Target and mask can be on the same
 // image.
@@ -101,11 +101,11 @@ func (r *Renderer) Glow2(target *ebiten.Image, mask *ebiten.Image, ox, oy, horzR
 	r.tint = memo
 }
 
-// GlowK is the fixed kernel version of [Renderer.Glow2](). See [KernelOptions] for more
-// details.
+// GlowK is the fixed kernel version of [Renderer.Glow2](). See [KernelOptions]
+// for more details.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
 //
 // This function uses internal offscreen #0, plus #1 with downscaling. Target
 // and mask can be on the same image.
@@ -121,14 +121,14 @@ func (r *Renderer) GlowK(target *ebiten.Image, mask *ebiten.Image, ox, oy float3
 	}, &ebiten.BlendLighter)
 }
 
-// GlowDark2 is the "negative" version of [Renderer.Glow2](). Instead of using additive
-// blending around high luminosity areas, it uses multiplicative blending around dark
-// areas. Unlike regular glow effects, dark glows expects threshStart >= threshEnd.
-// Radiuses can't exceed 32.
+// GlowDark2 is the "negative" version of [Renderer.Glow2](). Instead of using
+// additive blending around high luminosity areas, it uses multiplicative
+// blending around dark areas. Unlike regular glow effects, dark glows expects
+// threshStart >= threshEnd. Radiuses can't exceed 32.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0. The effect is
-// always applied with 'source over' blend.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
+// The effect is always applied with 'source over' blend.
 //
 // This function uses internal offscreen #0. Target and mask can be on the same
 // image.
@@ -169,11 +169,11 @@ func (r *Renderer) GlowDark2(target *ebiten.Image, mask *ebiten.Image, ox, oy fl
 	r.tint = memo
 }
 
-// GlowDarkK is the fixed kernel version of [Renderer.GlowDark2](). See [KernelOptions]
-// for more details.
+// GlowDarkK is the fixed kernel version of [Renderer.GlowDark2](). See
+// [KernelOptions] for more details.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
 //
 // This function uses internal offscreen #0, plus #1 with downscaling. Target
 // and mask can be on the same image.
@@ -189,13 +189,13 @@ func (r *Renderer) GlowDarkK(target *ebiten.Image, mask *ebiten.Image, ox, oy, t
 	}, &BlendMultiply)
 }
 
-// GlowColor2 is the color-similarity version of [Renderer.Glow2](). Instead of applying
-// glow to high luminosity areas, it applies the glow wherever the colors are close to
-// the given one.
+// GlowColor2 is the color-similarity version of [Renderer.Glow2](). Instead of
+// applying glow to high luminosity areas, it applies the glow wherever the
+// colors are close to the given one.
 //
-// This operation is affected by [Renderer.Tint], but the renderer's current alpha is
-// always applied as an effect intensity factor even if the tint is 0. The effect is
-// always applied with 'source over' blend.
+// This operation is affected by [Renderer.Tint], but the renderer's current
+// alpha is always applied as an effect intensity factor even if the tint is 0.
+// The effect is always applied with 'source over' blend.
 //
 // This function uses internal offscreen #0. Target and mask can be on the same
 // image.

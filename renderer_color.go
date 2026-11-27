@@ -7,26 +7,30 @@ import (
 )
 
 // OklabShift draws the source image to the target, at the given coordinates,
-// with the given LCh shifts applied on Oklab color space. Shifts can be positive
-// or negative, with the typical ranges being common:
-//   - chroma: [0, 0.37]. Most clearly distinguishable colors don't even exceed 0.15.
-//   - lightness: [0, 1]. High chromas happen around 0.9 lightness for yellow, around
-//     0.8 for orange, cyan, pink and lime green, 0.7 for light blues, magentas, greens
-//     and light reds, 0.5 for deeper reds, green, purple and blue, and down to 0.3 for
-//     deep blue. Lightness below or above these values in the given hue ranges leads
-//     to very dark or whitish colors with significantly lower chromas.
+// with the given LCh shifts applied on Oklab color space. Shifts can be
+// positive or negative, with the typical ranges being common:
+//   - chroma: [0, 0.37]. Most clearly distinguishable colors don't even exceed
+//     0.15.
+//   - lightness: [0, 1]. High chromas happen around 0.9 lightness for yellow,
+//     around 0.8 for orange, cyan, pink and lime green, 0.7 for light blues,
+//     magentas, greens and light reds, 0.5 for deeper reds, green, purple and
+//     blue, and down to 0.3 for deep blue. Lightness below or above these
+//     values in the given hue ranges leads to very dark or whitish colors with
+//     significantly lower chromas.
 //   - hue: in radians, wrapping is done automatically
 //
-// Notice: absolute shifts in perceptually uniform color spaces aren't particularly
-// helpful. Hue itself is not perceptually uniform, so that's one of the most useful
-// values to tweak. Other more effective tools might be exposed in the future.
+// Notice: absolute shifts in perceptually uniform color spaces aren't
+// particularly helpful. Hue itself is not perceptually uniform, so that's one
+// of the most useful values to tweak. Other more effective tools might be
+// exposed in the future.
 func (r *Renderer) OklabShift(target, source *ebiten.Image, x, y, lightnessShift, chromaShift, hueShift float32) {
 	r.setFlatCustomVAs(lightnessShift, chromaShift, hueShift, 0.0)
 	r.DrawImgShader(target, source, x, y, NoMargins, RegionExact, shaderOklabShift.Load())
 }
 
 // ColorizeByLightness draws source into target at the given (x, y), taking the
-// lightness of each source pixel and remapping it to a color between 'from' and 'to'.
+// lightness of each source pixel and remapping it to a color between 'from' and
+// 'to'.
 //
 // Key parameters:
 //   - fromLightness: pixels before this threshold take 'from' color.
@@ -70,12 +74,12 @@ func (r *Renderer) ColorizeByLightness(target, source *ebiten.Image, opts Gradie
 	}
 }
 
-// ColorMix draws base and over to target using the mix() function for color mixing
-// instead of standard composition operations.
+// ColorMix draws base and over to target using the mix() function for color
+// mixing instead of standard composition operations.
 //
-// This is the cleanest way to interpolate a transition between two images (morphing)
-// while there's also an alpha transition, or if the two images have different alphas
-// at different pixel positions.
+// This is the cleanest way to interpolate a transition between two images
+// (morphing) while there's also an alpha transition, or if the two images have
+// different alphas at different pixel positions.
 //
 // The sizes of base and over must match.
 //
@@ -154,8 +158,8 @@ var (
 	}
 )
 
-// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4], in column-major
-// order.
+// Predefined 4x4 dither matrices for use with [Renderer.DitherMat4], in
+// column-major order.
 //
 // Tip: average multiple matrices for more interesting variations.
 var (
@@ -191,13 +195,14 @@ var (
 	}
 )
 
-// DitherMat4 draws the given mask to the target applying a static 4x4 dithering pattern to select colors from
-// rgbaColors.
-//   - The rgbaColors argument can contain up to 8 colors, flattened as RGBA quadruplets in [0...1] range.
-//     See [PaletteBW4] and others for predefined palettes.
-//   - The ditherMatrix argument is a 4x4 dithering matrix in column major order (like GLSL), where the
-//     values indicate the thresholds of the pattern in 0...1 range. See [DitherBayes] and others for
-//     predefined matrices.
+// DitherMat4 draws the given mask to the target applying a static 4x4 dithering
+// pattern to select colors from rgbaColors.
+//   - The rgbaColors argument can contain up to 8 colors, flattened as RGBA
+//     quadruplets in [0...1] range. See [PaletteBW4] and others for predefined
+//     palettes.
+//   - The ditherMatrix argument is a 4x4 dithering matrix in column major order
+//     (like GLSL), where the values indicate the thresholds of the pattern in
+//     0...1 range. See [DitherBayes] and others for predefined matrices.
 func (r *Renderer) DitherMat4(target, mask *ebiten.Image, ox, oy float32, xOffset, yOffset int, rgbaColors []float32, ditherMatrix [16]float32, rendererClrMix, maskColorMix float32) {
 	if len(rgbaColors)%4 != 0 {
 		panic("rgbaColors must have length multiple of 4")

@@ -70,7 +70,8 @@ func (r *Renderer) DrawAt(target *ebiten.Image, source *ebiten.Image, x, y float
 // Margins adjust both destination and source regions.
 //
 // regionMode determines whether destination and source coordinates are used
-// exactly ([RegionExact]) or extended to cover boundary pixels ([RegionExpanded]).
+// exactly ([RegionExact]) or extended to cover boundary pixels
+// ([RegionExpanded]).
 //
 // Notice that the target origin matters; to align the shader to the top left
 // corner, (ox, oy) must match target.Bounds().Min.
@@ -92,7 +93,8 @@ func (r *Renderer) DrawImgShader(target, source *ebiten.Image, ox, oy float32, m
 // DrawRectShader calls target.DrawTrianglesShader using the renderer's options.
 //
 // regionMode determines whether destination and source coordinates are used
-// exactly ([RegionExact]) or extended to cover boundary pixels ([RegionExpanded]).
+// exactly ([RegionExact]) or extended to cover boundary pixels
+// ([RegionExpanded]).
 //
 // Notice that the target origin matters; to align the shader to the top left
 // corner, (ox, oy) must match target.Bounds().Min.
@@ -159,8 +161,8 @@ type CircShaderOptions struct {
 	Tolerance float32
 }
 
-// CircShaderOpts creates a full circle [CircShaderOptions] with the given radius
-// and thickness.
+// CircShaderOpts creates a full circle [CircShaderOptions] with the given
+// radius and thickness.
 func CircShaderOpts(radius, thickness float32) CircShaderOptions {
 	return CircShaderOptions{
 		Radius:     radius,
@@ -170,14 +172,16 @@ func CircShaderOpts(radius, thickness float32) CircShaderOptions {
 	}
 }
 
-// DrawCircShader draws a shader within a circular triangle strip. This is particularly
-// useful when the bounding rectangle of a circle is much bigger than the actual area
-// that we need to render.
+// DrawCircShader draws a shader within a circular triangle strip. This is
+// particularly useful when the bounding rectangle of a circle is much bigger
+// than the actual area that we need to render.
 //
-// Due to the dynamically adjusted number of segments and rendering area, notice that:
-//   - You can't use per-vertex colors, only the first vertex color will be used.
-//   - You shouldn't rely on blends like BlendSourceIn or BlendClear that aren't "safe
-//     to crop".
+// Due to the dynamically adjusted number of segments and rendering area, notice
+// that:
+//   - You can't use per-vertex colors, only the first vertex color will be
+//     used.
+//   - You shouldn't rely on blends like BlendSourceIn or BlendClear that aren't
+//     "safe to crop".
 func (r *Renderer) DrawCircShader(target *ebiten.Image, cx, cy float32, opts CircShaderOptions, shader *ebiten.Shader) {
 	if opts.Thickness == 0 {
 		return // ignore blends, this is already a crop operation

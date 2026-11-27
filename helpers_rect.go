@@ -10,7 +10,8 @@ func RectWithSize(ox, oy int, w, h int) image.Rectangle {
 	return image.Rect(ox, oy, ox+w, oy+h)
 }
 
-// RectPointsF32 returns the min and max points of the given rectangle as [PointF32] values.
+// RectPointsF32 returns the min and max points of the given rectangle as
+// [PointF32] values.
 func RectPointsF32(bounds image.Rectangle) (min, max PointF32) {
 	return PtF32(bounds.Min.X, bounds.Min.Y), PtF32(bounds.Max.X, bounds.Max.Y)
 }
