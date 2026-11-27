@@ -319,7 +319,7 @@ func TestBlurVogelFull(t *testing.T) {
 	const Sampling = 16
 	const Downscale = DownscaleNone
 
-	var full *ebiten.Image = ebiten.NewImage(1920, 1080)
+	full := ebiten.NewImage(1920, 1080)
 	updater := func(TestAppCtx) {}
 	drawer := func(canvas *ebiten.Image, ctx TestAppCtx) {
 		seed := float32(1.0)

@@ -295,9 +295,7 @@ func (r *Renderer) TextSize(text string, opts TextOptions) (width, height float3
 				lw += pendingLetterGap
 				lw += int32(advance)
 				pendingLetterGap = 1
-			} else {
-				// missing glyph (should use notdef), or control (should skip)
-			}
+			} // else: missing glyph (should use notdef), or control (should skip)
 		}
 	}
 

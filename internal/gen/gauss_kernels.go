@@ -33,7 +33,7 @@ func main() {
 		Usage()
 	}
 
-	var sigmaDiv float64 = 1.0
+	var sigmaDiv = 1.0
 	if len(os.Args) == 3 {
 		var err error
 		sigmaDiv, err = strconv.ParseFloat(os.Args[2], 64)

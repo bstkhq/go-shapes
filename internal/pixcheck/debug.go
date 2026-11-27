@@ -40,7 +40,7 @@ func SavePNG(path string, img *image.RGBA) error {
 		return err
 	}
 	if err := png.Encode(file, img); err != nil {
-		file.Close()
+		_ = file.Close()
 		return err
 	}
 	return file.Close()

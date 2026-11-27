@@ -18,7 +18,7 @@ func TestGradient(t *testing.T) {
 	// to appreciate dithering, resize the window or press F11 to go fullscreen
 	var steps float64
 	var dither bool
-	var bias float64 = 0.0
+	var bias = 0.0
 
 	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
@@ -77,7 +77,7 @@ func TestGradientRadial(t *testing.T) {
 	// to appreciate dithering, resize the window or press F11 to go fullscreen
 	var steps float64
 	var dither bool
-	var bias float64 = 0.0
+	var bias = 0.0
 	updater := func(ctx TestAppCtx) {
 		ebiten.SetWindowTitle(ctx.Title() + fmt.Sprintf(" [[S]teps: %d, [D]ither: %t, [B]ias: %+.02f]", int(steps), dither, bias))
 		bias = updateParam(ctx, ebiten.KeyB, bias, -1.0, 1.0, 0.05)

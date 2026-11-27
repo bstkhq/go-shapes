@@ -178,7 +178,7 @@ func TestStrokeCircle(t *testing.T) {
 
 // go test -tags interactive -run ^TestStrokeArc$ . -count 1
 func TestStrokeArc(t *testing.T) {
-	var startRads, endRads float64 = 0.2, RadsBottomRight
+	var startRads, endRads = 0.2, RadsBottomRight
 	var thickness, radius float32 = 16.0, 96.0
 
 	updater := func(ctx TestAppCtx) {
@@ -364,8 +364,8 @@ func TestFillRadialSectorRounding(t *testing.T) {
 
 // go test -tags interactive -run ^TestFillRadialWedge$ . -count 1
 func TestFillRadialWedge(t *testing.T) {
-	var inRate, outRate float64 = 0.2, 0.35
-	var rotate bool = true
+	var inRate, outRate = 0.2, 0.35
+	var rotate = true
 	var showBounds bool
 
 	updater := func(ctx TestAppCtx) {
